@@ -1,32 +1,16 @@
-import { SymbolView, SymbolViewProps, SymbolWeight } from 'expo-symbols';
+import { Ionicons } from '@expo/vector-icons';
 import { StyleProp, ViewStyle } from 'react-native';
 
-export function IconSymbol({
-  name,
-  size = 24,
-  color,
-  style,
-  weight = 'regular',
-}: {
-  name: SymbolViewProps['name'];
-  size?: number;
-  color: string;
-  style?: StyleProp<ViewStyle>;
-  weight?: SymbolWeight;
+export function IconSymbol({ 
+  name, 
+  weight = 'regular', 
+  style 
+}: { 
+  name: string; 
+  weight?: 'regular' | 'bold' | 'light'; 
+  style?: StyleProp<ViewStyle>; 
 }) {
-  return (
-    <SymbolView
-      weight={weight}
-      tintColor={color}
-      resizeMode="scaleAspectFit"
-      name={name}
-      style={[
-        {
-          width: size,
-          height: size,
-        },
-        style,
-      ]}
-    />
-  );
+  // Fallback vers Ionicons pour Expo Go
+  const iconName = name as keyof typeof Ionicons.glyphMap;
+  return <Ionicons name={iconName} size={24} style={style} />;
 }

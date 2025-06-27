@@ -1,0 +1,227 @@
+[
+  {
+    "id": "1",
+    "name": "Château Margaux",
+    "producer": {
+      "name": "Château Margaux"
+    },
+    "region": {
+      "name": "Bordeaux"
+    },
+    "country": {
+      "name": "France"
+    },
+    "wine_type": "red",
+    "year": "2015"
+  },
+  {
+    "id": "2",
+    "name": "Romanée-Conti",
+    "producer": {
+      "name": "Domaine de la Romanée-Conti"
+    },
+    "region": {
+      "name": "Bourgogne"
+    },
+    "country": {
+      "name": "France"
+    },
+    "wine_type": "red",
+    "year": "2018"
+  },
+  {
+    "id": "3",
+    "name": "Lafite Rothschild",
+    "producer": {
+      "name": "Château Lafite Rothschild"
+    },
+    "region": {
+      "name": "Bordeaux"
+    },
+    "country": {
+      "name": "France"
+    },
+    "wine_type": "red",
+    "year": "2016"
+  },
+  {
+    "id": "4",
+    "name": "Chablis Grand Cru",
+    "producer": {
+      "name": "Domaine de la Romanée-Conti"
+    },
+    "region": {
+      "name": "Bourgogne"
+    },
+    "country": {
+      "name": "France"
+    },
+    "wine_type": "white",
+    "year": "2020"
+  },
+  {
+    "id": "5",
+    "name": "Dom Pérignon",
+    "producer": {
+      "name": "Moët & Chandon"
+    },
+    "region": {
+      "name": "Champagne"
+    },
+    "country": {
+      "name": "France"
+    },
+    "wine_type": "sparkling",
+    "year": "2012"
+  },
+  {
+    "id": "6",
+    "name": "Rosé de Provence",
+    "producer": {
+      "name": "Château Lafite Rothschild"
+    },
+    "region": {
+      "name": "Provence"
+    },
+    "country": {
+      "name": "France"
+    },
+    "wine_type": "rose",
+    "year": "2021"
+  },
+  {
+    "id": "7",
+    "name": "Mouton Rothschild",
+    "producer": {
+      "name": "Château Mouton Rothschild"
+    },
+    "region": {
+      "name": "Bordeaux"
+    },
+    "country": {
+      "name": "France"
+    },
+    "wine_type": "red",
+    "year": "2017"
+  },
+  {
+    "id": "8",
+    "name": "DOMINIO DE PUNCTUM",
+    "producer": {
+      "name": "Dominio de Punctum"
+    },
+    "region": {
+      "name": "Espagne"
+    },
+    "country": {
+      "name": "Espagne"
+    },
+    "wine_type": "red",
+    "year": "2020"
+  },
+  {
+    "id": "9",
+    "name": "Château Latour",
+    "producer": {
+      "name": "Château Latour"
+    },
+    "region": {
+      "name": "Bordeaux"
+    },
+    "country": {
+      "name": "France"
+    },
+    "wine_type": "red",
+    "year": "2019"
+  },
+  {
+    "id": "10",
+    "name": "Château Haut-Brion",
+    "producer": {
+      "name": "Château Haut-Brion"
+    },
+    "region": {
+      "name": "Bordeaux"
+    },
+    "country": {
+      "name": "France"
+    },
+    "wine_type": "red",
+    "year": "2018"
+  },
+  {
+    "id": "11",
+    "name": "Château Cheval Blanc",
+    "producer": {
+      "name": "Château Cheval Blanc"
+    },
+    "region": {
+      "name": "Bordeaux"
+    },
+    "country": {
+      "name": "France"
+    },
+    "wine_type": "red",
+    "year": "2016"
+  },
+  {
+    "id": "12",
+    "name": "Château Pétrus",
+    "producer": {
+      "name": "Château Pétrus"
+    },
+    "region": {
+      "name": "Bordeaux"
+    },
+    "country": {
+      "name": "France"
+    },
+    "wine_type": "red",
+    "year": "2015"
+  },
+  {
+    "id": "13",
+    "name": "Château d'Yquem",
+    "producer": {
+      "name": "Château d'Yquem"
+    },
+    "region": {
+      "name": "Bordeaux"
+    },
+    "country": {
+      "name": "France"
+    },
+    "wine_type": "white",
+    "year": "2017"
+  },
+  {
+    "id": "14",
+    "name": "Château Palmer",
+    "producer": {
+      "name": "Château Palmer"
+    },
+    "region": {
+      "name": "Bordeaux"
+    },
+    "country": {
+      "name": "France"
+    },
+    "wine_type": "red",
+    "year": "2019"
+  },
+  {
+    "id": "15",
+    "name": "Château Ausone",
+    "producer": {
+      "name": "Château Ausone"
+    },
+    "region": {
+      "name": "Bordeaux"
+    },
+    "country": {
+      "name": "France"
+    },
+    "wine_type": "red",
+    "year": "2018"
+  }
+]
