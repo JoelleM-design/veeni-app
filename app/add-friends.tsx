@@ -1,4 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import * as Contacts from 'expo-contacts';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Image, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -12,6 +14,9 @@ export default function AddFriendsScreen() {
   const [search, setSearch] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [contactsPermission, setContactsPermission] = useState<'undetermined' | 'granted' | 'denied'>('undetermined');
+  const [contactsError, setContactsError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     async function fetchSuggestions() {
@@ -39,6 +44,26 @@ export default function AddFriendsScreen() {
     fetchSuggestions();
   }, [user, search]);
 
+  // Vérifier la permission au montage
+  useEffect(() => {
+    (async () => {
+      const { status } = await Contacts.getPermissionsAsync();
+      setContactsPermission(status === 'granted' ? 'granted' : status === 'denied' ? 'denied' : 'undetermined');
+    })();
+  }, []);
+
+  // Handler pour demander la permission
+  const handleAskContactsPermission = async () => {
+    setContactsError(null);
+    const { status } = await Contacts.requestPermissionsAsync();
+    if (status === 'granted') {
+      setContactsPermission('granted');
+    } else {
+      setContactsPermission('denied');
+      setContactsError("Permission refusée. Impossible d'accéder à tes contacts.");
+    }
+  };
+
   // Partage via Share API
   const handleShare = async () => {
     try {
@@ -50,10 +75,9 @@ export default function AddFriendsScreen() {
 
   // Copier le lien
   const handleCopyLink = async () => {
-    if (navigator && navigator.clipboard) {
-      await navigator.clipboard.writeText('https://veeni.app/invite');
-    }
-    // Sinon, rien (mobile natif : à brancher avec expo-clipboard si besoin)
+    await Clipboard.setStringAsync('https://veeni.app/invite');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   };
 
   return (
@@ -66,14 +90,17 @@ export default function AddFriendsScreen() {
         <Text style={styles.headerTitle}>Ajouter des amis</Text>
         <View style={{ width: 36 }} />
       </View>
-      {/* Encart autorisation contacts */}
-      <View style={styles.contactsBox}>
-        <Text style={styles.contactsWarningTitle}>⚠️  Autorise l'accès à tes contacts</Text>
-        <Text style={styles.contactsWarningText}>Synchronise tes contacts pour savoir quels amis sont déjà là.</Text>
-        <TouchableOpacity style={styles.contactsButton}>
-          <Text style={styles.contactsButtonText}>Autoriser les contacts</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Encart autorisation contacts (affiché si pas encore accordé) */}
+      {contactsPermission !== 'granted' && (
+        <View style={styles.contactsBox}>
+          <Text style={styles.contactsWarningTitle}>⚠️  Autorise l'accès à tes contacts</Text>
+          <Text style={styles.contactsWarningText}>Synchronise tes contacts pour savoir quels amis sont déjà là.</Text>
+          <TouchableOpacity style={styles.contactsButton} onPress={handleAskContactsPermission}>
+            <Text style={styles.contactsButtonText}>Autoriser les contacts</Text>
+          </TouchableOpacity>
+          {contactsError && <Text style={styles.contactsError}>{contactsError}</Text>}
+        </View>
+      )}
       {/* Champ de recherche */}
       <View style={styles.searchContainer}>
         <TextInput
@@ -121,6 +148,9 @@ export default function AddFriendsScreen() {
           </View>
         ))}
       </ScrollView>
+      {copied && (
+        <Text style={styles.copiedText}>Lien copié !</Text>
+      )}
     </SafeAreaView>
   );
 }
@@ -181,5 +211,18 @@ const styles = StyleSheet.create({
     color: VeeniColors.background.primary,
     fontWeight: Typography.weight.bold,
     fontSize: Typography.size.base,
+  },
+  contactsError: {
+    color: VeeniColors.accent.error,
+    fontSize: Typography.size.sm,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  copiedText: {
+    color: VeeniColors.accent.primary,
+    fontSize: Typography.size.base,
+    textAlign: 'center',
+    marginTop: 8,
+    fontWeight: Typography.weight.bold,
   },
 }); 
