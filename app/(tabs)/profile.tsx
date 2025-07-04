@@ -598,7 +598,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   addFriendsButton: {
-    backgroundColor: '#F6A07A',
+    backgroundColor: VeeniColors.button.primary,
     borderRadius: 24,
     paddingVertical: 14,
     paddingHorizontal: 36,
@@ -607,12 +607,12 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   addFriendsButtonText: {
-    color: '#222',
+    color: VeeniColors.background.primary,
     fontWeight: 'bold',
     fontSize: 16,
   },
   noFriendsText: {
-    color: '#F6A07A',
+    color: VeeniColors.text.primary,
     fontSize: 15,
     textAlign: 'center',
     marginHorizontal: 24,
