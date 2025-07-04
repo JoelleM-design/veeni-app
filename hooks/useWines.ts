@@ -2,114 +2,98 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Wine } from '../types/wine';
 
-// Génère un UUID v4 conforme RFC4122, compatible Expo/JS sans dépendance crypto
+// Génère un UUID v4 simple et compatible
 function generateId(): string {
   const timestamp = Date.now();
-  const random1 = Math.floor(Math.random() * 0x100000000);
-  const random2 = Math.floor(Math.random() * 0x100000000);
-  const random3 = Math.floor(Math.random() * 0x100000000);
-  const random4 = Math.floor(Math.random() * 0x100000000);
+  const random = Math.random();
   
-  return [
-    (timestamp & 0xffffffff).toString(16).padStart(8, '0'),
-    (random1 & 0xffff).toString(16).padStart(4, '0'),
-    '4' + (random2 & 0xfff).toString(16).padStart(3, '0'),
-    '8' + (random3 & 0x3ff).toString(16).padStart(3, '0'),
-    (random4 & 0xffffffffffff).toString(16).padStart(12, '0')
-  ].join('-');
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = (timestamp + random * 16) % 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
 }
 
 export function useWines() {
-  const [wines, setWines] = useState<Wine[] | null>(null);
+  const [wines, setWines] = useState<Wine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    fetchWines();
-  }, []);
-
   const fetchWines = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      
-      // Récupérer l'utilisateur connecté
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        throw new Error('Utilisateur non connecté');
+        console.log('Utilisateur non connecté');
+        setWines([]);
+        setLoading(false);
+        return;
       }
 
       console.log('Récupération des vins pour l\'utilisateur:', user.id);
 
-      // Récupérer tous les vins de l'utilisateur avec les détails en une seule requête
-      const { data: userWinesWithDetails, error: fetchError } = await supabase
+      // Récupérer les vins de l'utilisateur avec les détails des vins
+      const { data: userWines, error: fetchError } = await supabase
         .from('user_wine')
         .select(`
           *,
-          wine: wine_id (
-            id,
-            name,
-            year,
-            wine_type,
-            region,
-            image_uri,
-            grapes,
-            producer: producer_id (
-              id,
-              name
-            ),
-            country: country_id (
-              id,
-              name,
-              flag_emoji
-            )
+          wine (
+            *,
+            producer (*),
+            country (*)
           )
         `)
         .eq('user_id', user.id);
 
       if (fetchError) {
-        console.error('Erreur lors de la récupération des vins:', fetchError);
-        throw fetchError;
+        console.error('Erreur Supabase lors de la récupération:', fetchError);
+        throw new Error(`Erreur lors de la récupération: ${fetchError.message}`);
       }
 
-      console.log('Vins récupérés avec détails:', userWinesWithDetails);
-
-      if (!userWinesWithDetails || userWinesWithDetails.length === 0) {
-        console.log('Aucun vin trouvé pour l\'utilisateur');
-        setWines([]);
-        return;
-      }
+      console.log('Vins récupérés:', userWines);
 
       // Transformer les données
       const transformedWines: Wine[] = [];
       
-      for (const userWine of userWinesWithDetails) {
+      for (const userWine of userWines || []) {
         const wine = userWine.wine;
-        if (!wine) {
-          console.warn('Vin manquant pour user_wine:', userWine);
-          continue;
-        }
-        
+        if (!wine) continue;
+
         const transformedWine: Wine = {
-          id: wine.id,
-          name: wine.name || 'Vin sans nom',
-          domaine: wine.producer?.name || wine.name || 'Domaine inconnu',
-          vintage: wine.year || 0,
-          color: (wine.wine_type as 'red' | 'white' | 'rose' | 'sparkling') || 'red',
-          region: wine.region || wine.country?.name || '',
-          appellation: wine.region || wine.country?.name || '',
-          grapes: Array.isArray(wine.grapes) ? wine.grapes : (wine.grapes ? [wine.grapes] : []),
+          id: String(wine.id || ''),
+          name: String(wine.name || 'Vin sans nom'),
+          vintage: wine.year ? parseInt(wine.year) : 0,
+          domaine: typeof wine.producer === 'object' && wine.producer?.name ? String(wine.producer.name) : (typeof wine.producer === 'string' ? wine.producer : 'Domaine inconnu'),
+          color: (typeof wine.wine_type === 'string' ? wine.wine_type : 'red') as 'red' | 'white' | 'rose' | 'sparkling',
+          region: typeof wine.region === 'string' ? wine.region : (wine.country && typeof wine.country === 'object' && wine.country.name ? String(wine.country.name) : ''),
+          appellation: typeof wine.appellation === 'string' ? wine.appellation : '',
+          grapes: (() => {
+            try {
+              if (!wine.grapes) return [];
+              if (Array.isArray(wine.grapes)) {
+                return wine.grapes.map((g: any) => {
+                  if (typeof g === 'string') return g;
+                  if (g && typeof g === 'object' && g.name) return String(g.name);
+                  return String(g || '');
+                }).filter(g => g && g.trim() !== '');
+              }
+              if (typeof wine.grapes === 'string') return [wine.grapes];
+              if (wine.grapes && typeof wine.grapes === 'object' && wine.grapes.name) return [String(wine.grapes.name)];
+              return [String(wine.grapes || '')];
+            } catch (error) {
+              console.warn('Erreur lors du traitement des grapes:', error);
+              return [];
+            }
+          })(),
           power: 0,
           tannin: 0,
           sweet: 0,
           acidity: 0,
-          description: '',
-          imageUri: wine.image_uri || undefined,
+          description: typeof wine.description === 'string' ? wine.description : '',
+          imageUri: typeof wine.image_uri === 'string' ? wine.image_uri : undefined,
           favorite: userWine.liked || false,
           note: userWine.rating || 0,
           stock: userWine.amount || 0,
           origin: userWine.origin || ((userWine.amount || 0) > 0 ? 'cellar' : 'wishlist'),
-          history: [], // Simplifié pour l'instant
+          history: [],
           createdAt: userWine.created_at,
           updatedAt: userWine.updated_at || userWine.created_at
         };
@@ -170,8 +154,8 @@ export function useWines() {
       // 1. Vérifier si le vin existe déjà dans la table wine
       let wineId = wine.id;
       
-      // Si l'ID commence par "manual-" ou "owd-", c'est un vin temporaire, il faut le créer
-      if (wineId.startsWith('manual-') || wineId.startsWith('owd-')) {
+      // Si l'ID commence par "ocr-", c'est un vin temporaire de l'OCR, il faut le créer
+      if (wineId.startsWith('ocr-')) {
         console.log('Création d\'un nouveau vin dans la base de données');
         
         // Générer un nouvel ID UUID compatible Expo
@@ -274,8 +258,8 @@ export function useWines() {
       // 1. Vérifier si le vin existe déjà dans la table wine
       let wineId = wine.id;
       
-      // Si l'ID commence par "manual-" ou "owd-", c'est un vin temporaire, il faut le créer
-      if (wineId.startsWith('manual-') || wineId.startsWith('owd-')) {
+      // Si l'ID commence par "ocr-", c'est un vin temporaire de l'OCR, il faut le créer
+      if (wineId.startsWith('ocr-')) {
         console.log('Création d\'un nouveau vin dans la base de données');
         
         // Générer un nouvel ID UUID compatible Expo
@@ -353,8 +337,8 @@ export function useWines() {
           user_id: user.id,
           wine_id: wineId,
           amount: 0,
-          rating: wine.note || null,
-          liked: wine.favorite || false,
+          rating: null,
+          liked: false,
           origin: 'wishlist'
         });
 
@@ -375,7 +359,6 @@ export function useWines() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Utilisateur non connecté');
 
-      // Supprimer de user_wine
       const { error } = await supabase
         .from('user_wine')
         .delete()
@@ -384,21 +367,52 @@ export function useWines() {
 
       if (error) throw error;
 
+      console.log('Vin supprimé de la cave avec succès');
+      
       // Recharger les vins
       await fetchWines();
     } catch (err) {
+      console.error('Erreur suppression cave:', err);
       setError(err instanceof Error ? err : new Error('Erreur lors de la suppression'));
     }
   };
+
+  const removeWineFromWishlist = async (wineId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Utilisateur non connecté');
+
+      const { error } = await supabase
+        .from('user_wine')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('wine_id', wineId);
+
+      if (error) throw error;
+
+      console.log('Vin supprimé de la wishlist avec succès');
+      
+      // Recharger les vins
+      await fetchWines();
+    } catch (err) {
+      console.error('Erreur suppression wishlist:', err);
+      setError(err instanceof Error ? err : new Error('Erreur lors de la suppression'));
+    }
+  };
+
+  useEffect(() => {
+    fetchWines();
+  }, []);
 
   return {
     wines,
     loading,
     error,
+    fetchWines,
     updateWine,
     addWineToCellar,
     addWineToWishlist,
     removeWineFromCellar,
-    refetch: fetchWines
+    removeWineFromWishlist
   };
 } 

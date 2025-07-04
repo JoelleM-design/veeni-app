@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Tabs } from 'expo-router';
-import React from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
@@ -13,13 +12,13 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
   return (
     <View style={styles.tabBar}>
-      {/* Ma Cave */}
+      {/* Mes vins (nouvel écran) */}
       <TouchableOpacity
         style={styles.tabItem}
-        onPress={() => navigation.navigate('index')}
+        onPress={() => navigation.navigate('mes-vins')}
       >
         <Ionicons name="wine" size={28} color={state.index === 0 ? '#F6A07A' : '#B0B0B0'} />
-        <Text style={[styles.tabLabel, { color: state.index === 0 ? '#F6A07A' : '#B0B0B0' }]}>Ma cave</Text>
+        <Text style={[styles.tabLabel, { color: state.index === 0 ? '#F6A07A' : '#B0B0B0' }]}>Mes vins</Text>
       </TouchableOpacity>
       {/* Ajouter (central, surélevé) */}
       <TouchableOpacity
@@ -28,13 +27,13 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       >
         <Ionicons name="add" size={36} color="#FFF" />
       </TouchableOpacity>
-      {/* Mes envies */}
+      {/* Profil */}
       <TouchableOpacity
         style={styles.tabItem}
-        onPress={() => navigation.navigate('wishlist')}
+        onPress={() => navigation.navigate('profile')}
       >
-        <Ionicons name="star" size={28} color={state.index === 2 ? '#F6A07A' : '#B0B0B0'} />
-        <Text style={[styles.tabLabel, { color: state.index === 2 ? '#F6A07A' : '#B0B0B0' }]}>Ma liste d&apos;envie</Text>
+        <Ionicons name="person" size={28} color={state.index === 2 ? '#F6A07A' : '#B0B0B0'} />
+        <Text style={[styles.tabLabel, { color: state.index === 2 ? '#F6A07A' : '#B0B0B0' }]}>Profil</Text>
       </TouchableOpacity>
     </View>
   );
@@ -48,9 +47,8 @@ export default function TabLayout() {
         headerShown: false,
       }}
     >
-      <Tabs.Screen name="index" />
+      <Tabs.Screen name="mes-vins" />
       <Tabs.Screen name="add" />
-      <Tabs.Screen name="wishlist" />
       <Tabs.Screen name="profile" />
     </Tabs>
   );

@@ -1,3 +1,4 @@
+import * as FileSystem from 'expo-file-system';
 import { useCallback, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Wine } from '../types/wine';
@@ -17,41 +18,30 @@ interface WineData {
   photo: string;
 }
 
-interface OpenWineDataWine {
-  name: string;
-  vintage?: number;
-  type: string;
-  country?: string;
-  region?: string;
-  appellation?: string;
-  grapes?: string[];
-  producer?: string;
-}
-
-export interface WineScanResult {
+interface WineScanResult {
   wines: Wine[];
   loading: boolean;
   error: string | null;
   fallbackMode: boolean;
 }
 
-export interface PhotoItem {
+interface PhotoItem {
   id: string;
   uri: string;
   ocr?: WineScanResult;
   isScanning: boolean;
 }
 
-export interface WineScanState {
+interface WineScanState {
   photos: PhotoItem[];
   error: string | null;
 }
 
 export function useWineScan() {
+  const [scannedWines, setScannedWines] = useState<Wine[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fallbackMode, setFallbackMode] = useState(false);
-  const [scannedWines, setScannedWines] = useState<Wine[]>([]);
   const { enrichWine } = useWineEnrichment();
 
   const scanWineImages = useCallback(async (imageUris: string[]) => {
@@ -62,67 +52,41 @@ export function useWineScan() {
     try {
       console.log('Début du scan OCR pour', imageUris.length, 'images');
 
-      // 1. Conversion des images en base64
-      const base64Images = await Promise.all(
-        imageUris.map(async (uri) => {
-          try {
-            const response = await fetch(uri);
-            const blob = await response.blob();
-            return new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => {
-                const base64 = reader.result as string;
-                // Enlever le préfixe "data:image/jpeg;base64,"
-                const base64Data = base64.split(',')[1];
-                resolve(base64Data);
-              };
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
-          } catch (err) {
-            console.error('Erreur conversion image:', err);
-            throw new Error('Impossible de convertir l\'image');
-          }
-        })
-      );
-
-      // 2. Appel à la fonction OCR Supabase
-      const { data: session } = await supabase.auth.getSession();
-      const headers: Record<string, string> = {};
-      
-      if (session.session) {
-        headers.Authorization = `Bearer ${session.session.access_token}`;
+      // Encoder les images en base64
+      const base64Images: string[] = [];
+      for (const imageUri of imageUris) {
+        try {
+          const base64 = await FileSystem.readAsStringAsync(imageUri, {
+            encoding: FileSystem.EncodingType.Base64
+          });
+          base64Images.push(base64);
+          console.log('Image encodée en base64:', imageUri);
+        } catch (encodeError) {
+          console.error('Erreur encodage image:', encodeError);
+          throw new Error(`Impossible d'encoder l'image: ${imageUri}`);
+        }
       }
 
-      const { data, error: ocrError } = await supabase.functions.invoke('ocr-scan', {
-        body: { image: base64Images },
-        headers
+      // Appel à la fonction Edge OCR avec les images en base64
+      const { data: ocrResult, error: ocrError } = await supabase.functions.invoke('ocr-scan', {
+        body: { images: base64Images }
       });
 
       if (ocrError) {
-        console.error('Erreur OCR:', ocrError);
-        // Au lieu de faire échouer, on active le mode fallback
-        setFallbackMode(true);
-        setError('L\'analyse automatique n\'a pas fonctionné. Veuillez saisir les informations manuellement.');
-        return;
+        console.error('OCR function error:', ocrError);
+        throw new Error(`Erreur OCR: ${ocrError.message}`);
       }
 
-      if (!data || !data.success) {
-        console.error('Réponse OCR invalide:', data);
-        setFallbackMode(true);
-        setError('L\'analyse automatique n\'a pas fonctionné. Veuillez saisir les informations manuellement.');
-        return;
+      if (!ocrResult || !ocrResult.success) {
+        throw new Error('Échec du traitement OCR');
       }
 
-      console.log('Résultat OCR reçu:', data);
+      console.log('Résultat OCR reçu:', ocrResult);
 
-      // 3. Traitement des vins trouvés
       const enrichedWines: Wine[] = [];
-      
-      // Si on a moins de vins que d'images, créer des vins manuels pour les images restantes
-      const winesToProcess = data.wines || [];
+      const winesToProcess = ocrResult.wines || [];
       const totalWines = Math.max(winesToProcess.length, imageUris.length);
-      
+
       for (let i = 0; i < totalWines; i++) {
         try {
           const wineData = winesToProcess[i];
@@ -180,7 +144,7 @@ export function useWineScan() {
             imageUri: imageUri // Associer l'image correspondante
           };
 
-          // Enrichissement avec les données OpenWineData
+          // Enrichissement simple : retourne les données OCR sans base externe
           const enrichedData = await enrichWine(basicWine);
           const enrichedWine: Wine = {
             id: enrichedData.id,

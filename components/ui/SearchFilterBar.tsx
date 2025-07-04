@@ -8,6 +8,7 @@ interface SearchFilterBarProps {
   onFilterPress: () => void;
   placeholder?: string;
   filterActive?: boolean;
+  children?: React.ReactNode;
 }
 
 export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
@@ -16,6 +17,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
   onFilterPress,
   placeholder = 'Rechercher...',
   filterActive = false,
+  children,
 }) => (
   <View style={styles.stickySearchRow}>
     <View style={styles.searchRow}>
@@ -32,6 +34,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
         <Ionicons name="filter" size={22} color="#FFF" />
       </TouchableOpacity>
     </View>
+    {children}
   </View>
 );
 

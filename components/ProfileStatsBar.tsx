@@ -5,6 +5,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 interface ProfileStatsBarProps {
   tastedCount: number;
   favoritesCount: number;
+  wishlistCount: number;
   visitsCount: number;
   loading?: boolean;
   error?: Error | null;
@@ -14,6 +15,7 @@ interface ProfileStatsBarProps {
 export const ProfileStatsBar: React.FC<ProfileStatsBarProps> = ({ 
   tastedCount, 
   favoritesCount, 
+  wishlistCount, 
   visitsCount, 
   loading,
   error,
@@ -59,7 +61,7 @@ export const ProfileStatsBar: React.FC<ProfileStatsBarProps> = ({
         <View style={styles.statSeparator} />
         
         <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{visitsCount}</Text>
+          <Text style={styles.statNumber}>{wishlistCount}</Text>
           <Ionicons name="star" size={16} color="#F6A07A" />
         </View>
         

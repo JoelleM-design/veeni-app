@@ -1,24 +1,25 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Animated,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ProfileStatsBar } from '../../components/ProfileStatsBar';
-import { SearchFilterBar } from '../../components/ui/SearchFilterBar';
 import { WineCard } from '../../components/WineCard';
 import { BorderRadius, Spacing, Typography, VeeniColors } from '../../constants/Colors';
+import { useFriends } from '../../hooks/useFriends';
 import { useProfileStats } from '../../hooks/useProfileStats';
 import { useUser } from '../../hooks/useUser';
 import { useWineHistory } from '../../hooks/useWineHistory';
 import { useWines } from '../../hooks/useWines';
+import { supabase } from '../../lib/supabase';
 
 const HEADER_MAX_HEIGHT = 280; // Hauteur maximale du header
 const HEADER_MIN_HEIGHT = 110; // Hauteur minimale du header (barre de navigation + search bar)
@@ -31,13 +32,9 @@ export default function ProfileScreen() {
   const { user, loading: userLoading, error: userError, updateUser, updateAvatar } = useUser();
   const { stats: profileStats, loading: statsLoading, error: statsError } = useProfileStats(user?.id);
   const { history: wineHistory, loading: historyLoading, getRecentTastings } = useWineHistory();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showFilterModal, setShowFilterModal] = useState(false);
-  const [activeFilters, setActiveFilters] = useState<{
-    color?: string;
-    region?: string;
-    vintage?: string;
-  }>({});
+  const { friends, loading: friendsLoading, error: friendsError, refetch: refetchFriends } = useFriends(user?.friends || []);
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 
   // Animations pour le header
   const headerHeight = scrollY.interpolate({
@@ -78,25 +75,6 @@ export default function ProfileScreen() {
       };
     }).filter((item): item is NonNullable<typeof item> => item !== null);
   }, [wineHistory, wines, getRecentTastings]);
-
-  const filteredHistory = useMemo(() => {
-    if (!tastingHistory) return [];
-    
-    return tastingHistory.filter(item => {
-      const wine = item.wine;
-      if (!wine) return false;
-      
-      const matchesSearch = wine.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        wine.domaine.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        wine.region.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesColor = !activeFilters.color || wine.color === activeFilters.color;
-      const matchesRegion = !activeFilters.region || wine.region === activeFilters.region;
-      const matchesVintage = !activeFilters.vintage || wine.vintage.toString() === activeFilters.vintage;
-      
-      return matchesSearch && matchesColor && matchesRegion && matchesVintage;
-    });
-  }, [tastingHistory, searchQuery, activeFilters]);
 
   // Calcul de la préférence dynamique basée sur les vins
   const userPreference = useMemo(() => {
@@ -140,29 +118,45 @@ export default function ProfileScreen() {
   };
 
   const handleFriendsPress = () => {
-    router.push('/(tabs)/friends');
+    router.push('/friends');
   };
 
   const handleSettingsPress = () => {
-    router.push('/(tabs)/settings');
+    router.push('/settings');
   };
 
   // Filtrer les vins récents (dégustés)
   const recentWines = wines?.filter(wine => wine.origin === 'cellar').slice(0, 5) || [];
 
-  if (winesLoading || userLoading || statsLoading || historyLoading) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.loadingText}>Chargement...</Text>
-      </View>
-    );
-  }
+  // Suggestions d'amis : utilisateurs non amis et non soi-même
+  useEffect(() => {
+    async function fetchSuggestions() {
+      if (!user) return;
+      setSuggestionsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('User')
+          .select('id, name, first_name, email, avatar, friends')
+          .neq('id', user.id);
+        if (error) throw error;
+        // Exclure déjà amis
+        const notFriends = (data || []).filter(u => !(user.friends || []).includes(u.id));
+        setSuggestions(notFriends);
+      } catch (e) {
+        setSuggestions([]);
+      } finally {
+        setSuggestionsLoading(false);
+      }
+    }
+    fetchSuggestions();
+  }, [user]);
 
-  if (winesError || userError || statsError) {
+  // Afficher une erreur seulement si c'est critique
+  if (userError) {
     return (
       <View style={styles.container}>
         <Text style={styles.errorText}>
-          Erreur : {winesError?.message || userError?.message || statsError?.message}
+          Erreur : {userError.message}
         </Text>
       </View>
     );
@@ -172,18 +166,10 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header fixe */}
       <View style={styles.fixedHeader}>
-        <TouchableOpacity 
-          style={styles.headerIconLeft}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#FFF" />
-        </TouchableOpacity>
-        
-        <Text style={styles.headerTitle}>Profil</Text>
-        
+        <View style={{flex:1}} />
         <TouchableOpacity 
           style={styles.headerIconRight}
-          onPress={() => router.push('/(tabs)/settings')}
+          onPress={handleSettingsPress}
         >
           <Ionicons name="settings-outline" size={24} color="#FFF" />
         </TouchableOpacity>
@@ -238,36 +224,86 @@ export default function ProfileScreen() {
           <ProfileStatsBar
             tastedCount={profileStats.tastedCount}
             favoritesCount={profileStats.favoritesCount}
+            wishlistCount={profileStats.wishlistCount}
             visitsCount={profileStats.visitsCount}
             loading={statsLoading}
             error={statsError}
           />
         </View>
 
-        {/* Bouton "Voir mes amis" */}
-        <TouchableOpacity 
-          style={styles.friendsButton}
-          onPress={() => router.push('/(tabs)/friends')}
-        >
-          <Text style={styles.friendsButtonText}>Voir mes amis</Text>
+        {/* Section Amis */}
+        <View style={styles.section}>
+          {friendsLoading ? (
+            <Text style={styles.loadingText}>Chargement des amis…</Text>
+          ) : friendsError ? (
+            <Text style={styles.errorText}>Erreur lors du chargement des amis</Text>
+          ) : friends.length > 0 ? (
+            <>
+              <Text style={styles.sectionTitle}>{friends.length} ami{friends.length > 1 ? 's' : ''}</Text>
+              {friends.map(friend => (
+                <View key={friend.id} style={styles.friendRow}>
+                  {friend.avatar ? (
+                    <View style={styles.friendAvatarContainer}>
+                      <Image source={{ uri: friend.avatar }} style={styles.friendAvatar} />
+                    </View>
+                  ) : (
+                    <View style={styles.friendAvatarPlaceholder}>
+                      <Text style={styles.friendAvatarInitial}>{friend.first_name?.charAt(0).toUpperCase() || '?'}</Text>
+                    </View>
+                  )}
+                  <View style={styles.friendInfo}>
+                    <Text style={styles.friendName}>{friend.first_name || friend.name}</Text>
+                    <Text style={styles.friendMeta}>{(friend.friends?.length || 0)} amis sur Veeni</Text>
+                  </View>
+                  {/* Badge Intros (exemple, à adapter selon ta logique) */}
+                  {/* <View style={styles.introBadge}><Text style={styles.introBadgeText}>9 INTROS</Text></View> */}
+                </View>
+              ))}
+            </>
+          ) : null}
+        </View>
+        {/* Message si aucun ami */}
+        {(!friendsLoading && !friendsError && friends.length === 0) && (
+          <Text style={styles.noFriendsText}>Tu n'as pas encore d'amis, ajoutes des amis pour découvrir leurs vins préférés</Text>
+        )}
+        {/* Section Suggestions d'amis */}
+        {suggestionsLoading ? (
+          <Text style={styles.loadingText}>Chargement des suggestions…</Text>
+        ) : suggestions.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Suggestions d'amis</Text>
+            {suggestions.map(sugg => (
+              <View key={sugg.id} style={styles.friendRow}>
+                {sugg.avatar ? (
+                  <View style={styles.friendAvatarContainer}>
+                    <Image source={{ uri: sugg.avatar }} style={styles.friendAvatar} />
+                  </View>
+                ) : (
+                  <View style={styles.friendAvatarPlaceholder}>
+                    <Text style={styles.friendAvatarInitial}>{sugg.first_name?.charAt(0).toUpperCase() || '?'}</Text>
+                  </View>
+                )}
+                <View style={styles.friendInfo}>
+                  <Text style={styles.friendName}>{sugg.first_name || sugg.name}</Text>
+                  <Text style={styles.friendMeta}>{(sugg.friends?.length || 0)} amis sur Veeni</Text>
+                </View>
+                {/* Bouton d'ajout d'ami (à brancher sur addFriend) */}
+                {/* <TouchableOpacity style={styles.addFriendButton}><Ionicons name="person-add" size={20} color="#F6A07A" /></TouchableOpacity> */}
+              </View>
+            ))}
+          </View>
+        ) : null}
+        {/* Bouton Ajoute plus d'amis */}
+        <TouchableOpacity style={styles.addFriendsButton} onPress={() => router.push('/add-friends')}>
+          <Text style={styles.addFriendsButtonText}>Ajoute plus d'amis</Text>
         </TouchableOpacity>
 
-        {/* Barre de recherche */}
-        <View style={styles.searchContainer}>
-          <SearchFilterBar
-            value={searchQuery}
-            onChange={setSearchQuery}
-            onFilterPress={() => setShowFilterModal(true)}
-            placeholder="Rechercher dans mon historique..."
-          />
-        </View>
-
         {/* Section historique */}
-        {filteredHistory.length > 0 && (
+        {tastingHistory.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Historique des dégustations</Text>
             
-            {filteredHistory.map((item, index) => (
+            {tastingHistory.map((item, index) => (
               <WineCard
                 key={`${item.wine.id}-${index}`}
                 wine={item.wine}
@@ -294,106 +330,7 @@ export default function ProfileScreen() {
             ))}
           </View>
         )}
-
-        {/* Message si pas d'historique */}
-        {filteredHistory.length === 0 && !historyLoading && (
-          <View style={styles.section}>
-            <Text style={styles.emptyText}>
-              Aucune dégustation dans ton historique
-            </Text>
-          </View>
-        )}
       </ScrollView>
-
-      <Modal
-        visible={showFilterModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowFilterModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.filterModal}>
-            <View style={styles.filterHeader}>
-              <Text style={styles.filterTitle}>Filtres</Text>
-              <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Couleur</Text>
-              <View style={styles.filterOptions}>
-                {['red', 'white', 'rose', 'sparkling'].map(color => (
-                  <TouchableOpacity
-                    key={color}
-                    style={[
-                      styles.filterCircle,
-                      { backgroundColor: color === 'red' ? '#FF4F8B' : color === 'white' ? '#FFF8DC' : color === 'rose' ? '#FFB6C1' : '#FFD700' },
-                      activeFilters.color === color && styles.filterCircleActive
-                    ]}
-                    onPress={() => setActiveFilters(prev => ({
-                      ...prev,
-                      color: prev.color === color ? undefined : color
-                    }))}
-                  />
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Région</Text>
-              <View style={styles.filterOptions}>
-                {['Bordeaux', 'Bourgogne', 'Champagne', 'Loire', 'Rhône'].map(region => (
-                  <TouchableOpacity
-                    key={region}
-                    style={[
-                      styles.filterOption,
-                      activeFilters.region === region && styles.filterOptionActive
-                    ]}
-                    onPress={() => setActiveFilters(prev => ({
-                      ...prev,
-                      region: prev.region === region ? undefined : region
-                    }))}
-                  >
-                    <Text style={[
-                      styles.filterOptionText,
-                      activeFilters.region === region && styles.filterOptionTextActive
-                    ]}>
-                      {region}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Millésime</Text>
-              <View style={styles.filterOptions}>
-                {['2023', '2022', '2021', '2020', '2019'].map(vintage => (
-                  <TouchableOpacity
-                    key={vintage}
-                    style={[
-                      styles.filterOption,
-                      activeFilters.vintage === vintage && styles.filterOptionActive
-                    ]}
-                    onPress={() => setActiveFilters(prev => ({
-                      ...prev,
-                      vintage: prev.vintage === vintage ? undefined : vintage
-                    }))}
-                  >
-                    <Text style={[
-                      styles.filterOptionText,
-                      activeFilters.vintage === vintage && styles.filterOptionTextActive
-                    ]}>
-                      {vintage}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -410,19 +347,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     backgroundColor: '#222',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  headerIconLeft: {
-    padding: 8,
   },
   headerIconRight: {
     padding: 8,
-  },
-  headerTitle: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: '600',
   },
   scrollView: {
     flex: 1,
@@ -609,5 +536,88 @@ const styles = StyleSheet.create({
   historyRating: {
     color: '#999',
     fontSize: 14,
+  },
+  friendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  friendAvatarContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginRight: 12,
+    backgroundColor: '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  friendAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  friendAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  friendAvatarInitial: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  friendInfo: {
+    flex: 1,
+  },
+  friendName: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  friendMeta: {
+    color: '#AAA',
+    fontSize: 13,
+  },
+  introBadge: {
+    backgroundColor: '#6C63FF',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  introBadgeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  addFriendsButton: {
+    backgroundColor: '#F6A07A',
+    borderRadius: 24,
+    paddingVertical: 14,
+    paddingHorizontal: 36,
+    alignItems: 'center',
+    marginVertical: 24,
+    alignSelf: 'center',
+  },
+  addFriendsButtonText: {
+    color: '#222',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  noFriendsText: {
+    color: '#F6A07A',
+    fontSize: 15,
+    textAlign: 'center',
+    marginHorizontal: 24,
+    marginBottom: 8,
+    marginTop: 8,
+    fontWeight: 'bold',
   },
 }); 

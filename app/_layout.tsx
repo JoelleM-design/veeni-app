@@ -56,17 +56,12 @@ export default function RootLayout() {
       });
 
     console.log('RootLayout: Configuration de l\'écouteur auth state change');
-    const { data: { subscription }, error: subscriptionError } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('RootLayout: Auth state change', { event, session: !!session });
       if (isMounted) {
         setSession(session);
       }
     });
-
-    if (subscriptionError) {
-      console.error('RootLayout: Erreur lors de la souscription', subscriptionError);
-      setError(`Erreur de souscription: ${subscriptionError.message}`);
-    }
 
     return () => {
       console.log('RootLayout: Nettoyage de l\'effet');
@@ -100,6 +95,12 @@ export default function RootLayout() {
     return <Redirect href="/onboarding" />;
   }
 
+  // Redirection vers mes-vins si l'utilisateur est connecté et sur la racine
+  if (session && (pathname === '/' || pathname === '/(tabs)')) {
+    console.log('RootLayout: Redirection vers mes-vins');
+    return <Redirect href="/(tabs)/mes-vins" />;
+  }
+
   console.log('RootLayout: Rendu normal avec session', { hasSession: !!session });
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -107,7 +108,9 @@ export default function RootLayout() {
         <Stack.Screen name="onboarding/index" />
         <Stack.Screen name="login" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="friend/[id]" />
         <Stack.Screen name="wine/[id]" />
+        <Stack.Screen name="settings" />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="auto" />

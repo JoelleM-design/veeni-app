@@ -69,11 +69,11 @@ export const WinePhotoPreview: React.FC<WinePhotoPreviewProps> = ({ photo, onRem
           <View style={[styles.wineTypeIndicator, { backgroundColor: wineTypeColor }]} />
           <View style={styles.wineTextContainer}>
             <Text style={styles.wineName} numberOfLines={1}>
-              {photo.ocr.wine.name}
+              {photo.ocr.wine.name || ''}
             </Text>
             {photo.ocr.wine.year && (
               <Text style={styles.wineYear}>
-                {photo.ocr.wine.year}
+                {String(photo.ocr.wine.year)}
               </Text>
             )}
           </View>
@@ -84,7 +84,7 @@ export const WinePhotoPreview: React.FC<WinePhotoPreviewProps> = ({ photo, onRem
       {photo.ocr?.status === 'error' && (
         <View style={styles.errorOverlay}>
           <Text style={styles.errorText} numberOfLines={2}>
-            {photo.ocr.text}
+            {photo.ocr.text || 'Erreur de traitement'}
           </Text>
         </View>
       )}

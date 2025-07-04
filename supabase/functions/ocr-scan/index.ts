@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
+import { parseWineOcrLocal } from "../../lib/parseWineOcrLocal.ts";
+import { parseWithGPT } from "../../lib/parseWithGPT.ts";
 import { corsHeaders } from '../_shared/cors.ts';
 
 // Types
@@ -15,51 +16,81 @@ interface GoogleVisionResponse {
 }
 
 interface ParsedWine {
-  name: string;
-  vintage: number | null;
-  appellation: string | null;
-  region: string | null;
+  nom: string;
+  producteur: string;
+  année: string;
+  cépages: string[];
+  type: 'Rouge' | 'Blanc' | 'Rosé' | 'Effervescent' | '';
+  région: string;
+  source: 'local' | 'ai';
+  confiance: number;
 }
 
-interface EnrichedWine extends ParsedWine {
-  id: string;
-  type: 'red' | 'white' | 'rosé' | 'sparkling';
-  country: string;
-  grapes: string[];
-  source: 'openwinedata' | 'user' | 'manual';
-}
+// Données de référence pour le parsing local
+const knownGrapes = [
+  'SYRAH', 'MERLOT', 'CHARDONNAY', 'CABERNET', 'SAUVIGNON', 'PINOT', 'NOIR', 'GRENACHE', 'MOURVEDRE',
+  'CARIGNAN', 'CINSAULT', 'MALBEC', 'GAMAY', 'SÉMILLON', 'VIOGNIER', 'MUSCAT', 'RIESLING', 'ALIGOTÉ',
+  'SAVAGNIN', 'PETIT VERDOT', 'TEMPRANILLO', 'SANGIOVESE', 'ZINFANDEL', 'BARBERA', 'NEBBIOLO', 'TOURIGA',
+  'VERDEJO', 'VERMENTINO', 'TREBBIANO', 'MOSCATO', 'FURMINT', 'GRÜNER VELTLINER', 'ALBARINO', 'MACABEO',
+  'BACO', 'PETIT MANSENG', 'GROS MANSENG', 'TANNAT', 'MUSCADELLE', 'UGNI BLANC', 'COLOMBARD', 'FOLLE BLANCHE'
+];
 
-// Simulation de l'API Google Vision (fallback quand pas de clé API)
-function simulateGoogleVision(images: string[]): GoogleVisionResponse {
-  console.log(`Simulation Google Vision pour ${images.length} images`);
-  
-  const mockTexts = [
-    "Château Margaux 2015\nBordeaux\nFrance\nCabernet Sauvignon, Merlot",
-    "Domaine de la Romanée-Conti 2018\nBourgogne\nFrance\nPinot Noir",
-    "Château Lafite Rothschild 2016\nBordeaux\nFrance\nCabernet Sauvignon, Merlot",
-    "Chablis Grand Cru 2020\nBourgogne\nFrance\nChardonnay",
-    "Champagne Dom Pérignon 2012\nChampagne\nFrance\nChardonnay, Pinot Noir"
-  ];
+const knownRegions = [
+  'BORDEAUX', 'BOURGOGNE', 'CHAMPAGNE', 'PROVENCE', 'LANGUEDOC', 'RHÔNE', 'ALSACE', 'LOIRE',
+  'BEAUJOLAIS', 'JURA', 'SAVOIE', 'SUD-OUEST', 'COTES DU RHONE', 'COTES DE PROVENCE', 'COTES DE BORDEAUX',
+  'CASTILLA-LA MANCHA', 'RIOJA', 'CATALONIA', 'TUSCANY', 'PIEDMONT', 'VENETO', 'MOSEL', 'RHEINHESSEN'
+];
 
-  return {
-    responses: images.map((_, index) => ({
-      fullTextAnnotation: {
-        text: mockTexts[index % mockTexts.length]
-      }
-    }))
-  };
-}
+const ocrCorrections: Record<string, string> = {
+  'PROTEGION': 'PROTECTION',
+  'APPELLATON': 'APPELLATION',
+  'CHATEU': 'CHÂTEAU',
+  'DOMNE': 'DOMAINE',
+  'VIGNE': 'VIGNE',
+  'VIN': 'VIN',
+  'ROUGE': 'ROUGE',
+  'BLANC': 'BLANC',
+  'ROSÉ': 'ROSÉ',
+  'EFFERVESCENT': 'EFFERVESCENT'
+};
 
 // Fonction pour appeler l'API Google Vision
 async function callGoogleVisionAPI(images: string[], apiKey: string): Promise<GoogleVisionResponse | null> {
   try {
-    console.log('Tentative d\'appel à l\'API Google Vision...');
+    console.log('🔍 === DÉBUT CALL GOOGLE VISION API ===');
+    console.log('📊 Nombre d\'images:', images.length);
+    console.log('🔑 Clé API présente:', !!apiKey);
+    console.log('🔑 Clé API (début):', apiKey.substring(0, 10) + '...');
+    
+    // Vérifier chaque image
+    images.forEach((image, index) => {
+      console.log(`📸 Image ${index + 1}:`);
+      console.log(`  - Longueur: ${image.length} caractères`);
+      console.log(`  - Début: ${image.substring(0, 50)}`);
+      console.log(`  - Fin: ${image.substring(image.length - 20)}`);
+      
+      // Vérifier si c'est du base64 valide
+      const isValidBase64 = /^[A-Za-z0-9+/]*={0,2}$/.test(image);
+      console.log(`  - Base64 valide: ${isValidBase64}`);
+      
+      // Vérifier si ça ressemble à une image
+      const isLikelyImage = image.startsWith('/9j/') || image.startsWith('iVBORw0KGgo=') || image.startsWith('R0lGODlh');
+      console.log(`  - Ressemble à une image: ${isLikelyImage}`);
+    });
     
     const visionRequests = images.map((base64Image: string) => ({
       image: { content: base64Image },
       features: [{ type: 'TEXT_DETECTION', maxResults: 10 }]
     }));
 
+    console.log('📤 Envoi de la requête à Google Vision...');
+    console.log('📋 Structure de la requête:', JSON.stringify({
+      requests: visionRequests.map(req => ({
+        image: { content: req.image.content.substring(0, 50) + '...' },
+        features: req.features
+      }))
+    }, null, 2));
+    
     const visionResponse = await fetch(
       `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
       {
@@ -69,204 +100,268 @@ async function callGoogleVisionAPI(images: string[], apiKey: string): Promise<Go
       }
     );
 
+    console.log('📡 Statut de la réponse Google Vision:', visionResponse.status);
+    console.log('📡 Headers de la réponse:', Object.fromEntries(visionResponse.headers.entries()));
+    
     if (!visionResponse.ok) {
-      console.error(`Erreur Google Vision API: ${visionResponse.status} - ${visionResponse.statusText}`);
+      const errorText = await visionResponse.text();
+      console.error(`❌ Erreur Google Vision API: ${visionResponse.status} - ${visionResponse.statusText}`);
+      console.error('📄 Détails de l\'erreur:', errorText);
       return null;
     }
 
     const visionData: GoogleVisionResponse = await visionResponse.json();
-    console.log('API Google Vision appelée avec succès');
+    console.log('✅ API Google Vision appelée avec succès');
+    console.log('📊 Réponse Google Vision:', JSON.stringify(visionData, null, 2));
+    console.log('🔍 === FIN CALL GOOGLE VISION API ===');
     return visionData;
   } catch (error) {
-    console.error('Erreur lors de l\'appel à l\'API Google Vision:', error);
+    console.error('❌ Erreur lors de l\'appel à l\'API Google Vision:', error);
+    console.error('🔍 === FIN CALL GOOGLE VISION API (ERREUR) ===');
     return null;
   }
 }
 
-// Fonction de recherche dans OpenWineData (côté serveur)
-async function searchInOpenWineData(parsed: ParsedWine): Promise<EnrichedWine | null> {
-  try {
-    console.log('Recherche dans OpenWineData pour:', parsed);
-    
-    // Simulation de données de vin (remplacera par le vrai fichier JSON)
-    const mockWines = [
-      {
-        id: '1',
-        name: 'Château Margaux',
-        color: 'red',
-        country: 'France',
-        regions: ['Bordeaux'],
-        appellation: 'Bordeaux',
-        grapes: [{ name: 'Cabernet Sauvignon' }, { name: 'Merlot' }]
-      },
-      {
-        id: '2',
-        name: 'Domaine de la Romanée-Conti',
-        color: 'red',
-        country: 'France',
-        regions: ['Bourgogne'],
-        appellation: 'Bourgogne',
-        grapes: [{ name: 'Pinot Noir' }]
-      },
-      {
-        id: '3',
-        name: 'Château Lafite Rothschild',
-        color: 'red',
-        country: 'France',
-        regions: ['Bordeaux'],
-        appellation: 'Bordeaux',
-        grapes: [{ name: 'Cabernet Sauvignon' }, { name: 'Merlot' }]
-      },
-      {
-        id: '4',
-        name: 'Chablis Grand Cru',
-        color: 'white',
-        country: 'France',
-        regions: ['Bourgogne'],
-        appellation: 'Bourgogne',
-        grapes: [{ name: 'Chardonnay' }]
-      },
-      {
-        id: '5',
-        name: 'Champagne Dom Pérignon',
-        color: 'sparkling',
-        country: 'France',
-        regions: ['Champagne'],
-        appellation: 'Champagne',
-        grapes: [{ name: 'Chardonnay' }, { name: 'Pinot Noir' }]
-      }
-    ];
-    
-    // Recherche dans les données simulées
-    const match = mockWines.find((wine: any) => 
-      (parsed.name && wine.name?.toLowerCase().includes(parsed.name.toLowerCase())) ||
-      (parsed.appellation && wine.appellation?.toLowerCase().includes(parsed.appellation.toLowerCase()))
-    );
-
-    if (match) {
-      console.log('Vin trouvé:', match);
-      return {
-        id: `owd-${match.id}`,
-        name: match.name,
-        vintage: parsed.vintage,
-        type: match.color?.toLowerCase() as any || 'red',
-        country: match.country || '',
-        region: match.regions?.[0] || '',
-        appellation: match.appellation || '',
-        grapes: match.grapes?.map((g: any) => g.name) || [],
-        source: 'openwinedata'
-      };
-    }
-    
-    console.log('Aucun vin trouvé, création manuelle');
-    return null;
-  } catch (error) {
-    console.error('Erreur recherche OpenWineData:', error);
-    return null;
-  }
-}
-
-// Fonction de parsing du texte OCR améliorée et enrichie
-function parseOcrText(fullText: string): ParsedWine & { grapes: string[] } {
-  console.log('Parsing du texte OCR:', fullText);
+// Fonction de parsing local intelligent
+function parseWineOcrLocal(rawText: string): ParsedWine {
+  console.log('Parsing local du texte OCR:', rawText.substring(0, 200) + '...');
   
-  // Liste de cépages connus (à compléter si besoin)
-  const grapeList = [
-    'SYRAH', 'MERLOT', 'CHARDONNAY', 'CABERNET', 'SAUVIGNON', 'PINOT', 'NOIR', 'GRENACHE', 'MOURVEDRE',
-    'CARIGNAN', 'CINSAULT', 'MALBEC', 'GAMAY', 'SÉMILLON', 'VIOGNIER', 'MUSCAT', 'RIESLING', 'ALIGOTÉ',
-    'SAVAGNIN', 'PETIT VERDOT', 'TEMPRANILLO', 'SANGIOVESE', 'ZINFANDEL', 'BARBERA', 'NEBBIOLO', 'TOURIGA',
-    'VERDEJO', 'VERMENTINO', 'TREBBIANO', 'MOSCATO', 'FURMINT', 'GRÜNER VELTLINER', 'ALBARINO', 'MACABEO',
-    'BACO', 'PETIT MANSENG', 'GROS MANSENG', 'TANNAT', 'MUSCADELLE', 'UGNI BLANC', 'COLOMBARD', 'FOLLE BLANCHE'
-  ];
-  const upperText = fullText.toUpperCase();
-  const lines = fullText.split(/\n|\r|\s{2,}/).filter(Boolean);
-
-  // Extraction des cépages
-  const grapes = grapeList.filter(grape => upperText.includes(grape));
-
-  // Extraction du millésime
-  const yearMatch = upperText.match(/(19\d{2}|20\d{2})/);
-  const vintage = yearMatch ? parseInt(yearMatch[0]) : null;
-
-  // Extraction du nom complet (avant le premier mot-clé ou cépage)
-  let name = '';
-  const stopWords = [...grapeList, 'VEGAN', 'BIO', 'BIODYNAMIC', '&', 'VIN', 'WINE', 'BLANC', 'ROUGE', 'WHITE', 'RED'];
-  let foundName = false;
-  for (const line of lines) {
-    let stop = false;
-    for (const word of stopWords) {
-      if (line.toUpperCase().includes(word)) stop = true;
-    }
-    if (!stop && !foundName) {
-      name += (name ? ' ' : '') + line.trim();
-    } else if (!foundName && name) {
-      foundName = true;
-    }
-  }
-
-  // Extraction de la région/appellation
-  const regionKeywords = ['BORDEAUX', 'BOURGOGNE', 'CHAMPAGNE', 'PROVENCE', 'LANGUEDOC', 'RHÔNE', 'ALSACE', 'LOIRE'];
-  let region = null;
-  let appellation = null;
+  let text = rawText;
   
-  for (const line of lines) {
-    const upperLine = line.toUpperCase();
-    for (const keyword of regionKeywords) {
-      if (upperLine.includes(keyword)) {
-        region = line.trim();
-        appellation = line.trim();
-        break;
-      }
+  // 1. Nettoyage de base
+  text = text.replace(/[!@#$%^&*_+=\[\]{}|;:'",<>/?~`]/g, ' ');
+  
+  // 2. Corrections OCR
+  for (const [wrong, right] of Object.entries(ocrCorrections)) {
+    text = text.replace(new RegExp(wrong, 'gi'), right);
+  }
+  
+  // 3. Split lignes et mots
+  const lines = text.split(/\n|\r/).map(l => l.trim()).filter(Boolean);
+  const words = text.split(/\s+/);
+
+  // 4. Extraction année
+  const yearMatch = text.match(/\b(19[8-9]\d|20[0-3]\d)\b/);
+  const année = yearMatch ? yearMatch[0] : '';
+
+  // 5. Extraction type de vin
+  let type: ParsedWine['type'] = '';
+  if (text.toUpperCase().includes('ROUGE') || text.toUpperCase().includes('RED')) {
+    type = 'Rouge';
+  } else if (text.toUpperCase().includes('BLANC') || text.toUpperCase().includes('WHITE')) {
+    type = 'Blanc';
+  } else if (text.toUpperCase().includes('ROSÉ') || text.toUpperCase().includes('ROSE')) {
+    type = 'Rosé';
+  } else if (text.toUpperCase().includes('EFFERVESCENT') || text.toUpperCase().includes('SPARKLING') || 
+             text.toUpperCase().includes('MOUSSEUX') || text.toUpperCase().includes('CHAMPAGNE')) {
+    type = 'Effervescent';
+  }
+
+  // 6. Extraction cépages
+  const cépages = knownGrapes.filter(grape => 
+    text.toUpperCase().includes(grape.toUpperCase())
+  );
+
+  // 7. Extraction région/appellation
+  let région = '';
+  for (const reg of knownRegions) {
+    if (text.toUpperCase().includes(reg.toUpperCase())) {
+      région = reg;
+      break;
     }
-    if (region) break;
   }
 
-  // Si pas de nom trouvé, prendre la première ligne non vide
-  if (!name && lines.length > 0) {
-    name = lines[0].trim();
+  // 8. Extraction producteur
+  let producteur = '';
+  for (const line of lines) {
+    if (/CH[ÂA]TEAU|DOMAINE|CLOS|MAISON/i.test(line)) {
+      producteur = line;
+      break;
+    }
+  }
+  if (!producteur) producteur = 'Domaine inconnu';
+
+  // 9. Extraction nom (ligne la plus longue hors producteur/région/année)
+  let nom = lines
+    .filter(l => l !== producteur && !l.includes(année) && !l.includes(région))
+    .sort((a, b) => b.length - a.length)[0] || '';
+
+  // 10. NOUVEAU SYSTÈME DE SCORING HYBRIDE UX-DRIVEN
+  
+  // Validation structurelle (hard rules)
+  const isNomOk = nom && nom.length > 3;
+  const isProducteurOk = producteur && producteur !== 'Domaine inconnu';
+  const isAnnéeOk = année && parseInt(année) >= 1980 && parseInt(année) <= 2035;
+  
+  // Score pondéré pour complétude (soft check)
+  let confiance = 0;
+  
+  // Nom (30 points) - Élément critique
+  if (isNomOk) {
+    confiance += 30;
+  }
+  
+  // Producteur (25 points) - Élément critique
+  if (isProducteurOk) {
+    confiance += 25;
+  }
+  
+  // Année (10 points) - Recommandé mais pas critique
+  if (isAnnéeOk) {
+    confiance += 10;
+  }
+  
+  // Cépages (15 points) - Bonus informatif
+  if (cépages.length > 0) {
+    confiance += 15;
+  }
+  
+  // Type (10 points) - Bonus informatif
+  if (type) {
+    confiance += 10;
+  }
+  
+  // Région (10 points) - Bonus informatif
+  if (région) {
+    confiance += 10;
   }
 
-  console.log('Parsing résultat:', { name, vintage, region, appellation, grapes });
+  console.log('Parsing local résultat:', { 
+    nom, producteur, année, cépages, type, région, confiance,
+    validation: { isNomOk, isProducteurOk, isAnnéeOk }
+  });
   
   return {
-    name: name || 'Vin non identifié',
-    vintage,
-    region,
-    appellation,
-    grapes
+    nom: nom || 'Vin non identifié',
+    producteur,
+    année,
+    cépages,
+    type,
+    région,
+    source: 'local',
+    confiance
   };
 }
 
-// Fonction principale de traitement OCR
-async function processWineImages(images: string[]): Promise<EnrichedWine[]> {
+// Fonction utilitaire pour parser avec GPT
+async function parseWithGPT(text: string): Promise<ParsedWine> {
+  console.log('Parsing IA avec GPT-4o...');
+  
+  const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+  console.log('🔑 Clé OpenAI présente:', !!openaiApiKey);
+  console.log('🔑 Clé OpenAI (début):', openaiApiKey ? openaiApiKey.substring(0, 10) + '...' : 'AUCUNE');
+  
+  if (!openaiApiKey) {
+    console.error('Aucune clé API OpenAI configurée');
+    throw new Error('API OpenAI non configurée');
+  }
+
+  const prompt = `Tu es un sommelier expert. Structure ces informations extraites d'une étiquette de vin en JSON.
+
+Texte OCR: "${text}"
+
+Instructions:
+- Extrais le nom du vin, le producteur, l'année, les cépages, le type (Rouge/Blanc/Rosé/Effervescent), et la région
+- Si une information n'est pas claire, utilise une chaîne vide
+- Pour les cépages, retourne un tableau des cépages identifiés
+- Sois précis et ne devine pas
+
+Retourne UNIQUEMENT un JSON valide avec cette structure:
+{
+  "nom": "Nom du vin",
+  "producteur": "Nom du producteur",
+  "année": "2022",
+  "cépages": ["Syrah", "Merlot"],
+  "type": "Rouge",
+  "région": "Bordeaux"
+}`;
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: 'Tu es un sommelier expert qui structure des données d\'étiquettes de vin. Réponds UNIQUEMENT en JSON valide.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 500
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Erreur OpenAI API: ${response.status} - ${errorText}`);
+      throw new Error(`Erreur OpenAI: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content;
+    
+    if (!content) {
+      throw new Error('Réponse OpenAI vide');
+    }
+
+    // Extraction du JSON de la réponse
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('Aucun JSON trouvé dans la réponse OpenAI');
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    
+    console.log('Parsing IA résultat:', parsed);
+    
+    return {
+      nom: parsed.nom || 'Vin non identifié',
+      producteur: parsed.producteur || 'Domaine inconnu',
+      année: parsed.année || '',
+      cépages: Array.isArray(parsed.cépages) ? parsed.cépages : [],
+      type: parsed.type || '',
+      région: parsed.région || '',
+      source: 'ai',
+      confiance: 85 // Confiance élevée pour l'IA
+    };
+
+  } catch (error) {
+    console.error('Erreur lors du parsing IA:', error);
+    throw new Error(`Erreur parsing IA: ${error.message}`);
+  }
+}
+
+// Fonction principale de traitement OCR avec fallback IA
+async function processWineImages(images: string[]): Promise<ParsedWine[]> {
   console.log(`Traitement de ${images.length} images...`);
   
-  // 1. Tentative d'appel à l'API Google Vision
+  // Appel à l'API Google Vision
   const googleVisionApiKey = Deno.env.get('GOOGLE_VISION_API_KEY');
-  let visionResponse: GoogleVisionResponse | null = null;
-  let apiUsed = false;
-
-  if (googleVisionApiKey) {
-    console.log('Clé API Google Vision trouvée, tentative d\'appel...');
-    visionResponse = await callGoogleVisionAPI(images, googleVisionApiKey);
-    if (visionResponse) {
-      apiUsed = true;
-      console.log('API Google Vision utilisée avec succès');
-    } else {
-      console.log('Échec de l\'API Google Vision, utilisation de la simulation');
-    }
-  } else {
-    console.log('Aucune clé API Google Vision, utilisation de la simulation');
+  
+  if (!googleVisionApiKey) {
+    console.error('Aucune clé API Google Vision configurée');
+    throw new Error('API Google Vision non configurée');
   }
 
-  // 2. Fallback vers la simulation si pas d'API ou échec
+  console.log('Clé API Google Vision trouvée, appel en cours...');
+  const visionResponse = await callGoogleVisionAPI(images, googleVisionApiKey);
+  
   if (!visionResponse) {
-    visionResponse = simulateGoogleVision(images);
-    apiUsed = false;
+    console.error('Échec de l\'API Google Vision');
+    throw new Error('Impossible de traiter les images avec Google Vision');
   }
 
-  // 3. Traitement des réponses
-  const enrichedWines: EnrichedWine[] = [];
+  // Traitement des réponses
+  const parsedWines: ParsedWine[] = [];
   
   for (let i = 0; i < visionResponse.responses.length; i++) {
     const response = visionResponse.responses[i];
@@ -280,119 +375,227 @@ async function processWineImages(images: string[]): Promise<EnrichedWine[]> {
       console.log(`Aucun texte détecté pour l'image ${i}`);
       continue;
     }
+
+    const ocrText = response.fullTextAnnotation.text;
+    console.log(`Texte OCR pour l'image ${i}:`, ocrText.substring(0, 200) + '...');
     
-    // 4. Parsing du texte OCR
-    const parsed = parseOcrText(response.fullTextAnnotation.text);
-    
-    // 5. Recherche dans OpenWineData
-    const enriched = await searchInOpenWineData(parsed);
-    
-    if (enriched) {
-      enrichedWines.push(enriched);
+    const localParsed = parseWineOcrLocal(ocrText);
+    const { confiance, nom, producteur } = localParsed;
+
+    // Log DEBUG pour analyse fine
+    console.log("[DEBUG] Résultat parsing local:", JSON.stringify(localParsed, null, 2));
+
+    // Nouvelle logique stricte : fallback IA si nom ou producteur non identifié, ou confiance < 65
+    const shouldUseAI =
+      nom === "Vin non identifié" ||
+      producteur === "Domaine inconnu" ||
+      confiance < 65;
+
+    console.log("[OCR] shouldUseAI =", shouldUseAI);
+
+    if (shouldUseAI) {
+      try {
+        const aiResult = await parseWithGPT(ocrText);
+        parsedWines.push(aiResult);
+      } catch (err) {
+        console.error("[OCR] Échec IA:", err.message);
+        // fallback minimal
+        parsedWines.push({
+          nom: "Vin non identifié",
+          producteur: "Domaine inconnu",
+          confiance: 0,
+          source: "fallback",
+          année: '',
+          cépages: [],
+          type: '',
+          région: ''
+        });
+      }
     } else {
-      // Création d'un vin manuel si pas trouvé
-      enrichedWines.push({
-        id: `manual-${Date.now()}-${i}`,
-        name: parsed.name,
-        vintage: parsed.vintage,
-        type: 'red', // par défaut
-        country: 'France', // par défaut
-        region: parsed.region || '',
-        appellation: parsed.appellation || '',
-        grapes: parsed.grapes,
-        source: 'manual'
-      });
+      console.log(`Parsing local suffisant - Confiance: ${confiance}, Affichage direct`);
+      parsedWines.push(localParsed);
     }
   }
   
-  console.log(`${enrichedWines.length} vins traités avec succès (API utilisée: ${apiUsed})`);
-  return enrichedWines;
+  console.log(`${parsedWines.length} vins traités avec succès`);
+  return parsedWines;
 }
 
 // Fonction principale de l'Edge Function
 serve(async (req) => {
-  // Gestion CORS
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // Vérification de l'authentification (optionnelle pour les tests)
-    const authHeader = req.headers.get('Authorization');
-    let userId = 'test-user';
+    const body = await req.json()
+    console.log('📥 Corps de la requête reçu:', JSON.stringify(body, null, 2))
     
-    if (authHeader) {
-      try {
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-        const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-        const { data: { user }, error: authError } = await supabase.auth.getUser(
-          authHeader.replace('Bearer ', '')
-        );
-        
-        if (authError || !user) {
-          console.warn('Authentification échouée, utilisation du mode test');
-        } else {
-          userId = user.id;
-          console.log('Utilisateur authentifié:', userId);
-        }
-      } catch (authError) {
-        console.warn('Erreur d\'authentification, utilisation du mode test:', authError);
-      }
-    }
-
-    // Récupération des données de la requête
-    const { image } = await req.json();
+    // Vérifier si on reçoit des images ou du texte OCR
+    const { imageText, images } = body
     
-    if (!image) {
+    console.log('🔍 Type de données reçues:')
+    console.log('- imageText présent:', !!imageText)
+    console.log('- images présent:', !!images)
+    console.log('- Type imageText:', typeof imageText)
+    console.log('- Type images:', typeof images)
+    
+    if (images && Array.isArray(images)) {
+      console.log('📸 Traitement d\'images base64 détecté')
+      console.log('📊 Nombre d\'images:', images.length)
+      console.log('🔍 Premier caractères de la première image:', images[0]?.substring(0, 50))
+      
+      // Traiter les images avec Google Vision
+      const parsedWines = await processWineImages(images)
+      
       return new Response(
-        JSON.stringify({ error: 'Image requise' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+        JSON.stringify({
+          success: true,
+          wines: parsedWines
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      )
     }
 
-    // Traitement de l'image
-    const images = Array.isArray(image) ? image : [image];
-    const enrichedWines = await processWineImages(images);
+    if (!imageText || typeof imageText !== "string") {
+      console.error('❌ Texte OCR manquant ou invalide')
+      return new Response(JSON.stringify({ error: "Texte OCR manquant" }), { 
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
 
-    // Log de l'utilisation
-    try {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    console.log('🔍 Début du traitement OCR:', imageText.substring(0, 100) + '...')
+    console.log('📏 Longueur du texte OCR:', imageText.length)
 
-      await supabase
-        .from('ocr_logs')
-        .insert({
-          user_id: userId,
-          images_count: images.length,
-          wines_found: enrichedWines.length,
-          success: true
-        });
-    } catch (logError) {
-      console.error('Erreur lors du log:', logError);
-      // Ne pas faire échouer la requête si le log échoue
+    // 1. Parsing local intelligent
+    const localParsed = parseWineOcrLocal(imageText)
+    console.log('📊 Résultat parsing local:', JSON.stringify(localParsed, null, 2))
+
+    const { confiance, nom, producteur } = localParsed
+
+    // 2. Validation structurelle et décision fallback IA
+    const isNomOk = nom && nom.length > 3 && nom !== "Vin non identifié"
+    const isProducteurOk = producteur && producteur !== "Domaine inconnu"
+    const shouldUseAI = !isNomOk || !isProducteurOk || confiance < 65
+
+    console.log('🤖 Décision IA:', { isNomOk, isProducteurOk, confiance, shouldUseAI })
+
+    let finalResult = localParsed
+
+    // 3. Fallback IA si nécessaire
+    if (shouldUseAI) {
+      console.log('📤 Appel enrichissement IA...')
+      try {
+        const enrichedResult = await callEnrichmentAI(imageText, localParsed)
+        finalResult = enrichedResult
+        console.log('✅ Enrichissement IA réussi:', JSON.stringify(finalResult, null, 2))
+      } catch (aiError) {
+        console.warn('⚠️ Erreur enrichissement IA, utilisation parsing local:', aiError)
+        // Garder le parsing local en cas d'échec IA
+      }
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        wines: enrichedWines,
-        text: enrichedWines.length > 0 ? enrichedWines[0].name : 'Aucun vin détecté'
+        wine: finalResult
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    )
 
   } catch (error) {
-    console.error('Erreur dans l\'Edge Function:', error);
+    console.error('❌ Erreur traitement OCR:', error)
     
     return new Response(
-      JSON.stringify({ 
-        error: 'Erreur interne du serveur',
-        details: error.message 
+      JSON.stringify({
+        success: false,
+        error: error.message,
+        wine: {
+          nom: "Nom non identifié",
+          producteur: "Domaine inconnu",
+          année: "",
+          cépages: [],
+          type: "",
+          région: "",
+          source: "local",
+          confiance: 0
+        }
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    )
   }
-}); 
+})
+
+// Appel à la fonction d'enrichissement IA
+async function callEnrichmentAI(ocrText: string, localParsed: ParsedWine): Promise<ParsedWine> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")
+  const authHeader = Deno.env.get("SUPABASE_ANON_KEY")
+
+  if (!supabaseUrl) {
+    throw new Error("SUPABASE_URL not configured")
+  }
+
+  // Déterminer les champs manquants
+  const missingFields = []
+  if (localParsed.nom === "Vin non identifié") missingFields.push("name")
+  if (localParsed.producteur === "Domaine inconnu") missingFields.push("producer")
+  if (!localParsed.année) missingFields.push("year")
+  if (localParsed.cépages.length === 0) missingFields.push("grapeVariety")
+  if (!localParsed.type) missingFields.push("wineType")
+  if (!localParsed.région) missingFields.push("region")
+
+  console.log('📋 Champs manquants détectés:', missingFields)
+
+  const enrichResponse = await fetch(`${supabaseUrl}/functions/v1/ocr-enrich`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${authHeader}`,
+    },
+    body: JSON.stringify({
+      ocrText: ocrText,
+      currentParsing: {
+        name: localParsed.nom,
+        producer: localParsed.producteur,
+        year: localParsed.année ? parseInt(localParsed.année) : undefined,
+        grapeVariety: localParsed.cépages,
+        wineType: localParsed.type.toLowerCase() as any,
+        region: localParsed.région,
+      },
+      missingFields: missingFields,
+    }),
+  })
+
+  if (!enrichResponse.ok) {
+    throw new Error(`Enrichment API error: ${enrichResponse.status}`)
+  }
+
+  const enrichData = await enrichResponse.json()
+  
+  if (!enrichData.success) {
+    throw new Error(`Enrichment failed: ${enrichData.error}`)
+  }
+
+  // Convertir le format de réponse
+  const enriched = enrichData.data
+  return {
+    nom: enriched.name || localParsed.nom,
+    producteur: enriched.producer || localParsed.producteur,
+    année: enriched.year?.toString() || localParsed.année,
+    cépages: enriched.grapeVariety || localParsed.cépages,
+    type: (enriched.wineType?.charAt(0).toUpperCase() + enriched.wineType?.slice(1)) as any || localParsed.type,
+    région: enriched.region || localParsed.région,
+    source: "ai",
+    confiance: enriched.confidence === "high" ? 90 : enriched.confidence === "medium" ? 70 : 50,
+  }
+} 

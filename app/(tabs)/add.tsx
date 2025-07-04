@@ -1,36 +1,50 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Camera, CameraType } from 'expo-camera';
-import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Alert, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { VeeniColors } from '../../constants/Colors';
+import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
+import * as FileSystem from 'expo-file-system';
+import { router } from 'expo-router';
+import { useRef, useState } from 'react';
+import {
+    ActivityIndicator,
+    Dimensions,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { CONFIG } from '../../constants/Config';
+import { supabase } from '../../lib/supabase';
+
+const ACCENT = '#F6A07A';
+const BG = '#23272F';
+const WHITE = '#FFF';
+const RADIUS = 16;
+const SCREEN_WIDTH = Dimensions.get('window').width;
+
+// Type pour les vins détectés par OCR
+interface DetectedWine {
+  id: string;
+  name: string;
+  domaine?: string;
+  vintage?: number;
+  region?: string;
+  appellation?: string;
+  grapes?: string[];
+  imageUri: string;
+  color?: 'red' | 'white' | 'rose' | 'sparkling';
+  rawText?: string; // Texte brut extrait par OCR
+}
 
 export default function AddScreen() {
-  const router = useRouter();
-  const [facing, setFacing] = useState<CameraType>(CameraType.back);
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const cameraRef = useRef<Camera>(null);
-  const [selectedImages, setSelectedImages] = useState<string[]>([]);
-
-  useEffect(() => {
-    (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
-    })();
-  }, []);
-
-  if (hasPermission === null) {
-    return <View />;
-  }
-
-  if (hasPermission === false) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.permissionText}>Nous avons besoin de votre permission pour utiliser la caméra</Text>
-      </View>
-    );
-  }
+  console.log('🎯 AddScreen chargé - Nouveau système OCR actif');
+  
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [cameraType, setCameraType] = useState<CameraType>('back');
+  const cameraRef = useRef<CameraView>(null);
 
   const takePicture = async () => {
     if (cameraRef.current) {
@@ -39,132 +53,234 @@ export default function AddScreen() {
           quality: 0.8,
           base64: false,
         });
-        
-        setSelectedImages(prev => [...prev, photo.uri]);
         console.log('Photo prise:', photo.uri);
+        setPhotos(prev => [...prev, photo.uri]);
+        setError(null); // Effacer les erreurs précédentes
       } catch (error) {
-        console.error('Erreur lors de la prise de photo:', error);
-        Alert.alert('Erreur', 'Impossible de prendre la photo');
+        console.error('Erreur prise de photo:', error);
+        setError('Impossible de prendre la photo');
       }
     }
   };
 
-  const pickImage = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsMultipleSelection: true,
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets) {
-        const newImages = result.assets.map(asset => asset.uri);
-        setSelectedImages(prev => [...prev, ...newImages]);
-      }
-    } catch (error) {
-      console.error('Erreur lors de la sélection d\'image:', error);
-      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
-    }
-  };
-
-  const removeImage = (index: number) => {
-    setSelectedImages(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const startAnalysis = () => {
-    if (selectedImages.length === 0) {
-      Alert.alert('Erreur', 'Veuillez sélectionner au moins une image');
+  const analyzePhotosWithOCR = async () => {
+    if (photos.length === 0) {
+      console.log('❌ Aucune photo à analyser');
+      setError('Prenez d\'abord une photo');
       return;
     }
     
-    // Rediriger vers l'écran OCR avec les images
-    router.push({
-      pathname: '/add/ocr',
-      params: { images: JSON.stringify(selectedImages) }
-    });
+    console.log('🚀 Début analysePhotosWithOCR avec', photos.length, 'photos');
+    console.log('🔑 Clé API configurée:', CONFIG.GOOGLE_VISION_API_KEY.substring(0, 10) + '...');
+    setIsAnalyzing(true);
+    setError(null);
+    
+    try {
+      const detectedWines: DetectedWine[] = [];
+      
+      // Analyser chaque photo avec Google Vision puis l'Edge Function Supabase
+      for (let i = 0; i < photos.length; i++) {
+        const photoUri = photos[i];
+        console.log(`📸 Traitement photo ${i + 1}/${photos.length}:`, photoUri);
+        
+        try {
+          // Lire le fichier et l'encoder en base64
+          console.log('📄 Encodage image en base64...');
+          const base64 = await FileSystem.readAsStringAsync(photoUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          console.log('✅ Image encodée, taille:', base64.length);
+
+          // Appeler la fonction edge Supabase avec l'image base64
+          console.log('🤖 Appel fonction ocr-scan (avec image base64)...');
+          const { data: result, error: ocrError } = await supabase.functions.invoke('ocr-scan', {
+            body: { images: [base64] }
+          });
+
+          console.log('📡 Réponse ocr-scan:', { result, error: ocrError });
+
+          if (ocrError) {
+            console.error('❌ Erreur ocr-scan:', ocrError);
+            throw new Error(`Erreur ocr-scan pour la photo ${i + 1}: ${ocrError.message}`);
+          }
+
+          if (!result) {
+            throw new Error(`Aucune réponse de ocr-scan pour la photo ${i + 1}`);
+          }
+          console.log('✅ Réponse ocr-scan reçue:', result);
+
+          // 3. Traiter la réponse de l'Edge Function
+          let wine;
+          if (result.success && (result.wine || (result.wines && result.wines[0]))) {
+            wine = result.wine || result.wines[0];
+            // Vérifier si le vin est valide
+            if (wine.nom === 'Nom non identifié' || wine.nom === 'Vin non identifié') {
+              console.warn('⚠️ Vin non reconnu, tentative d\'enrichissement IA...');
+              setError('Impossible de reconnaître ce vin. Veuillez réessayer ou saisir manuellement.');
+              continue;
+            }
+            const detectedWine: DetectedWine = {
+              id: `ocr-${Date.now()}-${i}`,
+              name: wine.nom,
+              domaine: wine.producteur,
+              vintage: wine.année ? parseInt(wine.année) : undefined,
+              region: wine.région,
+              appellation: wine.région,
+              grapes: wine.cépages,
+              imageUri: photoUri,
+              color: wine.type === 'Rouge' ? 'red' : 
+                     wine.type === 'Blanc' ? 'white' : 
+                     wine.type === 'Rosé' ? 'rose' : 
+                     wine.type === 'Effervescent' ? 'sparkling' : 'red',
+              rawText: wine.rawText || '',
+            };
+            detectedWines.push(detectedWine);
+            console.log('🍷 Vin détecté avec succès:', wine);
+          } else {
+            console.log('❌ Aucun vin valide détecté dans la réponse ocr-scan');
+            setError('Aucun vin reconnu. Veuillez réessayer.');
+          }
+        } catch (photoError: any) {
+          console.error(`❌ Erreur traitement photo ${i + 1}:`, photoError);
+          setError(`Erreur traitement photo ${i + 1}: ${photoError.message || 'Erreur inconnue'}`);
+        }
+      }
+      
+      console.log('📊 Vins détectés au total:', detectedWines.length);
+      
+      if (detectedWines.length > 0) {
+        // Naviguer vers l'écran des résultats avec les données
+        router.push({
+          pathname: '/ocr-results' as any,
+          params: { wines: JSON.stringify(detectedWines) }
+        });
+      } else {
+        setError('Aucun vin reconnu. Veuillez réessayer ou saisir manuellement.');
+      }
+      
+    } catch (error) {
+      console.error('❌ Erreur analyse OCR:', error);
+      setError('Erreur pendant l\'analyse. Veuillez réessayer.');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Zone caméra */}
-      <View style={styles.cameraContainer}>
-        <Camera
-          ref={cameraRef}
-          style={styles.camera}
-          type={facing}
-        />
-        
-        {/* Bouton retour */}
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="chevron-back" size={28} color="white" />
-        </TouchableOpacity>
-        
-        {/* Boutons caméra */}
-        <View style={styles.cameraControls}>
-          <TouchableOpacity 
-            style={styles.flipButton}
-            onPress={() => setFacing(current => current === CameraType.back ? CameraType.front : CameraType.back)}
-          >
-            <Ionicons name="camera-reverse" size={24} color="white" />
+  const removePhoto = (index: number) => {
+    setPhotos(prev => prev.filter((_, i) => i !== index));
+    setError(null); // Effacer les erreurs quand on modifie les photos
+  };
+
+  // Gestion des permissions
+  if (!permission) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={WHITE} />
           </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-            <View style={styles.captureButtonInner} />
+          <Text style={styles.headerTitle}>Ajouter un vin</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.centerContainer}>
+          <Text style={styles.instructions}>Demande d'accès à la caméra...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!permission.granted) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={WHITE} />
           </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.galleryButton} onPress={pickImage}>
-            <Ionicons name="images" size={24} color="white" />
+          <Text style={styles.headerTitle}>Ajouter un vin</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.centerContainer}>
+          <Text style={styles.instructions}>Accès à la caméra refusé</Text>
+          <TouchableOpacity style={styles.analyzeButton} onPress={requestPermission}>
+            <Text style={styles.analyzeButtonText}>Autoriser la caméra</Text>
           </TouchableOpacity>
         </View>
       </View>
+    );
+  }
 
-      {/* Vignettes des images sélectionnées */}
-      {selectedImages.length > 0 && (
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={WHITE} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Ajouter un vin</Text>
+        <TouchableOpacity
+          style={[
+            styles.analyzeHeaderButton,
+            (photos.length === 0 || isAnalyzing) && styles.analyzeHeaderButtonDisabled
+          ]}
+          onPress={analyzePhotosWithOCR}
+          disabled={photos.length === 0 || isAnalyzing}
+        >
+          {isAnalyzing ? (
+            <ActivityIndicator size="small" color={WHITE} />
+          ) : (
+            <Text style={styles.analyzeHeaderButtonText}>Analyser</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Sous-titre */}
+      <Text style={styles.instructions}>
+        Scannez l'étiquette d'un ou plusieurs vins
+      </Text>
+
+      {/* Bloc Caméra */}
+      <View style={styles.cameraContainer}>
+        <CameraView
+          ref={cameraRef}
+          style={styles.camera}
+          facing={cameraType}
+        />
+        {/* Cadre de guidage visuel */}
+        <View style={styles.guidanceFrame} />
+      </View>
+
+      {/* Liste des vignettes photos */}
+      {photos.length > 0 && (
         <View style={styles.thumbnailsContainer}>
-          <Text style={styles.thumbnailsTitle}>Images sélectionnées ({selectedImages.length})</Text>
-          <View style={styles.thumbnailsGrid}>
-            {selectedImages.map((uri, index) => (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {photos.map((photoUri, index) => (
               <View key={index} style={styles.thumbnailWrapper}>
-                <Image
-                  source={{ uri }}
-                  style={styles.thumbnail}
-                  contentFit="cover"
-                />
-                <TouchableOpacity 
+                <Image source={{ uri: photoUri }} style={styles.thumbnail} />
+                <TouchableOpacity
                   style={styles.removeButton}
-                  onPress={() => removeImage(index)}
+                  onPress={() => removePhoto(index)}
                 >
-                  <Ionicons name="close-circle" size={20} color="white" />
+                  <Ionicons name="close-circle" size={24} color={WHITE} />
                 </TouchableOpacity>
               </View>
             ))}
-          </View>
-          
-          <TouchableOpacity 
-            style={styles.analyzeButton}
-            onPress={startAnalysis}
-          >
-            <Ionicons name="search" size={20} color="white" />
-            <Text style={styles.analyzeButtonText}>Analyser les images</Text>
-          </TouchableOpacity>
+          </ScrollView>
         </View>
       )}
 
-      {/* Bouton d'analyse flottant quand pas d'images */}
-      {selectedImages.length === 0 && (
-        <View style={styles.floatingButtonContainer}>
-          <TouchableOpacity 
-            style={styles.floatingButton}
-            onPress={() => Alert.alert('Info', 'Prenez une photo ou sélectionnez une image depuis votre galerie pour commencer l\'analyse')}
-          >
-            <Ionicons name="camera" size={24} color="white" />
-            <Text style={styles.floatingButtonText}>Prendre une photo</Text>
-          </TouchableOpacity>
+      {/* Message d'erreur */}
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
+
+      {/* Bouton de prise de photo en bas */}
+      <View style={styles.bottomContainer}>
+        <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
+          <Ionicons name="camera" size={32} color={WHITE} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -172,146 +288,172 @@ export default function AddScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: VeeniColors.background.primary,
+    backgroundColor: BG,
   },
-  permissionText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 20,
-    color: VeeniColors.text.primary,
-  },
-  permissionButton: {
-    backgroundColor: VeeniColors.accent.primary,
-    padding: 15,
-    borderRadius: 8,
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
   },
-  permissionButtonText: {
-    color: 'white',
-    fontSize: 16,
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
     fontWeight: '600',
+    color: WHITE,
+  },
+  instructions: {
+    fontSize: 16,
+    color: WHITE,
+    textAlign: 'center',
+    marginBottom: 30,
+    paddingHorizontal: 20,
   },
   cameraContainer: {
-    flex: 1,
+    marginHorizontal: 20,
+    height: 300,
+    borderRadius: RADIUS,
+    overflow: 'hidden',
     position: 'relative',
   },
   camera: {
     flex: 1,
   },
-  cameraControls: {
-    position: 'absolute',
-    bottom: 40,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  flipButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   captureButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 4,
-    borderColor: VeeniColors.accent.primary,
-  },
-  captureButtonInner: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: VeeniColors.accent.primary,
-  },
-  galleryButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
+    backgroundColor: ACCENT,
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   thumbnailsContainer: {
-    padding: 20,
-    backgroundColor: 'white',
-  },
-  thumbnailsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 15,
-    color: VeeniColors.text.primary,
-  },
-  thumbnailsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 20,
+    marginTop: 20,
+    paddingHorizontal: 20,
   },
   thumbnailWrapper: {
+    marginRight: 10,
     position: 'relative',
   },
   thumbnail: {
     width: 80,
     height: 80,
-    borderRadius: 8,
+    borderRadius: RADIUS,
   },
   removeButton: {
     position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: 'red',
-    borderRadius: 10,
+    top: -8,
+    right: -8,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 12,
+  },
+  bottomContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    paddingTop: 20,
+    backgroundColor: BG,
+    alignItems: 'center',
   },
   analyzeButton: {
-    backgroundColor: VeeniColors.accent.primary,
+    backgroundColor: ACCENT,
+    borderRadius: RADIUS,
+    paddingVertical: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  analyzeButtonDisabled: {
+    backgroundColor: 'rgba(246, 160, 122, 0.5)',
+  },
+  analyzeButtonText: {
+    color: WHITE,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  errorContainer: {
+    padding: 20,
+    backgroundColor: 'rgba(255, 0, 0, 0.1)',
+    borderRadius: 10,
+    marginBottom: 20,
+  },
+  errorText: {
+    color: WHITE,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 15,
-    borderRadius: 8,
-    gap: 10,
+    gap: 8,
   },
-  analyzeButtonText: {
-    color: 'white',
-    fontSize: 16,
+  analyzeHeaderButton: {
+    backgroundColor: ACCENT,
+    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  analyzeHeaderButtonDisabled: {
+    backgroundColor: 'rgba(246, 160, 122, 0.5)',
+  },
+  analyzeHeaderButtonText: {
+    color: WHITE,
+    fontSize: 14,
     fontWeight: '600',
   },
-  floatingButtonContainer: {
+  guidanceFrame: {
     position: 'absolute',
-    bottom: 20,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  floatingButton: {
-    backgroundColor: VeeniColors.accent.primary,
-    padding: 15,
+    top: 0,
+    left: '50%',
+    marginLeft: -70, // 140px / 2
+    width: 140,
+    height: 300,
+    borderWidth: 2,
+    borderColor: '#D9D9D9',
+    borderStyle: 'dashed',
     borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  floatingButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  backButton: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    padding: 12,
-    borderRadius: 25,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    zIndex: 10,
+    pointerEvents: 'none',
   },
 }); 
