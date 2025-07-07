@@ -93,19 +93,10 @@ LEFT JOIN wine w ON uw.wine_id = w.id
 WHERE uw.user_id = '27fd73b1-7088-4211-af88-3d075851f0db'
 ORDER BY uw.created_at DESC;
 
--- 6. Vérifier les amis
+-- 6. Vérifier les amis (fonctionnalité désactivée)
 SELECT 
   'Amis' as check_type,
-  id,
-  name,
-  email,
-  created_at
-FROM "User"
-WHERE id IN (
-  SELECT unnest(friends) 
-  FROM "User" 
-  WHERE id = '27fd73b1-7088-4211-af88-3d075851f0db'
-);
+  'Fonctionnalité désactivée' as status;
 
 -- 7. Compter les entrées par table
 SELECT 

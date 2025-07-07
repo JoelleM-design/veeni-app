@@ -6,6 +6,7 @@ export function useUser() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [lastUserId, setLastUserId] = useState<string | null>(null);
 
   // Charger l'utilisateur
   useEffect(() => {
@@ -17,6 +18,13 @@ export function useUser() {
         if (authError) throw authError;
         if (!authUser) {
           setUser(null);
+          setLastUserId(null);
+          return;
+        }
+
+        // Éviter de recharger si c'est le même utilisateur
+        if (lastUserId === authUser.id && user) {
+          setLoading(false);
           return;
         }
 
@@ -28,7 +36,7 @@ export function useUser() {
 
         if (userError) throw userError;
 
-        setUser({
+        const newUser = {
           id: userData.id,
           first_name: userData.first_name,
           email: userData.email,
@@ -37,7 +45,10 @@ export function useUser() {
           onboarding_complete: userData.onboarding_complete,
           has_notifications_active: userData.has_notifications_active,
           created_at: userData.created_at,
-        });
+        };
+
+        setUser(newUser);
+        setLastUserId(authUser.id);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Une erreur est survenue'));
       } finally {
@@ -51,7 +62,13 @@ export function useUser() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
         setUser(null);
+        setLastUserId(null);
       } else if (event === 'SIGNED_IN' && session?.user) {
+        // Éviter de recharger si c'est le même utilisateur
+        if (lastUserId === session.user.id && user) {
+          return;
+        }
+
         const { data: userData, error: userError } = await supabase
           .from('User')
           .select('*')
@@ -63,7 +80,7 @@ export function useUser() {
           return;
         }
 
-        setUser({
+        const newUser = {
           id: userData.id,
           first_name: userData.first_name,
           email: userData.email,
@@ -72,7 +89,10 @@ export function useUser() {
           onboarding_complete: userData.onboarding_complete,
           has_notifications_active: userData.has_notifications_active,
           created_at: userData.created_at,
-        });
+        };
+
+        setUser(newUser);
+        setLastUserId(session.user.id);
       }
     });
 

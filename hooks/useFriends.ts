@@ -19,19 +19,17 @@ export const useFriends = (friendIds: string[]) => {
 
       const { data, error: fetchError } = await supabase
         .from('User')
-        .select('id, name, first_name, email, avatar')
+        .select('id, first_name, email, avatar, created_at')
         .in('id', friendIds);
 
       if (fetchError) throw fetchError;
 
       const friendsData = data?.map(user => ({
         id: user.id,
-        name: user.name,
         first_name: user.first_name,
         email: user.email,
         avatar: user.avatar,
-        createdAt: user.created_at,
-        updatedAt: user.updated_at,
+        created_at: user.created_at,
       })) || [];
 
       setFriends(friendsData);

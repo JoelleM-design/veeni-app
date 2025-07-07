@@ -47,28 +47,28 @@ export const ProfileStatsBar: React.FC<ProfileStatsBarProps> = ({
     <View style={[styles.statsContainer, style]}>
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{tastedCount}</Text>
+          <Text style={styles.statNumber}>{tastedCount || 0}</Text>
           <Text style={styles.statLabel}>dégustés</Text>
         </View>
         
         <View style={styles.statSeparator} />
         
         <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{favoritesCount}</Text>
+          <Text style={styles.statNumber}>{favoritesCount || 0}</Text>
           <Ionicons name="heart" size={16} color="#F6A07A" />
         </View>
         
         <View style={styles.statSeparator} />
         
         <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{wishlistCount}</Text>
+          <Text style={styles.statNumber}>{wishlistCount || 0}</Text>
           <Ionicons name="star" size={16} color="#F6A07A" />
         </View>
         
         <View style={styles.statSeparator} />
         
         <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{visitsCount}</Text>
+          <Text style={styles.statNumber}>{visitsCount || 0}</Text>
           <Text style={styles.statLabel}>visites</Text>
         </View>
       </View>
