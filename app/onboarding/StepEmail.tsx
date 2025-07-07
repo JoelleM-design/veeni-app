@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 function validateEmail(email: string) {
@@ -19,30 +19,36 @@ export default function StepEmail({ value, onChange, onNext, onBack, stepIndex =
           <View style={[styles.progressBar, { width: `${Math.round((stepIndex+1)/totalSteps*100)}%` }]} />
         </View>
       </View>
-      <View style={styles.container}>
-        <Text style={styles.label}>Quel est ton mail ?</Text>
-        <TextInput
-          style={styles.input}
-          value={value}
-          onChangeText={onChange}
-          placeholder="prenom@mail.com"
-          placeholderTextColor="#888"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          autoFocus
-        />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <TouchableOpacity
-          style={[styles.button, !validateEmail(value) && { opacity: 0.5 }]}
-          onPress={() => {
-            if (!validateEmail(value)) setError('Merci de renseigner un email valide');
-            else { setError(''); onNext(); }
-          }}
-          disabled={!validateEmail(value)}
-        >
-          <Text style={styles.buttonText}>Suivant</Text>
-        </TouchableOpacity>
-      </View>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+      >
+        <View style={styles.container}>
+          <Text style={styles.label}>Quel est ton mail ?</Text>
+          <TextInput
+            style={styles.input}
+            value={value}
+            onChangeText={onChange}
+            placeholder="prenom@mail.com"
+            placeholderTextColor="#888"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoFocus
+          />
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <TouchableOpacity
+            style={[styles.button, !validateEmail(value) && { opacity: 0.5 }]}
+            onPress={() => {
+              if (!validateEmail(value)) setError('Merci de renseigner un email valide');
+              else { setError(''); onNext(); }
+            }}
+            disabled={!validateEmail(value)}
+          >
+            <Text style={styles.buttonText}>Suivant</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

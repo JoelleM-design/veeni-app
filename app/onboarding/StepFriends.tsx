@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function StepFriends({ onNext, onBack, stepIndex = 9, totalSteps = 11 }: { onNext: () => void; onBack: () => void; stepIndex?: number; totalSteps?: number }) {
@@ -15,13 +14,19 @@ export default function StepFriends({ onNext, onBack, stepIndex = 9, totalSteps 
         </View>
         <View style={{width: 36, height: 36, marginLeft: 8}} />
       </View>
-      <View style={styles.container}>
-        <Text style={styles.label}>Retrouve tes amis</Text>
-        <Text style={styles.text}>Pour les retrouver facilement, connecte-toi avec eux !</Text>
-        <TouchableOpacity style={styles.button} onPress={onNext}>
-          <Text style={styles.buttonText}>Suivant</Text>
-        </TouchableOpacity>
-      </View>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+      >
+        <View style={styles.container}>
+          <Text style={styles.label}>Retrouve tes amis</Text>
+          <Text style={styles.text}>Pour les retrouver facilement, connecte-toi avec eux !</Text>
+          <TouchableOpacity style={styles.button} onPress={onNext}>
+            <Text style={styles.buttonText}>Suivant</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

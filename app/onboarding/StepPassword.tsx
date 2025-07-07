@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 function validatePassword(pw: string) {
@@ -25,32 +24,38 @@ export default function StepPassword({ value, onChange, onNext, onBack, stepInde
           <View style={[styles.progressBar, { width: `${Math.round((stepIndex+1)/totalSteps*100)}%` }]} />
         </View>
       </View>
-      <View style={styles.container}>
-        <Text style={styles.label}>Quel est ton mot de passe ?</Text>
-        <TextInput
-          style={styles.input}
-          value={value}
-          onChangeText={onChange}
-          placeholder="Mot de passe"
-          placeholderTextColor="#888"
-          secureTextEntry
-          autoFocus
-        />
-        {errors.length > 0 && (
-          <View style={styles.errorList}>
-            {errors.map((err, i) => (
-              <Text key={i} style={styles.error}>{err}</Text>
-            ))}
-          </View>
-        )}
-        <TouchableOpacity
-          style={[styles.button, !isValid && { opacity: 0.5 }]}
-          onPress={onNext}
-          disabled={!isValid}
-        >
-          <Text style={styles.buttonText}>Suivant</Text>
-        </TouchableOpacity>
-      </View>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+      >
+        <View style={styles.container}>
+          <Text style={styles.label}>Quel est ton mot de passe ?</Text>
+          <TextInput
+            style={styles.input}
+            value={value}
+            onChangeText={onChange}
+            placeholder="Mot de passe"
+            placeholderTextColor="#888"
+            secureTextEntry
+            autoFocus
+          />
+          {errors.length > 0 && (
+            <View style={styles.errorList}>
+              {errors.map((err, i) => (
+                <Text key={i} style={styles.error}>{err}</Text>
+              ))}
+            </View>
+          )}
+          <TouchableOpacity
+            style={[styles.button, !isValid && { opacity: 0.5 }]}
+            onPress={onNext}
+            disabled={!isValid}
+          >
+            <Text style={styles.buttonText}>Suivant</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

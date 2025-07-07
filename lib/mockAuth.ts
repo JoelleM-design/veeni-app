@@ -1,12 +1,12 @@
 import { User } from '../types/user';
 
 // Mock user data
-const mockUser: User = {
+export const mockUser: User = {
   id: 'mock-user-id',
-  name: 'Test User',
-  email: 'test@example.com',
+  name: 'John Doe',
+  first_name: 'John',
+  email: 'john@example.com',
   avatar: null,
-  friends: [],
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };

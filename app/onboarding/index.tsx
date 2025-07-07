@@ -73,16 +73,42 @@ export default function Onboarding() {
           .from('User')
           .insert({
             id: data.user.id,
-            name: firstName,
+            first_name: firstName,
             email: email,
-            friends: [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
+            onboarding_complete: true,
+            has_notifications_active: notifications,
           });
 
         if (userError) {
           console.error('Erreur création utilisateur:', userError);
           // On continue quand même, l'utilisateur peut être créé plus tard
+        } else {
+          // Créer un nouveau household pour cet utilisateur
+          const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+          const { data: householdData, error: householdError } = await supabase
+            .from('households')
+            .insert({
+              name: `Cave de ${firstName}`,
+              join_code: joinCode,
+            })
+            .select()
+            .single();
+
+          if (householdError) {
+            console.error('Erreur création household:', householdError);
+          } else if (householdData) {
+            // Lier l'utilisateur au household
+            const { error: userHouseholdError } = await supabase
+              .from('user_household')
+              .insert({
+                user_id: data.user.id,
+                household_id: householdData.id,
+              });
+
+            if (userHouseholdError) {
+              console.error('Erreur liaison utilisateur-household:', userHouseholdError);
+            }
+          }
         }
       }
 

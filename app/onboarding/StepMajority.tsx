@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function StepMajority({ value, onChange, onNext, onBack, stepIndex = 3, totalSteps = 11 }: { value: boolean; onChange: (v: boolean) => void; onNext: () => void; onBack: () => void; stepIndex?: number; totalSteps?: number }) {
@@ -26,24 +26,30 @@ export default function StepMajority({ value, onChange, onNext, onBack, stepInde
           <View style={[styles.progressBar, { width: `${Math.round((stepIndex+1)/totalSteps*100)}%` }]} />
         </View>
       </View>
-      <View style={styles.container}>
-        <Text style={styles.label}>Es-tu majeur ?</Text>
-        <View style={styles.row}>
-          <TouchableOpacity
-            style={[styles.choiceBtn, styles.noBtn]}
-            onPress={handleNo}
-          >
-            <Text style={[styles.choiceText, styles.noText]}>Non</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.choiceBtn, styles.yesBtn]}
-            onPress={handleYes}
-          >
-            <Text style={[styles.choiceText, styles.yesText]}>Oui</Text>
-          </TouchableOpacity>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+      >
+        <View style={styles.container}>
+          <Text style={styles.label}>Es-tu majeur ?</Text>
+          <View style={styles.row}>
+            <TouchableOpacity
+              style={[styles.choiceBtn, styles.noBtn]}
+              onPress={handleNo}
+            >
+              <Text style={[styles.choiceText, styles.noText]}>Non</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.choiceBtn, styles.yesBtn]}
+              onPress={handleYes}
+            >
+              <Text style={[styles.choiceText, styles.yesText]}>Oui</Text>
+            </TouchableOpacity>
+          </View>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

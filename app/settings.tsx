@@ -1,12 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Contacts from 'expo-contacts';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SharedCaveModal } from '../components/SharedCaveModal';
 import { useSharedCave } from '../hooks/useSharedCave';
 
 export default function SettingsScreen() {
   const [pushEnabled, setPushEnabled] = useState(true);
+  const [contactsEnabled, setContactsEnabled] = useState(false);
+  const [contactsStatusChecked, setContactsStatusChecked] = useState(false);
   const [showHouseholdModal, setShowHouseholdModal] = useState(false);
   const [modalMode, setModalMode] = useState<'join' | 'share' | 'manage' | null>(null);
   const router = useRouter();
@@ -43,6 +47,34 @@ export default function SettingsScreen() {
     setShowHouseholdModal(true);
   };
 
+  // Vérifier la permission au montage
+  useEffect(() => {
+    (async () => {
+      const stored = await AsyncStorage.getItem('contactsEnabled');
+      if (stored !== null) setContactsEnabled(stored === 'true');
+      const { status } = await Contacts.getPermissionsAsync();
+      setContactsStatusChecked(true);
+      if (status === 'granted') setContactsEnabled(true);
+    })();
+  }, []);
+
+  // Gestion du switch contacts
+  const handleContactsSwitch = async (value: boolean) => {
+    if (value) {
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status === 'granted') {
+        setContactsEnabled(true);
+        await AsyncStorage.setItem('contactsEnabled', 'true');
+      } else {
+        setContactsEnabled(false);
+        await AsyncStorage.setItem('contactsEnabled', 'false');
+      }
+    } else {
+      setContactsEnabled(false);
+      await AsyncStorage.setItem('contactsEnabled', 'false');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header avec bouton back */}
@@ -69,6 +101,20 @@ export default function SettingsScreen() {
           />
         </View>
         <Text style={styles.subLabel}>Reçois une alerte quand un ami ajoute ou aime un vin.</Text>
+        <View style={styles.separator} />
+        {/* Contacts */}
+        <Text style={styles.sectionTitle}>Contacts</Text>
+        <View style={styles.rowBetween}>
+          <Text style={styles.label}>Autoriser l'accès à mes contacts</Text>
+          <Switch
+            value={contactsEnabled}
+            onValueChange={handleContactsSwitch}
+            trackColor={{ false: '#888', true: '#F6A07A' }}
+            thumbColor={contactsEnabled ? '#FFF' : '#FFF'}
+            disabled={!contactsStatusChecked}
+          />
+        </View>
+        <Text style={styles.subLabel}>Permets à Veeni de lire tes contacts pour retrouver tes amis plus facilement.</Text>
         <View style={styles.separator} />
         {/* Mon compte */}
         <Text style={styles.sectionTitle}>Mon compte</Text>

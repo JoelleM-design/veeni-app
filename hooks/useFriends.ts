@@ -4,13 +4,12 @@ import { User } from '../types/user';
 
 export const useFriends = (friendIds: string[]) => {
   const [friends, setFriends] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchFriends = async () => {
     if (friendIds.length === 0) {
       setFriends([]);
-      setLoading(false);
       return;
     }
 
@@ -20,7 +19,7 @@ export const useFriends = (friendIds: string[]) => {
 
       const { data, error: fetchError } = await supabase
         .from('User')
-        .select('*')
+        .select('id, name, first_name, email, avatar')
         .in('id', friendIds);
 
       if (fetchError) throw fetchError;
@@ -31,15 +30,14 @@ export const useFriends = (friendIds: string[]) => {
         first_name: user.first_name,
         email: user.email,
         avatar: user.avatar,
-        friends: user.friends || [],
-        online: user.online || false,
         createdAt: user.created_at,
         updatedAt: user.updated_at,
       })) || [];
 
       setFriends(friendsData);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Erreur lors du chargement des amis'));
+      setError(err as Error);
+      setFriends([]);
     } finally {
       setLoading(false);
     }

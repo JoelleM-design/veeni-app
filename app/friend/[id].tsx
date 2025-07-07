@@ -1,16 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useUser } from '../../hooks/useUser';
-import { User } from '../../types/user';
 
 export default function FriendDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { user } = useUser();
 
-  const friend = user?.friends.find((f: User) => f.id === id);
+  const friend = null; // Temporairement désactivé car la fonctionnalité friends n'est pas implémentée
 
   if (!friend) {
     return (

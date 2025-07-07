@@ -30,14 +30,13 @@ export function useUser() {
 
         setUser({
           id: userData.id,
-          name: userData.name,
           first_name: userData.first_name,
           email: userData.email,
           avatar: userData.avatar,
-          friends: userData.friends || [],
-          online: userData.online || false,
-          createdAt: userData.created_at,
-          updatedAt: userData.updated_at,
+          avatar_initial: userData.avatar_initial,
+          onboarding_complete: userData.onboarding_complete,
+          has_notifications_active: userData.has_notifications_active,
+          created_at: userData.created_at,
         });
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Une erreur est survenue'));
@@ -66,14 +65,13 @@ export function useUser() {
 
         setUser({
           id: userData.id,
-          name: userData.name,
           first_name: userData.first_name,
           email: userData.email,
           avatar: userData.avatar,
-          friends: userData.friends || [],
-          online: userData.online || false,
-          createdAt: userData.created_at,
-          updatedAt: userData.updated_at,
+          avatar_initial: userData.avatar_initial,
+          onboarding_complete: userData.onboarding_complete,
+          has_notifications_active: userData.has_notifications_active,
+          created_at: userData.created_at,
         });
       }
     });
@@ -106,76 +104,23 @@ export function useUser() {
     try {
       if (!user) throw new Error('Utilisateur non connecté');
 
+      console.log('Mise à jour de l\'avatar pour l\'utilisateur:', user.id);
+      console.log('Nouvel avatar URI:', avatarUri);
+
       const { error: userError } = await supabase
         .from('User')
         .update({ avatar: avatarUri })
         .eq('id', user.id);
 
-      if (userError) throw userError;
+      if (userError) {
+        console.error('Erreur Supabase lors de la mise à jour de l\'avatar:', userError);
+        throw userError;
+      }
 
+      console.log('Avatar mis à jour avec succès dans Supabase');
       setUser(prev => prev ? { ...prev, avatar: avatarUri } : null);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Une erreur est survenue'));
-    }
-  };
-
-  // Ajouter un ami par email
-  const addFriend = async (friendEmail: string) => {
-    try {
-      if (!user) throw new Error('Utilisateur non connecté');
-
-      // Vérifier que l'email n'est pas celui de l'utilisateur actuel
-      if (friendEmail.toLowerCase() === user.email.toLowerCase()) {
-        throw new Error('Vous ne pouvez pas vous ajouter vous-même comme ami');
-      }
-
-      // Rechercher l'utilisateur par email
-      const { data: friendData, error: friendError } = await supabase
-        .from('User')
-        .select('id, email')
-        .eq('email', friendEmail.toLowerCase())
-        .single();
-
-      if (friendError || !friendData) {
-        throw new Error('Aucun utilisateur trouvé avec cet email');
-      }
-
-      // Vérifier que l'ami n'est pas déjà dans la liste
-      if (user.friends.includes(friendData.id)) {
-        throw new Error('Cet utilisateur est déjà votre ami');
-      }
-
-      // Ajouter l'ami à la liste
-      const newFriendsList = [...user.friends, friendData.id];
-      const { error: updateError } = await supabase
-        .from('User')
-        .update({ friends: newFriendsList })
-        .eq('id', user.id);
-
-      if (updateError) throw updateError;
-
-      setUser(prev => prev ? { ...prev, friends: newFriendsList } : null);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Une erreur est survenue'));
-      throw err; // Re-lancer l'erreur pour la gestion dans le composant
-    }
-  };
-
-  // Supprimer un ami
-  const removeFriend = async (friendId: string) => {
-    try {
-      if (!user) throw new Error('Utilisateur non connecté');
-
-      const newFriendsList = user.friends.filter(id => id !== friendId);
-      const { error: updateError } = await supabase
-        .from('User')
-        .update({ friends: newFriendsList })
-        .eq('id', user.id);
-
-      if (updateError) throw updateError;
-
-      setUser(prev => prev ? { ...prev, friends: newFriendsList } : null);
-    } catch (err) {
+      console.error('Erreur dans updateAvatar:', err);
       setError(err instanceof Error ? err : new Error('Une erreur est survenue'));
       throw err; // Re-lancer l'erreur pour la gestion dans le composant
     }
@@ -187,7 +132,5 @@ export function useUser() {
     error,
     updateUser,
     updateAvatar,
-    addFriend,
-    removeFriend,
   };
 }

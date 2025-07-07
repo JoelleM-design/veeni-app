@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
-import React, { useEffect, useState } from 'react';
-import { Alert, Image, Linking, Platform, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Image, KeyboardAvoidingView, Linking, Platform, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function StepSocial({ notifications, setNotifications, onNext, onBack, stepIndex = 5, totalSteps = 7 }: {
@@ -74,38 +74,44 @@ export default function StepSocial({ notifications, setNotifications, onNext, on
         </View>
         <View style={{width: 36, height: 36, marginLeft: 8}} />
       </View>
-      <View style={styles.container}>
-        <Image source={require('../../assets/images/icon.png')} style={styles.illustration} />
-        <Text style={styles.title}>Pour profiter pleinement de Veeni.</Text>
-        <View style={styles.section}>
-          <View style={styles.sectionTextWrap}>
-            <Text style={styles.sectionTitle}>Active tes notifications</Text>
-            <Text style={styles.sectionDesc}>Pour suivre les découvertes de tes proches autour du vin.</Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+      >
+        <View style={styles.container}>
+          <Image source={require('../../assets/images/icon.png')} style={styles.illustration} />
+          <Text style={styles.title}>Pour profiter pleinement de Veeni.</Text>
+          <View style={styles.section}>
+            <View style={styles.sectionTextWrap}>
+              <Text style={styles.sectionTitle}>Active tes notifications</Text>
+              <Text style={styles.sectionDesc}>Pour suivre les découvertes de tes proches autour du vin.</Text>
+            </View>
+            <Switch
+              value={notifications}
+              onValueChange={handleNotification}
+              trackColor={{ false: '#393C40', true: '#F6A07A' }}
+              thumbColor={notifications ? '#FFF' : '#FFF'}
+            />
           </View>
-          <Switch
-            value={notifications}
-            onValueChange={handleNotification}
-            trackColor={{ false: '#393C40', true: '#F6A07A' }}
-            thumbColor={notifications ? '#FFF' : '#FFF'}
-          />
-        </View>
-        <View style={styles.section}>
-          <View style={styles.sectionTextWrap}>
-            <Text style={styles.sectionTitle}>Autorise l'accès à tes contacts</Text>
-            <Text style={styles.sectionDesc}>Pour les retrouver facilement.</Text>
+          <View style={styles.section}>
+            <View style={styles.sectionTextWrap}>
+              <Text style={styles.sectionTitle}>Autorise l'accès à tes contacts</Text>
+              <Text style={styles.sectionDesc}>Pour les retrouver facilement.</Text>
+            </View>
+            <Switch
+              value={contactsEnabled}
+              onValueChange={handleContacts}
+              trackColor={{ false: '#393C40', true: '#F6A07A' }}
+              thumbColor={contactsEnabled ? '#FFF' : '#FFF'}
+              disabled={checking}
+            />
           </View>
-          <Switch
-            value={contactsEnabled}
-            onValueChange={handleContacts}
-            trackColor={{ false: '#393C40', true: '#F6A07A' }}
-            thumbColor={contactsEnabled ? '#FFF' : '#FFF'}
-            disabled={checking}
-          />
+          <TouchableOpacity style={styles.button} onPress={onNext}>
+            <Text style={styles.buttonText}>Suivant</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.button} onPress={onNext}>
-          <Text style={styles.buttonText}>Suivant</Text>
-        </TouchableOpacity>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

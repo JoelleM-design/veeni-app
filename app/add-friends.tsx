@@ -25,10 +25,10 @@ export default function AddFriendsScreen() {
       try {
         const { data, error } = await supabase
           .from('User')
-          .select('id, name, first_name, email, avatar, friends')
+          .select('id, name, first_name, email, avatar')
           .neq('id', user.id);
         if (error) throw error;
-        let notFriends = (data || []).filter(u => !(user.friends || []).includes(u.id));
+        let notFriends = data || [];
         if (search.trim()) {
           notFriends = notFriends.filter(u =>
             (u.first_name || u.name || '').toLowerCase().includes(search.trim().toLowerCase())
@@ -140,7 +140,7 @@ export default function AddFriendsScreen() {
             )}
             <View style={styles.suggestionInfo}>
               <Text style={styles.suggestionName}>{sugg.first_name || sugg.name}</Text>
-              <Text style={styles.suggestionMeta}>{(sugg.friends?.length || 0)} amis sur Veeni</Text>
+              <Text style={styles.suggestionMeta}>0 amis sur Veeni</Text>
             </View>
             <TouchableOpacity style={styles.addBtn}>
               <Text style={styles.addBtnText}>+ Ajouter</Text>

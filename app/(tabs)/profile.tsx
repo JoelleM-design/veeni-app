@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
+    Alert,
     Animated,
     Image,
     ScrollView,
@@ -15,12 +17,10 @@ import { ProfileStatsBar } from '../../components/ProfileStatsBar';
 import { SharedCaveInfo } from '../../components/SharedCaveInfo';
 import { WineCard } from '../../components/WineCard';
 import { BorderRadius, Spacing, Typography, VeeniColors } from '../../constants/Colors';
-import { useFriends } from '../../hooks/useFriends';
 import { useProfileStats } from '../../hooks/useProfileStats';
 import { useUser } from '../../hooks/useUser';
 import { useWineHistory } from '../../hooks/useWineHistory';
 import { useWines } from '../../hooks/useWines';
-import { supabase } from '../../lib/supabase';
 
 const HEADER_MAX_HEIGHT = 280; // Hauteur maximale du header
 const HEADER_MIN_HEIGHT = 110; // Hauteur minimale du header (barre de navigation + search bar)
@@ -33,7 +33,6 @@ export default function ProfileScreen() {
   const { user, loading: userLoading, error: userError, updateUser, updateAvatar } = useUser();
   const { stats: profileStats, loading: statsLoading, error: statsError } = useProfileStats(user?.id);
   const { history: wineHistory, loading: historyLoading, getRecentTastings } = useWineHistory();
-  const { friends, loading: friendsLoading, error: friendsError, refetch: refetchFriends } = useFriends(user?.friends || []);
   const [suggestions, setSuggestions] = useState([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 
@@ -115,12 +114,65 @@ export default function ProfileScreen() {
   };
 
   const handleAvatarPress = async () => {
-    // TODO: Implémenter la sélection d'image
+    try {
+      // Demander les permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission requise',
+          'Nous avons besoin de votre permission pour accéder à votre bibliothèque de photos.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Ouvrir le sélecteur d'images avec la syntaxe correcte
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const selectedImage = result.assets[0];
+        
+        console.log('Photo sélectionnée:', selectedImage.uri);
+        
+        // Mettre à jour l'avatar dans la base de données
+        if (user && updateAvatar) {
+          try {
+            await updateAvatar(selectedImage.uri);
+            Alert.alert('Succès', 'Votre photo de profil a été mise à jour !');
+          } catch (updateError) {
+            console.error('Erreur lors de la mise à jour de l\'avatar:', updateError);
+            Alert.alert(
+              'Erreur de sauvegarde',
+              'La photo a été sélectionnée mais n\'a pas pu être sauvegardée. Veuillez réessayer.',
+              [{ text: 'OK' }]
+            );
+          }
+        } else {
+          Alert.alert(
+            'Erreur',
+            'Impossible de mettre à jour votre profil. Veuillez réessayer.',
+            [{ text: 'OK' }]
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de la sélection de photo:', error);
+      Alert.alert(
+        'Erreur',
+        'Une erreur est survenue lors de la sélection de votre photo. Veuillez réessayer.',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
-  const handleFriendsPress = () => {
-    router.push('/friends');
-  };
+  // const handleFriendsPress = () => {
+  //   router.push('/friends');
+  // };
 
   const handleSettingsPress = () => {
     router.push('/settings');
@@ -130,27 +182,27 @@ export default function ProfileScreen() {
   const recentWines = wines?.filter(wine => wine.origin === 'cellar').slice(0, 5) || [];
 
   // Suggestions d'amis : utilisateurs non amis et non soi-même
-  useEffect(() => {
-    async function fetchSuggestions() {
-      if (!user) return;
-      setSuggestionsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('User')
-          .select('id, name, first_name, email, avatar, friends')
-          .neq('id', user.id);
-        if (error) throw error;
-        // Exclure déjà amis
-        const notFriends = (data || []).filter(u => !(user.friends || []).includes(u.id));
-        setSuggestions(notFriends);
-      } catch (e) {
-        setSuggestions([]);
-      } finally {
-        setSuggestionsLoading(false);
-      }
-    }
-    fetchSuggestions();
-  }, [user]);
+  // useEffect(() => {
+  //   async function fetchSuggestions() {
+  //     if (!user) return;
+  //     setSuggestionsLoading(true);
+  //     try {
+  //       const { data, error } = await supabase
+  //         .from('User')
+  //         .select('id, name, first_name, email, avatar')
+  //         .neq('id', user.id);
+  //       if (error) throw error;
+  //       // Exclure déjà amis
+  //       const notFriends = (data || []).filter(u => !(user.friends || []).includes(u.id));
+  //       setSuggestions(notFriends);
+  //     } catch (e) {
+  //       setSuggestions([]);
+  //     } finally {
+  //       setSuggestionsLoading(false);
+  //     }
+  //   }
+  //   fetchSuggestions();
+  // }, [user]);
 
   // Afficher une erreur seulement si c'est critique
   if (userError) {
@@ -184,21 +236,22 @@ export default function ProfileScreen() {
       >
         {/* Section profil */}
         <View style={styles.profileHeader}>
-          <View style={styles.avatarUnified}>
-            {user?.avatar ? (
-              <View style={styles.avatarPlaceholderUnified}>
-                <Text style={styles.avatarInitialUnified}>
-                  {user.first_name?.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.avatarPlaceholderUnified}>
-                <Text style={styles.avatarInitialUnified}>
-                  {user?.first_name?.charAt(0).toUpperCase() || 'U'}
-                </Text>
-              </View>
-            )}
-          </View>
+          <TouchableOpacity style={styles.avatarContainer} onPress={handleAvatarPress}>
+            <View style={styles.avatarUnified}>
+              {user?.avatar ? (
+                <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+              ) : (
+                <View style={styles.avatarPlaceholderUnified}>
+                  <Text style={styles.avatarInitialUnified}>
+                    {user?.first_name?.charAt(0).toUpperCase() || 'U'}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.avatarEditIcon}>
+              <Ionicons name="camera" size={16} color="#FFF" />
+            </View>
+          </TouchableOpacity>
           
           <Text style={styles.userName}>{user?.first_name || 'Utilisateur'}</Text>
           
@@ -235,10 +288,8 @@ export default function ProfileScreen() {
           />
         </View>
 
-
-
-        {/* Section Amis */}
-        <View style={styles.section}>
+        {/* Section Amis - Temporairement désactivée */}
+        {/* <View style={styles.section}>
           {friendsLoading ? (
             <Text style={styles.loadingText}>Chargement des amis…</Text>
           ) : friendsError ? (
@@ -261,18 +312,14 @@ export default function ProfileScreen() {
                     <Text style={styles.friendName}>{friend.first_name || friend.name}</Text>
                     <Text style={styles.friendMeta}>{(friend.friends?.length || 0)} amis sur Veeni</Text>
                   </View>
-                  {/* Badge Intros (exemple, à adapter selon ta logique) */}
-                  {/* <View style={styles.introBadge}><Text style={styles.introBadgeText}>9 INTROS</Text></View> */}
                 </View>
               ))}
             </>
           ) : null}
         </View>
-        {/* Message si aucun ami */}
         {(!friendsLoading && !friendsError && friends.length === 0) && (
           <Text style={styles.noFriendsText}>Tu n'as pas encore d'amis, ajoutes des amis pour découvrir leurs vins préférés</Text>
         )}
-        {/* Section Suggestions d'amis */}
         {suggestionsLoading ? (
           <Text style={styles.loadingText}>Chargement des suggestions…</Text>
         ) : suggestions.length > 0 ? (
@@ -293,16 +340,13 @@ export default function ProfileScreen() {
                   <Text style={styles.friendName}>{sugg.first_name || sugg.name}</Text>
                   <Text style={styles.friendMeta}>{(sugg.friends?.length || 0)} amis sur Veeni</Text>
                 </View>
-                {/* Bouton d'ajout d'ami (à brancher sur addFriend) */}
-                {/* <TouchableOpacity style={styles.addFriendButton}><Ionicons name="person-add" size={20} color="#F6A07A" /></TouchableOpacity> */}
               </View>
             ))}
           </View>
         ) : null}
-        {/* Bouton Ajoute plus d'amis */}
         <TouchableOpacity style={styles.addFriendsButton} onPress={() => router.push('/add-friends')}>
           <Text style={styles.addFriendsButtonText}>Ajoute plus d'amis</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         {/* Section historique */}
         {tastingHistory.length > 0 && (
@@ -368,7 +412,15 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
   },
+  avatarContainer: {
+    position: 'relative',
+  },
   avatarUnified: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+  },
+  avatarImage: {
     width: 84,
     height: 84,
     borderRadius: 42,
@@ -385,6 +437,14 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 32,
     fontWeight: '600',
+  },
+  avatarEditIcon: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    padding: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 16,
   },
   userName: {
     color: '#FFF',

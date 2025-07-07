@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function StepFinish({ firstName, onNext, onBack, stepIndex = 10, totalSteps = 11 }: { firstName: string; onNext: () => void; onBack?: () => void; stepIndex?: number; totalSteps?: number }) {
@@ -17,16 +16,20 @@ export default function StepFinish({ firstName, onNext, onBack, stepIndex = 10, 
         </View>
         {!onBack && <View style={{width: 36, height: 36, marginLeft: 8}} />}
       </View>
-      <View style={styles.container}>
-        <Image source={require('../../assets/images/icon.png')} style={styles.logo} />
-        <Text style={styles.title}>Bienvenue sur Veeni !</Text>
-        <Text style={styles.text}>Crée ta cave simplement.
-Découvre les vins et les profils.
-Crée et visualise ton garde-manger ou ce que tu veux goûter.</Text>
-        <TouchableOpacity style={styles.button} onPress={onNext}>
-          <Text style={styles.buttonText}>C'est parti !</Text>
-        </TouchableOpacity>
-      </View>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+      >
+        <View style={styles.container}>
+          <Image source={require('../../assets/images/icon.png')} style={styles.logo} />
+          <Text style={styles.title}>Bienvenue sur Veeni !</Text>
+          <Text style={styles.text}>La seule cave, connectée à ceux qui partagent votre passion.</Text>
+          <TouchableOpacity style={styles.button} onPress={onNext}>
+            <Text style={styles.buttonText}>C'est parti !</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
