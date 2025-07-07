@@ -47,6 +47,10 @@ export interface Wine {
   ocrText?: string;
   confidence?: 'high' | 'medium' | 'low';
   missingFields?: string[];
+  // Information sur le propriétaire (pour les caves partagées)
+  ownerId?: string;
+  isOwnedByUser?: boolean;
+  personalComment?: string;
 }
 
 export type AddWineStatus = 'pending' | 'validated' | 'edited' | 'error';

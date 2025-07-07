@@ -1,97 +1,101 @@
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
-// Configuration Supabase (même que dans lib/supabase.ts)
-const SUPABASE_URL = "https://yzdyepdejftgqpnwitcq.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6ZHllcGRlamZ0Z3FwbndpdGNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAwODAwOTksImV4cCI6MjA2NTY1NjA5OX0.wGFjpAAoYtcLlk6o1_lgZb0EhX3NB9SoYQ_D1rOc2E0";
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-  },
-});
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('Variables d\'environnement manquantes');
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function clearUserWines() {
   try {
-    console.log('🔍 Recherche de l\'utilisateur connecté...');
-    
-    // Récupérer la session actuelle
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError) {
-      console.error('❌ Erreur récupération session:', sessionError);
+    console.log('🚀 Début du nettoyage des vins utilisateur...');
+
+    // Récupérer tous les utilisateurs
+    const { data: users, error: usersError } = await supabase
+      .from('User')
+      .select('id, email');
+
+    if (usersError) {
+      console.error('❌ Erreur lors de la récupération des utilisateurs:', usersError);
       return;
     }
-    
-    if (!session) {
-      console.error('❌ Aucune session active. Veuillez vous connecter.');
-      return;
+
+    console.log(`📊 ${users.length} utilisateurs trouvés`);
+
+    for (const user of users) {
+      console.log(`\n👤 Traitement de l'utilisateur: ${user.email} (${user.id})`);
+
+      // Récupérer les vins de l'utilisateur
+      const { data: userWines, error: winesError } = await supabase
+        .from('user_wine')
+        .select('wine_id, wine(name)')
+        .eq('user_id', user.id);
+
+      if (winesError) {
+        console.error(`❌ Erreur lors de la récupération des vins pour ${user.email}:`, winesError);
+        continue;
+      }
+
+      console.log(`🍷 ${userWines.length} vins trouvés pour ${user.email}`);
+
+      if (userWines.length === 0) {
+        console.log(`✅ Aucun vin à supprimer pour ${user.email}`);
+        continue;
+      }
+
+      // Supprimer les vins de l'utilisateur
+      const { error: deleteError } = await supabase
+        .from('user_wine')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (deleteError) {
+        console.error(`❌ Erreur lors de la suppression des vins pour ${user.email}:`, deleteError);
+        continue;
+      }
+
+      console.log(`✅ ${userWines.length} vins supprimés pour ${user.email}`);
+
+      // Identifier les vins orphelins (qui ne sont plus référencés par aucun utilisateur)
+      const wineIds = userWines.map(uw => uw.wine_id);
+      
+      for (const wineId of wineIds) {
+        const { data: remainingReferences, error: refError } = await supabase
+          .from('user_wine')
+          .select('id')
+          .eq('wine_id', wineId);
+
+        if (refError) {
+          console.error(`❌ Erreur lors de la vérification des références pour le vin ${wineId}:`, refError);
+          continue;
+        }
+
+        // Si plus aucune référence, supprimer le vin
+        if (remainingReferences.length === 0) {
+          const { error: wineDeleteError } = await supabase
+            .from('wine')
+            .delete()
+            .eq('id', wineId);
+
+          if (wineDeleteError) {
+            console.error(`❌ Erreur lors de la suppression du vin orphelin ${wineId}:`, wineDeleteError);
+          } else {
+            console.log(`🗑️ Vin orphelin supprimé: ${wineId}`);
+          }
+        }
+      }
     }
-    
-    const userId = session.user.id;
-    console.log(`👤 Utilisateur trouvé: ${userId}`);
-    
-    // Récupérer tous les vins de l'utilisateur
-    console.log('🍷 Récupération des vins existants...');
-    const { data: userWines, error: fetchError } = await supabase
-      .from('user_wines')
-      .select('*')
-      .eq('user_id', userId);
-    
-    if (fetchError) {
-      console.error('❌ Erreur récupération vins:', fetchError);
-      return;
-    }
-    
-    if (!userWines || userWines.length === 0) {
-      console.log('✅ Aucun vin trouvé pour cet utilisateur');
-      return;
-    }
-    
-    console.log(`📊 ${userWines.length} vins trouvés:`);
-    userWines.forEach((wine, index) => {
-      console.log(`  ${index + 1}. ${wine.wine?.name || 'Nom inconnu'} (${wine.origin})`);
-    });
-    
-    // Demander confirmation
-    console.log('\n⚠️  ATTENTION: Cette action supprimera définitivement tous vos vins !');
-    console.log('Pour confirmer, tapez "SUPPRIMER" (en majuscules):');
-    
-    // Simulation de confirmation pour le script automatique
-    const confirmation = 'SUPPRIMER'; // En production, vous devriez utiliser readline
-    
-    if (confirmation !== 'SUPPRIMER') {
-      console.log('❌ Suppression annulée');
-      return;
-    }
-    
-    // Supprimer tous les vins de l'utilisateur
-    console.log('🗑️  Suppression des vins...');
-    const { error: deleteError } = await supabase
-      .from('user_wines')
-      .delete()
-      .eq('user_id', userId);
-    
-    if (deleteError) {
-      console.error('❌ Erreur suppression vins:', deleteError);
-      return;
-    }
-    
-    console.log('✅ Tous les vins ont été supprimés avec succès !');
-    console.log(`🗑️  ${userWines.length} vins supprimés`);
-    
+
+    console.log('\n🎉 Nettoyage terminé avec succès !');
+
   } catch (error) {
-    console.error('❌ Erreur inattendue:', error);
+    console.error('❌ Erreur générale:', error);
   }
 }
 
-// Exécuter le script
-clearUserWines()
-  .then(() => {
-    console.log('✅ Script terminé');
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error('❌ Erreur fatale:', error);
-    process.exit(1);
-  }); 
+clearUserWines(); 

@@ -1,11 +1,47 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { SharedCaveModal } from '../components/SharedCaveModal';
+import { useSharedCave } from '../hooks/useSharedCave';
 
 export default function SettingsScreen() {
   const [pushEnabled, setPushEnabled] = useState(true);
+  const [showHouseholdModal, setShowHouseholdModal] = useState(false);
+  const [modalMode, setModalMode] = useState<'join' | 'share' | 'manage' | null>(null);
   const router = useRouter();
+  const { sharedCave, caveState, userRole } = useSharedCave();
+
+  // Déterminer le texte à afficher pour la cave partagée
+  const getSharedCaveText = () => {
+    if (!sharedCave) return null;
+    
+    if (caveState === 'owner_only' && userRole === 'owner') {
+      return 'Cave partagée (en attente d\'un partenaire)';
+    } else if (caveState === 'shared' && userRole === 'owner') {
+      return 'Cave partagée active';
+    } else if (caveState === 'shared' && userRole === 'partner') {
+      return 'Cave partagée active';
+    }
+    
+    return null;
+  };
+
+  const sharedCaveText = getSharedCaveText();
+
+  // Gestion des actions
+  const handleJoinCave = () => {
+    setModalMode('join');
+    setShowHouseholdModal(true);
+  };
+  const handleShareCave = () => {
+    setModalMode('share');
+    setShowHouseholdModal(true);
+  };
+  const handleManageCave = () => {
+    setModalMode('manage');
+    setShowHouseholdModal(true);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -48,6 +84,25 @@ export default function SettingsScreen() {
           <Ionicons name="chevron-forward" size={20} color="#B0B0B0" />
         </TouchableOpacity>
         <View style={styles.separator} />
+        {/* Cave partagée - seulement affiché si il y en a une */}
+        {sharedCaveText && (
+          <>
+            <Text style={styles.sectionTitle}>Cave partagée</Text>
+            <TouchableOpacity style={styles.settingItem} onPress={handleJoinCave}>
+              <Text style={styles.settingText}>Rejoindre une cave</Text>
+              <Ionicons name="chevron-forward" size={20} color="#666" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingItem} onPress={handleShareCave}>
+              <Text style={styles.settingText}>Partager ma cave</Text>
+              <Ionicons name="chevron-forward" size={20} color="#666" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingItem} onPress={handleManageCave}>
+              <Text style={styles.settingText}>Gérer ma cave</Text>
+              <Ionicons name="chevron-forward" size={20} color="#666" />
+            </TouchableOpacity>
+            <View style={styles.separator} />
+          </>
+        )}
         {/* Mentions légales */}
         <Text style={styles.sectionTitle}>Mentions légales</Text>
         <TouchableOpacity style={styles.rowBetween}>
@@ -67,6 +122,15 @@ export default function SettingsScreen() {
           <Text style={styles.logoutText}>Se déconnecter</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Modal Cave partagée */}
+      {modalMode && (
+        <SharedCaveModal
+          visible={showHouseholdModal}
+          onClose={() => { setShowHouseholdModal(false); setModalMode(null); }}
+          mode={modalMode}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -136,5 +200,23 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 18,
     textAlign: 'center',
+  },
+  linkText: {
+    color: '#F6A07A',
+    fontWeight: 'bold',
+    fontSize: 16,
+    marginLeft: 2,
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 0,
+  },
+  settingText: {
+    color: '#FFF',
+    fontSize: 16,
+    marginLeft: 2,
   },
 }); 

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ProfileStatsBar } from '../../components/ProfileStatsBar';
+import { SharedCaveInfo } from '../../components/SharedCaveInfo';
 import { WineCard } from '../../components/WineCard';
 import { BorderRadius, Spacing, Typography, VeeniColors } from '../../constants/Colors';
 import { useFriends } from '../../hooks/useFriends';
@@ -201,6 +202,9 @@ export default function ProfileScreen() {
           
           <Text style={styles.userName}>{user?.first_name || 'Utilisateur'}</Text>
           
+          {/* Informations de cave partagée */}
+          <SharedCaveInfo />
+          
           {/* Préférence dynamique */}
           {userPreference ? (
             <View style={styles.preferenceContainer}>
@@ -230,6 +234,8 @@ export default function ProfileScreen() {
             error={statsError}
           />
         </View>
+
+
 
         {/* Section Amis */}
         <View style={styles.section}>
@@ -612,6 +618,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   noFriendsText: {
+    color: VeeniColors.text.primary,
+    fontSize: 15,
+    textAlign: 'center',
+    marginHorizontal: 24,
+    marginBottom: 8,
+    marginTop: 8,
+    fontWeight: 'bold',
+  },
+  sharedWinesText: {
     color: VeeniColors.text.primary,
     fontSize: 15,
     textAlign: 'center',
