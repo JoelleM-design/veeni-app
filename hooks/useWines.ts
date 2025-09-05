@@ -326,6 +326,7 @@ export function useWines() {
       if (updates.domaine !== undefined) wineUpdates.domaine = updates.domaine;
       if (updates.vintage !== undefined) wineUpdates.year = updates.vintage?.toString();
       if (updates.region !== undefined) wineUpdates.region = updates.region;
+      if (updates.color !== undefined) wineUpdates.wine_type = updates.color;
       // Le pays est géré via country_id, pas directement
       if (updates.country !== undefined) {
         // Trouver l'ID du pays dans la table country

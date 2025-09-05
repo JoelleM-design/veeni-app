@@ -398,13 +398,6 @@ export default function EditableWineDetailsScreen({
     }
   };
 
-  // Fonction pour changer la couleur du vin
-  const handleColorChange = (newColor: string) => {
-    if (safeWine) {
-      updateWine(wineId, { color: newColor });
-    }
-    setShowColorPicker(false);
-  };
 
   // États locaux pour les champs en cours d'édition
   const [editingFields, setEditingFields] = useState<{[key: string]: string}>({});
@@ -664,22 +657,24 @@ export default function EditableWineDetailsScreen({
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Type</Text>
             <TouchableOpacity 
-              style={styles.wineTypeBadgeInline}
+              style={styles.detailValue}
               onPress={() => setShowColorPicker(true)}
             >
-              <View 
-                style={[
-                  styles.wineTypeIndicator, 
-                  { backgroundColor: getWineTypeColor(safeWine.color) }
-                ]} 
-              />
-              <Text style={styles.wineTypeText}>
-                {safeWine.color === 'red' ? 'Rouge' : 
-                 safeWine.color === 'white' ? 'Blanc' : 
-                 safeWine.color === 'rose' ? 'Rosé' : 
-                 safeWine.color === 'sparkling' ? 'Effervescent' : 'Vin'}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color="#333" style={styles.colorPickerIcon} />
+              <View style={styles.wineTypeContainer}>
+                <Ionicons 
+                  name="wine" 
+                  size={16} 
+                  color={getWineTypeColor(safeWine.color)}
+                  style={styles.wineTypeIcon}
+                />
+                <Text style={styles.detailValueText}>
+                  {safeWine.color === 'red' ? 'Rouge' : 
+                   safeWine.color === 'white' ? 'Blanc' : 
+                   safeWine.color === 'rose' ? 'Rosé' : 
+                   safeWine.color === 'sparkling' ? 'Effervescent' : 'Vin'}
+                </Text>
+                <Ionicons name="chevron-down" size={16} color="#CCCCCC" style={styles.chevronIcon} />
+              </View>
             </TouchableOpacity>
           </View>
 
@@ -884,60 +879,75 @@ export default function EditableWineDetailsScreen({
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Modal de sélection de couleur */}
+      {/* Modal sélection type de vin */}
       <Modal
         visible={showColorPicker}
         transparent
         animationType="slide"
         onRequestClose={() => setShowColorPicker(false)}
       >
-        <TouchableOpacity
+        <TouchableOpacity 
           style={styles.modalOverlay}
           activeOpacity={1}
           onPress={() => setShowColorPicker(false)}
         >
-          <View style={styles.colorPickerModal}>
-            <View style={styles.colorPickerHeader}>
-              <Text style={styles.colorPickerTitle}>Type de vin</Text>
-              <TouchableOpacity onPress={() => setShowColorPicker(false)}>
-                <Ionicons name="close" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <KeyboardAvoidingView 
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.pickerModal}
+            >
+            <Text style={styles.pickerTitle}>Sélectionner le type de vin</Text>
             
-            <View style={styles.colorOptions}>
-              <TouchableOpacity 
-                style={styles.colorOption} 
-                onPress={() => handleColorChange('red')}
-              >
-                <View style={[styles.colorIndicator, { backgroundColor: VeeniColors.wine.red }]} />
-                <Text style={styles.colorOptionText}>Rouge</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.colorOption} 
-                onPress={() => handleColorChange('white')}
-              >
-                <View style={[styles.colorIndicator, { backgroundColor: VeeniColors.wine.white }]} />
-                <Text style={styles.colorOptionText}>Blanc</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.colorOption} 
-                onPress={() => handleColorChange('rose')}
-              >
-                <View style={[styles.colorIndicator, { backgroundColor: VeeniColors.wine.rose }]} />
-                <Text style={styles.colorOptionText}>Rosé</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.colorOption} 
-                onPress={() => handleColorChange('sparkling')}
-              >
-                <View style={[styles.colorIndicator, { backgroundColor: VeeniColors.wine.sparkling }]} />
-                <Text style={styles.colorOptionText}>Effervescent</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+            <FlatList
+              data={[
+                { key: 'red', label: 'Rouge', color: VeeniColors.wine.red },
+                { key: 'white', label: 'Blanc', color: VeeniColors.wine.white },
+                { key: 'rose', label: 'Rosé', color: VeeniColors.wine.rose },
+                { key: 'sparkling', label: 'Effervescent', color: VeeniColors.wine.sparkling },
+              ]}
+              keyExtractor={(item) => item.key}
+              renderItem={({ item, index }) => (
+                <TouchableOpacity
+                  style={index === 3 ? styles.pickerItemLast : styles.pickerItem}
+                  onPress={() => {
+                    // Fermer le modal immédiatement
+                    setShowColorPicker(false);
+                    
+                    // Sauvegarder en arrière-plan
+                    (async () => {
+                      try {
+                        console.log('🍷 Sauvegarde type:', item.key, 'pour vin:', wineId);
+                        await updateWine(wineId, { color: item.key });
+                        console.log('✅ Type sauvegardé, rechargement...');
+                        await fetchWines();
+                        console.log('✅ Données rechargées');
+                      } catch (error) {
+                        console.error('❌ Erreur sauvegarde type:', error);
+                        Alert.alert('Erreur', 'Impossible de sauvegarder le type');
+                      }
+                    })();
+                  }}
+                >
+                  <View style={styles.pickerItemContent}>
+                    <Ionicons 
+                      name="wine" 
+                      size={16} 
+                      color={item.color}
+                      style={styles.pickerItemIcon}
+                    />
+                    <Text style={styles.pickerItemText}>
+                      {item.label}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              style={styles.pickerList}
+            />
+            </KeyboardAvoidingView>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
 
@@ -1007,9 +1017,9 @@ export default function EditableWineDetailsScreen({
             <FlatList
               data={vintageYears}
               keyExtractor={(item) => item.toString()}
-              renderItem={({ item }) => (
+              renderItem={({ item, index }) => (
                 <TouchableOpacity
-                  style={styles.pickerItem}
+                  style={index === vintageYears.length - 1 ? styles.pickerItemLast : styles.pickerItem}
                   onPress={async () => {
                     try {
                       await updateWine(wineId, { vintage: item });
@@ -1041,11 +1051,23 @@ export default function EditableWineDetailsScreen({
           setFilteredCountries(countries);
         }}
       >
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView 
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.pickerModal}
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => {
+            setShowCountryPicker(false);
+            setCountrySearchText('');
+            setFilteredCountries(countries);
+          }}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
           >
+            <KeyboardAvoidingView 
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.pickerModal}
+            >
             <Text style={styles.pickerTitle}>Sélectionner le pays</Text>
             
             {/* Champ de recherche */}
@@ -1070,9 +1092,9 @@ export default function EditableWineDetailsScreen({
               data={filteredCountries}
               keyExtractor={(item) => item.id}
               keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
+              renderItem={({ item, index }) => (
                 <TouchableOpacity
-                  style={styles.pickerItem}
+                  style={index === filteredCountries.length - 1 ? styles.pickerItemLast : styles.pickerItem}
                   onPress={() => {
                     // Fermer le modal immédiatement
                     setShowCountryPicker(false);
@@ -1101,8 +1123,9 @@ export default function EditableWineDetailsScreen({
               )}
               style={styles.pickerList}
             />
-          </KeyboardAvoidingView>
-        </View>
+            </KeyboardAvoidingView>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Modal sélection prix */}
@@ -1126,9 +1149,9 @@ export default function EditableWineDetailsScreen({
             <FlatList
               data={priceRanges}
               keyExtractor={(item) => item}
-              renderItem={({ item }) => (
+              renderItem={({ item, index }) => (
                 <TouchableOpacity
-                  style={styles.pickerItem}
+                  style={index === priceRanges.length - 1 ? styles.pickerItemLast : styles.pickerItem}
                   onPress={async () => {
                     try {
                       await updateWine(wineId, { priceRange: item });
@@ -1242,6 +1265,16 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     alignSelf: 'flex-end',
+  },
+  wineTypeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  wineTypeIcon: {
+    marginRight: 8,
+  },
+  chevronIcon: {
+    marginLeft: 8,
   },
   wineTypeIndicator: {
     width: 12,
@@ -1415,7 +1448,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-start',
-    paddingTop: 20, // Encore plus bas
+    paddingTop: 100, // Plus bas pour éviter la safe area
   },
   modalContent: {
     backgroundColor: '#2a2a2a',
@@ -1452,7 +1485,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2a2a2a',
     margin: 20,
     borderRadius: 12,
-    maxHeight: 500, // Hauteur fixe au lieu de pourcentage
+    maxHeight: 400, // Réduit pour tenir compte de la safe area
     position: 'absolute',
     top: 0,
     left: 0,
@@ -1474,6 +1507,17 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#444',
+  },
+  pickerItemLast: {
+    padding: 16,
+    borderBottomWidth: 0,
+  },
+  pickerItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pickerItemIcon: {
+    marginRight: 12,
   },
   pickerItemText: {
     fontSize: 16,
@@ -1515,45 +1559,5 @@ const styles = StyleSheet.create({
   criteriaStars: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  // Styles pour le sélecteur de couleur
-  colorPickerModal: {
-    backgroundColor: '#2a2a2a',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 40,
-  },
-  colorPickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444444',
-  },
-  colorPickerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  colorOptions: {
-    padding: 20,
-  },
-  colorOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444444',
-  },
-  colorIndicator: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    marginRight: 12,
-  },
-  colorOptionText: {
-    fontSize: 16,
-    color: '#FFFFFF',
   },
 });
