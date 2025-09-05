@@ -72,6 +72,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   filterBtnActive: {
-    backgroundColor: '#F6A07A',
+    backgroundColor: '#393C40', borderWidth: 0,
   },
 }); 

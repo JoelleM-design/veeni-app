@@ -9,6 +9,7 @@ interface StatsBarProps {
 }
 
 export const StatsBar: React.FC<StatsBarProps> = ({ values, labels, totalLabel = 'vins', style }) => {
+  console.log('🔄 StatsBar: Re-rendu avec valeurs:', values); // Debug log
   const defaultLabels = {
     red: 'rouges',
     white: 'blancs',
@@ -17,68 +18,78 @@ export const StatsBar: React.FC<StatsBarProps> = ({ values, labels, totalLabel =
   };
   const l = labels || defaultLabels;
   return (
-    <View style={[styles.statsOutlineBox, style]}>
-      <View style={styles.statsRowOutline}>
-        <View style={styles.statItemOutline}>
-          <Text style={styles.statNumberOutline}>{values.red}</Text>
-          <Text style={styles.statLabelOutline}>{l.red}</Text>
-        </View>
-        <View style={styles.statSeparatorOutline} />
-        <View style={styles.statItemOutline}>
-          <Text style={styles.statNumberOutline}>{values.white}</Text>
-          <Text style={styles.statLabelOutline}>{l.white}</Text>
-        </View>
-        <View style={styles.statSeparatorOutline} />
-        <View style={styles.statItemOutline}>
-          <Text style={styles.statNumberOutline}>{values.rose}</Text>
-          <Text style={styles.statLabelOutline}>{l.rose}</Text>
-        </View>
-        <View style={styles.statSeparatorOutline} />
-        <View style={styles.statItemOutline}>
-          <Text style={styles.statNumberOutline}>{values.sparkling}</Text>
-          <Text style={styles.statLabelOutline}>{l.sparkling}</Text>
+    <View style={[styles.container, style]}>
+      <View style={[styles.statsOutlineBox, style]}>
+        <View style={styles.statsRowOutline}>
+          <View style={styles.statItemOutline}>
+            <Text style={styles.statValueOutline}>{values.red}</Text>
+            <Text style={styles.statLabelOutline}>{l.red}</Text>
+          </View>
+          <View style={styles.separator} />
+          <View style={styles.statItemOutline}>
+            <Text style={styles.statValueOutline}>{values.white}</Text>
+            <Text style={styles.statLabelOutline}>{l.white}</Text>
+          </View>
+          <View style={styles.separator} />
+          <View style={styles.statItemOutline}>
+            <Text style={styles.statValueOutline}>{values.rose}</Text>
+            <Text style={styles.statLabelOutline}>{l.rose}</Text>
+          </View>
+          <View style={styles.separator} />
+          <View style={styles.statItemOutline}>
+            <Text style={styles.statValueOutline}>{values.sparkling}</Text>
+            <Text style={styles.statLabelOutline}>{l.sparkling}</Text>
+          </View>
         </View>
       </View>
-      {totalLabel ? (
-        <Text style={styles.totalText}><Text style={styles.totalNumber}>{values.total}</Text> <Text style={styles.totalLabel}>{totalLabel}</Text></Text>
-      ) : null}
+      <View style={styles.totalRowOutline}>
+        <Text style={styles.totalValueOutline}>{values.total}</Text>
+        <Text style={styles.totalLabelOutline}> {totalLabel}</Text>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
   statsOutlineBox: {
     marginTop: 18,
-    marginBottom: 0,
-    marginHorizontal: 18,
+    marginBottom: 8,
+    marginHorizontal: 20,
     borderRadius: 28,
-    borderWidth: 1.5,
-    borderColor: '#444',
+    borderWidth: 1,
+    borderColor: '#555',
     backgroundColor: 'transparent',
     paddingVertical: 6,
     paddingHorizontal: 0,
     flexDirection: 'column',
     alignItems: 'stretch',
+    alignSelf: 'center',
+    width: 350,
   },
   statsRowOutline: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    justifyContent: 'space-around',
     width: '100%',
     minHeight: 40,
+    paddingHorizontal: 8,
   },
   statItemOutline: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingVertical: 2,
+    justifyContent: 'center',
+    paddingVertical: 4,
   },
-  statNumberOutline: {
+  statValueOutline: {
     color: '#FFF',
     fontSize: 20,
     fontWeight: 'bold',
     fontFamily: 'System',
-    marginBottom: 0,
+    marginBottom: 2,
   },
   statLabelOutline: {
     color: '#FFF',
@@ -88,31 +99,31 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     marginTop: 0,
     letterSpacing: 0.1,
-  },
-  statSeparatorOutline: {
-    width: 1,
-    height: 28,
-    backgroundColor: '#444',
-    alignSelf: 'center',
-  },
-  totalText: {
-    color: '#FFF',
-    fontSize: 15,
-    fontWeight: '400',
-    fontFamily: 'System',
-    marginTop: 10,
     textAlign: 'center',
+    lineHeight: 16,
   },
-  totalNumber: {
+  totalRowOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  totalValueOutline: {
     fontWeight: 'bold',
     fontSize: 18,
     fontFamily: 'System',
     color: '#FFF',
   },
-  totalLabel: {
+  totalLabelOutline: {
     color: '#FFF',
     fontSize: 15,
     fontWeight: '400',
     fontFamily: 'System',
+  },
+  separator: {
+    width: 1,
+    height: '100%',
+    backgroundColor: '#555',
+    marginHorizontal: 10,
   },
 }); 

@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     fontSize: 16,
-    color: '#F6A07A',
+    color: '#FFFFFF',
   },
   content: {
     flex: 1,
@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
   codeText: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#F6A07A',
+    color: '#FFFFFF',
     letterSpacing: 2,
     marginBottom: 12,
   },
@@ -486,7 +486,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   primaryButton: {
-    backgroundColor: '#F6A07A',
+    backgroundColor: '#393C40', borderWidth: 0,
   },
   primaryButtonText: {
     color: '#FFF',

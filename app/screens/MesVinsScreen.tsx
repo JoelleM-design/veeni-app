@@ -1,19 +1,26 @@
-import { useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatsBar } from '../../components/StatsBar';
-import { ActiveFiltersBar, FilterOption } from '../../components/ui/ActiveFiltersBar';
+import TastingConfirmationModal from '../../components/TastingConfirmationModal';
+import TastingHistoryModal from '../../components/TastingHistoryModal';
+import { ActiveFiltersBar } from '../../components/ui/ActiveFiltersBar';
 import { FilterModal } from '../../components/ui/FilterModal';
 import { SearchFilterBar } from '../../components/ui/SearchFilterBar';
 import { WineCard } from '../../components/WineCard';
-import useWineList, { WineListTab } from '../hooks/useWineList';
+import { useStats } from '../../hooks/useStats';
+import { useWineHistory } from '../../hooks/useWineHistory';
+import { useWineList } from '../../hooks/useWineList';
+import { useWines } from '../../hooks/useWines';
 
-const FILTER_OPTIONS: FilterOption[] = [
-  { key: 'red', label: 'Rouge', color: '#FF4F8B' },
-  { key: 'white', label: 'Blanc', color: '#FFF8DC' },
-  { key: 'rose', label: 'Rosé', color: '#FFB6C1' },
-  { key: 'sparkling', label: 'Pétillant', color: '#FFD700' },
-  { key: 'favorite', label: 'Coup de cœur', icon: 'heart' },
+type WineListTab = 'cellar' | 'wishlist' | 'tasted';
+
+const FILTER_OPTIONS = [
+  { key: 'all', label: 'Tous', icon: 'list' },
+  { key: 'red', label: 'Rouges', icon: 'wine' },
+  { key: 'white', label: 'Blancs', icon: 'wine' },
+  { key: 'rose', label: 'Rosés', icon: 'wine' },
+  { key: 'sparkling', label: 'Effervescents', icon: 'wine' },
 ];
 
 const TABS = [
@@ -22,42 +29,290 @@ const TABS = [
   { key: 'tasted', label: 'Dégustés' },
 ];
 
-export default function MesVinsScreen() {
+// Composant pour une carte de vin avec informations sociales
+const WineCardWithSocial = ({ 
+  wine, 
+  tab, 
+  onWinePress,
+  onOpenTastingModal,
+  setRefreshKey,
+}: {
+  wine: any;
+  tab: string;
+  onWinePress: (wineId: string, wineData?: any) => void;
+  onOpenTastingModal: (wine: any) => void;
+  setRefreshKey: (value: React.SetStateAction<number>) => void;
+}) => {
+  const { wines, updateWine } = useWines();
+  const { refreshStats } = useStats(); // Nouveau hook SWR
+  const freshWine = wines.find(w => w?.id === wine.id);
+  const wineToDisplay = freshWine || wine;
+  const wineId = wineToDisplay?.id;
+  if (!wineId) return null;
+
+  const handleToggleFavorite = async () => {
+    console.log('🔄 handleToggleFavorite appelé sur carte:', { wineId, currentFavorite: wineToDisplay.favorite, newFavorite: !wineToDisplay.favorite });
+    try {
+      await updateWine(wineId, { favorite: !wineToDisplay.favorite });
+      await refreshStats(); // Refresh stats after favorite toggle
+      console.log('✅ handleToggleFavorite terminé avec succès sur carte');
+    } catch (error) {
+      console.error('❌ Erreur lors du toggle favorite sur carte:', error);
+    }
+  };
+
+  const handleAddBottle = async () => {
+    const currentStock = wineToDisplay.stock || 0;
+    console.log('🔄 handleAddBottle appelé sur carte:', { currentStock, wineId });
+    try {
+      console.log('🔄 Tentative de mise à jour du stock...');
+      await updateWine(wineId, { stock: currentStock + 1 });
+      console.log('🔄 Stock mis à jour, refresh des stats...');
+      await refreshStats(); // Refresh stats after stock change
+      setRefreshKey(prev => prev + 1); // Force re-render comme dans handleConfirmTasting
+      console.log('✅ handleAddBottle terminé avec succès sur carte');
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'ajout de bouteille sur carte:', error);
+    }
+  };
+
+  const handleRemoveBottle = async () => {
+    const currentStock = wineToDisplay.stock || 0;
+    if (currentStock <= 0) return;
+    
+    console.log('🔄 handleRemoveBottle appelé sur carte:', { currentStock, wineId });
+    console.log('🔄 Ouverture du popup de dégustation...');
+    
+    // Ouvrir le popup de dégustation au lieu de supprimer directement
+    onOpenTastingModal(wineToDisplay);
+  };
+
+  return (
+    <WineCard
+      wine={wineToDisplay}
+      onPress={() => { if (wineId) { onWinePress(wineId, wineToDisplay); } }}
+      onToggleFavorite={handleToggleFavorite}
+      showStockButtons={tab === 'cellar'}
+      onAddBottle={handleAddBottle}
+      onRemoveBottle={handleRemoveBottle}
+    />
+  );
+};
+
+interface MesVinsScreenProps {
+  onWinePress: (wineId: string, wineData?: any) => void;
+}
+
+export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
+  const router = useRouter();
   const [tab, setTab] = useState<WineListTab>('cellar');
   const [search, setSearch] = useState('');
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  
+  // État simple pour forcer le re-rendu
+  const [refreshKey, setRefreshKey] = useState(0);
+  
+  // État pour la modal de confirmation de dégustation
+  const [tastingModalVisible, setTastingModalVisible] = useState(false);
+  const [selectedWineForTasting, setSelectedWineForTasting] = useState<any>(null);
+  const [tastingHistoryModalVisible, setTastingHistoryModalVisible] = useState(false);
+  const [selectedTastedWine, setSelectedTastedWine] = useState<any>(null);
 
   const wines = useWineList(tab);
+  const { wines: allWines, updateWine, cleanupDuplicates } = useWines();
+  const { addTasting, reAddToCellar, tastedWines } = useWineHistory();
+  const { stats, isLoading: statsLoading, error: statsError, refreshStats } = useStats(); // Utilise simplement useStats
+  
+  console.log('🔄 MesVinsScreen: Stats SWR - isLoading =', statsLoading, 'stats =', stats, 'error =', statsError);
 
-  // Stats calculées (exemple, à adapter si besoin)
-  const stats = {
-    total: wines.length,
-    red: wines.filter(w => w.color === 'red').length,
-    white: wines.filter(w => w.color === 'white').length,
-    rose: wines.filter(w => w.color === 'rose').length,
-    sparkling: wines.filter(w => w.color === 'sparkling').length,
+  // Utiliser les vins dégustés pour l'onglet "Dégustés"
+  const winesToDisplay = tab === 'tasted' ? tastedWines : wines;
+  
+  // Pour les stats, utiliser la même logique que StatsContext pour assurer la cohérence
+  const winesForStats = tab === 'tasted' ? tastedWines : allWines;
+
+  // Forcer le re-rendu quand l'écran redevient actif
+  useEffect(() => {
+    setRefreshKey(prev => prev + 1);
+  }, []);
+
+  // Fonction pour gérer la dégustation d'un vin
+  const handleTasteWine = (wine: any) => {
+    setSelectedWineForTasting(wine);
+    setTastingModalVisible(true);
   };
 
-  const filteredWines = wines.filter(wine => {
-    const matchesSearch = wine.name.toLowerCase().includes(search.toLowerCase()) ||
-      wine.domaine.toLowerCase().includes(search.toLowerCase()) ||
-      wine.region.toLowerCase().includes(search.toLowerCase());
+  // Fonction pour confirmer la dégustation
+  const handleConfirmTasting = async (note?: string) => {
+    if (!selectedWineForTasting) return;
+
+    try {
+      console.log('🔄 handleConfirmTasting: Vin sélectionné:', selectedWineForTasting);
+      const result = await addTasting(selectedWineForTasting.id, note);
+      
+      if (result.success) {
+        // Supprimer une bouteille après la dégustation
+        const currentStock = selectedWineForTasting.stock || selectedWineForTasting.amount || 0;
+        console.log('🔄 handleConfirmTasting: Stock actuel:', currentStock, 'Nouveau stock:', currentStock - 1);
+        
+        if (currentStock > 0) {
+          await updateWine(selectedWineForTasting.id, { stock: currentStock - 1 });
+          console.log('✅ handleConfirmTasting: Stock mis à jour');
+        }
+        
+        // La mise à jour des données se fait automatiquement via le hook
+        setTastingModalVisible(false);
+        setSelectedWineForTasting(null);
+        await refreshStats(); // Refresh stats via SWR
+        setRefreshKey(prev => prev + 1); // Force re-render
+      } else {
+        Alert.alert('Erreur', 'Impossible d\'enregistrer la dégustation');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la dégustation:', error);
+      Alert.alert('Erreur', 'Une erreur est survenue lors de la dégustation');
+    }
+  };
+
+  // Fonction pour annuler la dégustation
+  const handleCancelTasting = () => {
+    setTastingModalVisible(false);
+    setSelectedWineForTasting(null);
+  };
+
+  // Fonction pour réajouter un vin à la cave
+  const handleReAddToCellar = async (wineId: string) => {
+    try {
+      const result = await reAddToCellar(wineId);
+      if (result.success) {
+        await refreshStats(); // Refresh stats via SWR
+        setRefreshKey(prev => prev + 1);
+      } else {
+        Alert.alert('Erreur', 'Impossible de réajouter le vin à la cave');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la réajout à la cave:', error);
+      Alert.alert('Erreur', 'Une erreur est survenue');
+    }
+  };
+
+  const handleOpenTastingHistory = (tastedWine: any) => {
+    setSelectedTastedWine(tastedWine);
+    setTastingHistoryModalVisible(true);
+  };
+
+  const handleCloseTastingHistory = () => {
+    setTastingHistoryModalVisible(false);
+    setSelectedTastedWine(null);
+  };
+
+  const handleReAddFromHistory = () => {
+    if (selectedTastedWine) {
+      handleReAddToCellar(selectedTastedWine.wine.id);
+      handleCloseTastingHistory();
+    }
+  };
+
+  // Stats calculées selon la logique de chaque onglet
+  const localStats = useMemo(() => {
+    console.log('🔄 MesVinsScreen: Calcul des stats pour tab:', tab, 'avec', winesForStats.length, 'vins');
+    
+    if (tab === 'cellar') {
+      // 🧺 Ma cave : somme des stocks (ex: 3x Les Roches Blanches = 3)
+      const cellarWines = winesForStats.filter(w => w.origin === 'cellar');
+      const total = cellarWines.reduce((sum, wine) => sum + (wine.stock || 0), 0);
+      const red = cellarWines
+        .filter(w => w.color === 'red')
+        .reduce((sum, wine) => sum + (wine.stock || 0), 0);
+      const white = cellarWines
+        .filter(w => w.color === 'white')
+        .reduce((sum, wine) => sum + (wine.stock || 0), 0);
+      const rose = cellarWines
+        .filter(w => w.color === 'rose')
+        .reduce((sum, wine) => sum + (wine.stock || 0), 0);
+      const sparkling = cellarWines
+        .filter(w => w.color === 'sparkling')
+        .reduce((sum, wine) => sum + (wine.stock || 0), 0);
+      
+      const result = { total, red, white, rose, sparkling };
+      console.log('📊 MesVinsScreen: Stats cave calculées:', result);
+      return result;
+    } else if (tab === 'wishlist') {
+      // ⭐ Mes envies : nombre de vins uniques (1 par vin désiré)
+      const wishlistWines = winesForStats.filter(w => w.origin === 'wishlist');
+      const total = wishlistWines.length;
+      const red = wishlistWines.filter(w => w.color === 'red').length;
+      const white = wishlistWines.filter(w => w.color === 'white').length;
+      const rose = wishlistWines.filter(w => w.color === 'rose').length;
+      const sparkling = wishlistWines.filter(w => w.color === 'sparkling').length;
+      
+      const result = { total, red, white, rose, sparkling };
+      console.log('📊 MesVinsScreen: Stats envies calculées:', result);
+      return result;
+    } else {
+      // 🍷 Dégustés : nombre total de dégustations (comme les bouteilles dans Ma cave)
+      const total = winesToDisplay.reduce((sum, wine) => sum + (wine.tastings?.length || 0), 0);
+      const red = winesToDisplay
+        .filter(w => w.wine?.wine_type === 'red')
+        .reduce((sum, wine) => sum + (wine.tastings?.length || 0), 0);
+      const white = winesToDisplay
+        .filter(w => w.wine?.wine_type === 'white')
+        .reduce((sum, wine) => sum + (wine.tastings?.length || 0), 0);
+      const rose = winesToDisplay
+        .filter(w => w.wine?.wine_type === 'rose')
+        .reduce((sum, wine) => sum + (wine.tastings?.length || 0), 0);
+      const sparkling = winesToDisplay
+        .filter(w => w.wine?.wine_type === 'sparkling')
+        .reduce((sum, wine) => sum + (wine.tastings?.length || 0), 0);
+      
+      const result = { total, red, white, rose, sparkling };
+      console.log('📊 MesVinsScreen: Stats dégustés calculées:', result);
+      return result;
+    }
+  }, [wines, tab, winesToDisplay, refreshKey, allWines, stats]);
+
+  const filteredWines = winesToDisplay.filter(wine => {
+    // Pour les vins dégustés, la structure est différente
+    const wineName = tab === 'tasted' ? wine.wine.name : wine.name;
+    const wineDomaine = tab === 'tasted' ? wine.wine.producer?.name : wine.domaine;
+    const wineRegion = tab === 'tasted' ? wine.wine.region : wine.region;
+    const wineColor = tab === 'tasted' ? wine.wine.wine_type : wine.color;
+    
+    const matchesSearch = wineName.toLowerCase().includes(search.toLowerCase()) ||
+      (wineDomaine && wineDomaine.toLowerCase().includes(search.toLowerCase())) ||
+      (wineRegion && wineRegion.toLowerCase().includes(search.toLowerCase()));
+    
     const matchesFilters = activeFilters.length === 0 ||
-      activeFilters.includes(wine.color) ||
-      (activeFilters.includes('favorite') && wine.favorite);
+      activeFilters.some(filter => {
+        switch (filter) {
+          case 'all':
+            return true;
+          case 'red':
+            return wineColor === 'red';
+          case 'white':
+            return wineColor === 'white';
+          case 'rose':
+            return wineColor === 'rose';
+          case 'sparkling':
+            return wineColor === 'sparkling';
+          default:
+            return false;
+        }
+      });
+    
     return matchesSearch && matchesFilters;
   });
 
   return (
     <SafeAreaView style={styles.safeContainer}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-        >
-          <View style={styles.header}>
-          </View>
+      <ScrollView 
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Barre de navigation fixe */}
+        <View style={styles.fixedHeader}>
           <View style={styles.tabRow}>
             {TABS.map(t => (
               <TouchableOpacity
@@ -69,57 +324,104 @@ export default function MesVinsScreen() {
               </TouchableOpacity>
             ))}
           </View>
-          <StatsBar values={stats} />
-          <View style={{ marginTop: 24 }} />
-          <SearchFilterBar
-            value={search}
-            onChange={setSearch}
-            onFilterPress={() => setFilterModalVisible(true)}
-            placeholder={tab === 'cellar' ? 'Cherchez un vin dans votre cave ...' : 'Cherchez un vin dans vos envies ...'}
-            filterActive={activeFilters.length > 0}
-          >
-            <ActiveFiltersBar
-              selectedFilters={activeFilters}
-              options={FILTER_OPTIONS}
-              onRemoveFilter={(filterKey) => {
-                setActiveFilters(prev => prev.filter(f => f !== filterKey));
-              }}
-              onClearAll={() => setActiveFilters([])}
-            />
-          </SearchFilterBar>
-          <View style={styles.listContainer}>
-            {filteredWines.length === 0 ? (
-              <Text style={styles.emptyText}>Aucun vin trouvé.</Text>
-            ) : (
-              <ScrollView>
-                {filteredWines.map(wine => {
+        </View>
+            {(() => {
+              // Utiliser les stats SWR pour "Ma cave" et "Mes envies", localStats pour "Dégustés"
+              const statsToUse = tab === 'tasted' ? localStats : {
+                total: tab === 'cellar' ? stats?.total_bottles_in_cellar || 0 : localStats.total,
+                red: tab === 'cellar' ? stats?.red_wines_count || 0 : localStats.red,
+                white: tab === 'cellar' ? stats?.white_wines_count || 0 : localStats.white,
+                rose: tab === 'cellar' ? stats?.rose_wines_count || 0 : localStats.rose,
+                sparkling: tab === 'cellar' ? stats?.sparkling_wines_count || 0 : localStats.sparkling,
+              };
+              
+              console.log('🎯 MesVinsScreen: Rendu StatsBar avec stats:', statsToUse);
+              return (
+                <StatsBar 
+                  key={`stats-${tab}-${refreshKey}-${JSON.stringify(statsToUse)}`}
+                  values={statsToUse} 
+                  totalLabel={tab === 'cellar' ? 'bouteilles' : tab === 'tasted' ? 'dégustations' : 'vins'}
+                />
+              );
+            })()}
+            <View style={{ marginTop: 24 }} />
+            <SearchFilterBar
+              value={search}
+              onChange={setSearch}
+              onFilterPress={() => setFilterModalVisible(true)}
+              placeholder={
+                tab === 'cellar' ? 'Cherchez un vin dans votre cave ...' :
+                tab === 'wishlist' ? 'Cherchez un vin dans vos envies ...' :
+                'Cherchez un vin dans vos dégustations ...'
+              }
+              filterActive={activeFilters.length > 0}
+            >
+              <ActiveFiltersBar
+                selectedFilters={activeFilters}
+                options={FILTER_OPTIONS}
+                onRemoveFilter={(filterKey) => {
+                  setActiveFilters(prev => prev.filter(f => f !== filterKey));
+                }}
+                onClearAll={() => setActiveFilters([])}
+              />
+            </SearchFilterBar>
+            
+            <View style={styles.listContainer}>
+              {filteredWines.length === 0 ? (
+                <Text style={styles.emptyText}>
+                  {tab === 'cellar' ? 'Aucun vin dans votre cave.' :
+                   tab === 'wishlist' ? 'Aucun vin dans vos envies.' :
+                   'Aucune dégustation trouvée.'}
+                </Text>
+              ) : (
+                filteredWines.map(wine => {
                   // Vérification que l'ID est valide
                   const safeKey = wine.id && typeof wine.id === 'string' ? wine.id : `wine-${Math.random()}`;
+                  
+                  // Pour l'onglet "Dégustés", transformer les données correctement
+                  let wineData;
+                  if (tab === 'tasted') {
+                    wineData = {
+                      ...wine.wine,
+                      tastingCount: wine.tastingCount,
+                      lastTastedAt: wine.lastTastedAt,
+                      origin: 'tasted'
+                    };
+                  } else {
+                    wineData = wine;
+                  }
+                  
+                  if (!wineData?.id) {
+                    console.warn('MesVinsScreen: vin sans ID valide, ignoré', { wine, wineData, tab });
+                    return null;
+                  }
+                  
+                  // Créer une clé unique simple
+                  const uniqueKey = `${safeKey}-favorite-${wineData.favorite ? 'true' : 'false'}-refresh-${refreshKey}`;
+                  
+                  console.log('MesVinsScreen - Mapping wine to WineCardWithSocial:', {
+                    originalWine: wine,
+                    wineData: wineData,
+                    tab,
+                    wineId: wineData.id,
+                    tastingCount: wine.tastingCount,
+                    lastTastedAt: wine.lastTastedAt
+                  });
+                  
                   return (
-                    <WineCard
-                      key={safeKey}
-                      wine={wine}
-                      showStockButtons={tab === 'cellar'}
-                      onToggleFavorite={() => {
-                        // TODO: Implémenter la logique de toggle favorite
-                        console.log('Toggle favorite for wine:', wine.id);
-                      }}
-                      onAddBottle={() => {
-                        // TODO: Implémenter la logique d'ajout de bouteille
-                        console.log('Add bottle for wine:', wine.id);
-                      }}
-                      onRemoveBottle={() => {
-                        // TODO: Implémenter la logique de suppression de bouteille
-                        console.log('Remove bottle for wine:', wine.id);
-                      }}
+                    <WineCardWithSocial
+                      key={uniqueKey}
+                      wine={wineData}
+                      tab={tab}
+                      onWinePress={onWinePress}
+                      onOpenTastingModal={handleTasteWine}
+                      setRefreshKey={setRefreshKey}
                     />
                   );
-                })}
-              </ScrollView>
-            )}
-          </View>
-        </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
+                })
+              )}
+            </View>
+          </ScrollView>
       <FilterModal
         visible={filterModalVisible}
         onClose={() => setFilterModalVisible(false)}
@@ -127,6 +429,21 @@ export default function MesVinsScreen() {
         selectedFilters={activeFilters}
         onFilterChange={setActiveFilters}
         title="Filtres"
+      />
+      
+      {/* Modal de confirmation de dégustation */}
+      <TastingConfirmationModal
+        visible={tastingModalVisible}
+        wineName={selectedWineForTasting?.name || ''}
+        onCancel={handleCancelTasting}
+        onConfirm={handleConfirmTasting}
+      />
+      
+      <TastingHistoryModal
+        visible={tastingHistoryModalVisible}
+        tastedWine={selectedTastedWine}
+        onClose={handleCloseTastingHistory}
+        onReAddToCellar={handleReAddFromHistory}
       />
     </SafeAreaView>
   );
@@ -137,23 +454,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#222',
   },
-  header: {
+  fixedHeader: {
+    backgroundColor: '#222',
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 8,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFF',
-    textAlign: 'left',
+    paddingBottom: 16,
+    zIndex: 10,
   },
   tabRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginHorizontal: 16,
-    marginBottom: 16,
     backgroundColor: '#2A2A2A',
     borderRadius: 16,
     padding: 4,
@@ -168,7 +479,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tabBtnActive: {
-    backgroundColor: '#F6A07A',
+    backgroundColor: '#393C40', borderWidth: 0,
   },
   tabLabel: {
     color: '#999',
@@ -176,12 +487,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   tabLabelActive: {
-    color: '#222',
+    color: '#FFF',
     fontWeight: '600',
   },
-  listContainer: {
+  scrollContainer: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 16,
+    paddingBottom: 140,
+  },
+  listContainer: {
     marginTop: 8,
   },
   emptyText: {

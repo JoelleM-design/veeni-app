@@ -1,6 +1,8 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import OnboardingHeader from '../../components/OnboardingHeader';
+import { OnboardingProvider, useOnboarding } from '../../context/OnboardingContext';
 import { supabase } from '../../lib/supabase';
 import StepEmail from './StepEmail';
 import StepFinish from './StepFinish';
@@ -22,9 +24,10 @@ const steps = [
 
 type Step = typeof steps[number];
 
-export default function Onboarding() {
+function OnboardingContent() {
   console.log('ONBOARDING RENDER');
   const [step, setStep] = useState<Step>('welcome');
+  const { stepIndex, totalSteps, canGoBack, setStepIndex, setCanGoBack, setOnBack } = useOnboarding();
   const [firstName, setFirstName] = useState('');
   const [majority, setMajority] = useState<boolean | undefined>(undefined);
   const [email, setEmail] = useState('');
@@ -37,15 +40,43 @@ export default function Onboarding() {
   const next = () => {
     const currentIndex = steps.indexOf(step);
     if (currentIndex < steps.length - 1) {
-      setStep(steps[currentIndex + 1]);
+      const newStep = steps[currentIndex + 1];
+      const newIndex = currentIndex + 1;
+      console.log('➡️ Next step:', { currentIndex, newIndex, newStep, canGoBack: newIndex > 0 });
+      setStep(newStep);
+      setStepIndex(newIndex);
+      setCanGoBack(newIndex > 0);
     }
   };
   const back = () => {
     const currentIndex = steps.indexOf(step);
     if (currentIndex > 0) {
-      setStep(steps[currentIndex - 1]);
+      const newStep = steps[currentIndex - 1];
+      const newIndex = currentIndex - 1;
+      console.log('⬅️ Back step:', { currentIndex, newIndex, newStep, canGoBack: newIndex > 0 });
+      setStep(newStep);
+      setStepIndex(newIndex);
+      setCanGoBack(newIndex > 0);
     }
   };
+
+  // Initialiser le contexte au démarrage
+  useEffect(() => {
+    const currentIndex = steps.indexOf(step);
+    console.log('🔧 Initializing context:', { currentIndex, step, canGoBack: currentIndex > 0 });
+    setStepIndex(currentIndex);
+    setCanGoBack(currentIndex > 0);
+    setOnBack(() => back);
+  }, []);
+
+  // Mettre à jour le contexte à chaque changement d'étape
+  useEffect(() => {
+    const currentIndex = steps.indexOf(step);
+    console.log('🔄 Step changed, updating context:', { currentIndex, step, canGoBack: currentIndex > 0 });
+    setStepIndex(currentIndex);
+    setCanGoBack(currentIndex > 0);
+    setOnBack(() => back);
+  }, [step]);
 
   async function handleRegister() {
     setLoading(true);
@@ -124,16 +155,28 @@ export default function Onboarding() {
 
   return (
     <View style={styles.container}>
-      {/* <Text style={{color: 'red', fontWeight: 'bold', fontSize: 20, margin: 24}}>DEBUG ONBOARDING</Text> */}
-      {loading && <ActivityIndicator size="large" color="#F6A07A" style={{ marginTop: 40 }} />}
-      {!loading && step === 'welcome' && <StepWelcome key="welcome" onNext={next} />}
-      {!loading && step === 'firstName' && <StepFirstName key="firstName" value={firstName} onChange={setFirstName} onNext={next} onBack={back} stepIndex={steps.indexOf('firstName')} totalSteps={steps.length} />}
-      {!loading && step === 'majority' && <StepMajority key="majority" value={majority ?? false} onChange={setMajority} onNext={next} onBack={back} stepIndex={steps.indexOf('majority')} totalSteps={steps.length} />}
-      {!loading && step === 'email' && <StepEmail key="email" value={email} onChange={setEmail} onNext={next} onBack={back} stepIndex={steps.indexOf('email')} totalSteps={steps.length} />}
-      {!loading && step === 'password' && <StepPassword key="password" value={password} onChange={setPassword} onNext={next} onBack={back} stepIndex={steps.indexOf('password')} totalSteps={steps.length} />}
-      {!loading && step === 'social' && <StepSocial key="social" notifications={notifications} setNotifications={setNotifications} onNext={next} onBack={back} stepIndex={steps.indexOf('social')} totalSteps={steps.length} />}
-      {!loading && step === 'finish' && <StepFinish key="finish" firstName={firstName} onNext={handleRegister} onBack={back} stepIndex={steps.indexOf('finish')} totalSteps={steps.length} />}
+      <OnboardingHeader 
+        stepIndex={stepIndex} 
+        totalSteps={totalSteps} 
+        canGoBack={canGoBack} 
+      />
+      {loading && <ActivityIndicator size="large" color="#FFFFFF" style={{ marginTop: 40 }} />}
+      {!loading && step === 'welcome' && <StepWelcome onNext={next} />}
+      {!loading && step === 'firstName' && <StepFirstName value={firstName} onChange={setFirstName} onNext={next} onBack={back} stepIndex={0} totalSteps={6} />}
+      {!loading && step === 'majority' && <StepMajority value={majority ?? false} onChange={setMajority} onNext={next} onBack={back} stepIndex={1} totalSteps={6} />}
+      {!loading && step === 'email' && <StepEmail value={email} onChange={setEmail} onNext={next} onBack={back} stepIndex={2} totalSteps={6} />}
+      {!loading && step === 'password' && <StepPassword value={password} onChange={setPassword} onNext={next} onBack={back} stepIndex={3} totalSteps={6} />}
+      {!loading && step === 'social' && <StepSocial notifications={notifications} setNotifications={setNotifications} onNext={next} onBack={back} stepIndex={4} totalSteps={6} />}
+      {!loading && step === 'finish' && <StepFinish firstName={firstName} onNext={handleRegister} onBack={back} stepIndex={5} totalSteps={6} />}
     </View>
+  );
+}
+
+export default function Onboarding() {
+  return (
+    <OnboardingProvider>
+      <OnboardingContent />
+    </OnboardingProvider>
   );
 }
 

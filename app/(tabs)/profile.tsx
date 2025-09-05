@@ -1,90 +1,67 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-    Alert,
-    Animated,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  Image,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ProfileStatsBar } from '../../components/ProfileStatsBar';
+import ProfileStatsBar from '../../components/ProfileStatsBar';
 import { SharedCaveInfo } from '../../components/SharedCaveInfo';
-import { WineCard } from '../../components/WineCard';
 import { Spacing, Typography, VeeniColors } from '../../constants/Colors';
 
 import * as Contacts from 'expo-contacts';
-import * as Sharing from 'expo-sharing';
 import { useFriends } from '../../hooks/useFriends';
-import { useProfileStats } from '../../hooks/useProfileStats';
+import { useStats } from '../../hooks/useStats';
 import { useUser } from '../../hooks/useUser';
 import { useWineHistory } from '../../hooks/useWineHistory';
 import { useWines } from '../../hooks/useWines';
 import { supabase } from '../../lib/supabase';
 
-const HEADER_MAX_HEIGHT = 280; // Hauteur maximale du header
-const HEADER_MIN_HEIGHT = 110; // Hauteur minimale du header (barre de navigation + search bar)
-const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
-
 export default function ProfileScreen() {
   const router = useRouter();
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const { wines, loading: winesLoading, error: winesError } = useWines();
+  
+  // Hooks optimisés avec chargement conditionnel
   const { user, loading: userLoading, error: userError, updateUser, updateAvatar } = useUser();
-  const { stats: profileStats, loading: statsLoading, error: statsError } = useProfileStats(user?.id);
-  const { history: wineHistory, loading: historyLoading, getRecentTastings } = useWineHistory();
+  const { wines, loading: winesLoading, error: winesError } = useWines();
+  
+  // Charger les stats
+  const profileStats = useStats();
+  
+  // Charger l'historique
+  const { history: wineHistory, loading: historyLoading } = useWineHistory();
 
-  const [suggestions, setSuggestions] = useState([]);
+
+
+  // États locaux
+  const [suggestions, setSuggestions] = useState<any[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [contactsPermission, setContactsPermission] = useState<'undetermined' | 'granted' | 'denied'>('undetermined');
-  const [suggestedFriends, setSuggestedFriends] = useState([]);
+  const [suggestedFriends, setSuggestedFriends] = useState<Array<{
+    id: string;
+    first_name?: string;
+    email?: string;
+    avatar?: string;
+  }>>([]);
   const [friendIds, setFriendIds] = useState<string[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
+  const [sentRequests, setSentRequests] = useState<string[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<Array<{
+    id: string;
+    first_name?: string;
+    email?: string;
+    avatar?: string;
+  }>>([]);
 
-  // Animations pour le header
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, HEADER_SCROLL_DISTANCE],
-    outputRange: [HEADER_MAX_HEIGHT, HEADER_MIN_HEIGHT],
-    extrapolate: 'clamp',
-  });
-
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, HEADER_SCROLL_DISTANCE / 2],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  });
-
-  const searchBarTranslateY = scrollY.interpolate({
-    inputRange: [0, HEADER_SCROLL_DISTANCE],
-    outputRange: [0, -HEADER_SCROLL_DISTANCE + 60],
-    extrapolate: 'clamp',
-  });
-
-  // Utiliser l'historique des dégustations depuis le nouveau hook
-  const tastingHistory = useMemo(() => {
-    if (!wineHistory || !wines) return [];
-    
-    const recentTastings = getRecentTastings(20); // Limiter à 20 dégustations récentes
-    
-    return recentTastings.map(tasting => {
-      // Trouver le vin correspondant
-      const wine = wines.find(w => w.id === tasting.wineId);
-      if (!wine) return null;
-      
-      return {
-        wine,
-        date: tasting.eventDate,
-        type: tasting.eventType as 'tasted' | 'removed',
-        rating: tasting.rating,
-        previousStock: tasting.previousAmount
-      };
-    }).filter((item): item is NonNullable<typeof item> => item !== null);
-  }, [wineHistory, wines, getRecentTastings]);
+  // Historique des dégustations simplifié
+  const tastingHistory: any[] = [];
 
   // Calcul de la préférence dynamique basée sur les vins
   const userPreference = useMemo(() => {
@@ -95,7 +72,9 @@ export default function ProfileScreen() {
     
     // Compter les vins par couleur
     const colorCount = cellarWines.reduce((acc, wine) => {
-      acc[wine.color] = (acc[wine.color] || 0) + wine.stock;
+      if (wine.color) {
+        acc[wine.color] = (acc[wine.color] || 0) + (wine.stock || 0);
+      }
       return acc;
     }, {} as Record<string, number>);
     
@@ -109,10 +88,10 @@ export default function ProfileScreen() {
 
   // Icônes pour les couleurs de vin
   const colorIcons = {
-    red: <Ionicons name="wine" size={16} color="#FF4F8B" />,
-    white: <Ionicons name="cafe" size={16} color="#FFF8DC" />,
-    rose: <Ionicons name="color-palette" size={16} color="#FFB6C1" />,
-    sparkling: <Ionicons name="wine" size={16} color="#FFD700" />,
+    red: <Ionicons name="wine" size={16} color={VeeniColors.wine.red} />,
+    white: <Ionicons name="wine" size={16} color={VeeniColors.wine.white} />,
+    rose: <Ionicons name="wine" size={16} color={VeeniColors.wine.rose} />,
+    sparkling: <Ionicons name="wine" size={16} color={VeeniColors.wine.sparkling} />,
   };
 
   // Labels pour les couleurs
@@ -180,12 +159,12 @@ export default function ProfileScreen() {
     }
   };
 
-  // const handleFriendsPress = () => {
-  //   router.push('/friends');
-  // };
-
   const handleSettingsPress = () => {
     router.push('/settings');
+  };
+
+  const handleGoBack = () => {
+    router.back();
   };
 
   // Fonction pour vérifier les permissions des contacts
@@ -200,139 +179,126 @@ export default function ProfileScreen() {
     }
   };
 
-  // Fonction pour demander les permissions des contacts
   const requestContactsPermission = async () => {
     try {
       const { status } = await Contacts.requestPermissionsAsync();
       setContactsPermission(status);
+      
       if (status === 'granted') {
-        // Recharger les suggestions après avoir obtenu les permissions
-        setTimeout(() => {
-          loadSuggestedFriends();
-        }, 500);
+        await loadSuggestedFriends();
       }
-      return status === 'granted';
     } catch (error) {
-      console.error('Erreur lors de la demande de permissions contacts:', error);
-      return false;
+      console.error('Erreur lors de la demande de permission contacts:', error);
     }
   };
 
-  // Fonction pour charger les amis suggérés
   const loadSuggestedFriends = async () => {
-    if (!user) return;
+    if (contactsPermission !== 'granted') return;
     
     try {
-      console.log('🔍 Début du chargement des amis suggérés pour user:', user.id);
-      
-      // Vérifier les permissions d'abord
-      const { status } = await Contacts.getPermissionsAsync();
-      console.log('📱 Statut des permissions contacts:', status);
-      
-      if (status !== 'granted') {
-        console.log('❌ Permissions contacts non accordées');
-        setSuggestedFriends([]);
-        return;
-      }
+      setSuggestionsLoading(true);
       
       // Récupérer les contacts
       const { data: contacts } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.Emails, Contacts.Fields.FirstName, Contacts.Fields.LastName],
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Emails],
       });
-
-      console.log('📞 Contacts récupérés:', contacts?.data?.length || 0);
       
-      if (contacts && contacts.data && contacts.data.length > 0) {
-        // Afficher quelques contacts pour debug
-        const sampleContacts = contacts.data.slice(0, 3);
-        console.log('📋 Exemples de contacts:', sampleContacts.map(c => ({
-          name: `${c.firstName} ${c.lastName}`,
-          emails: c.emails?.map(e => e.email)
-        })));
-        
-        // Récupérer les utilisateurs Veeni
-        const { data: users, error } = await supabase
-          .from('User')
-          .select('id, first_name, email, avatar')
-          .neq('id', user.id);
-
-        if (error) {
-          console.error('❌ Erreur Supabase:', error);
-          setSuggestedFriends([]);
-          return;
-        }
-
-        console.log('👥 Utilisateurs Veeni trouvés:', users?.length || 0);
-        
-        if (users && users.length > 0) {
-          // Afficher quelques utilisateurs pour debug
-          const sampleUsers = users.slice(0, 3);
-          console.log('👤 Exemples d\'utilisateurs:', sampleUsers.map(u => ({
-            name: u.first_name,
-            email: u.email
-          })));
-          
-          // Filtrer les utilisateurs qui sont dans les contacts
-          const suggested = users.filter(user => 
-            contacts.data.some(contact => 
-              contact.emails && contact.emails.some(email => 
-                email.email?.toLowerCase() === user.email?.toLowerCase()
-              )
-            )
-          );
-          
-          console.log('✅ Amis suggérés trouvés:', suggested.length);
-          if (suggested.length > 0) {
-            console.log('🎯 Amis suggérés:', suggested.map(s => s.first_name));
-          }
-          
-          setSuggestedFriends(suggested);
-        } else {
-          console.log('❌ Aucun utilisateur Veeni trouvé');
-          setSuggestedFriends([]);
-        }
-      } else {
+      console.log('📞 Contacts récupérés:', contacts?.length || 0);
+      
+      if (!contacts || contacts.length === 0) {
         console.log('❌ Aucun contact trouvé');
         setSuggestedFriends([]);
+        return;
       }
+
+      // Extraire les emails des contacts
+      const contactEmails = contacts
+        .flatMap(contact => 
+          contact.emails?.map(email => email.email?.toLowerCase()).filter(Boolean) || []
+        )
+        .filter(email => email && email.includes('@'));
+
+      if (contactEmails.length === 0) {
+        console.log('❌ Aucun email trouvé dans les contacts');
+        setSuggestedFriends([]);
+        return;
+      }
+
+      // Rechercher les utilisateurs par email
+      const { data: users, error } = await supabase
+        .from('User')
+        .select('id, first_name, email, avatar')
+        .in('email', contactEmails)
+        .neq('id', user?.id || '');
+
+      if (error) {
+        console.error('Erreur lors de la recherche d\'utilisateurs:', error);
+        setSuggestedFriends([]);
+        return;
+      }
+
+      // Filtrer les utilisateurs qui ne sont pas déjà amis
+      const notFriends = (users || []).filter(u => !friendIds.includes(u.id));
+      
+      // Log de débogage pour voir les données exactes
+      console.log('🔍 Données des utilisateurs trouvés:', users);
+      console.log('🔍 Utilisateurs non amis:', notFriends);
+      console.log('🔍 Premier utilisateur suggéré:', notFriends[0]);
+      if (notFriends[0]) {
+        console.log('🔍 Prénom du premier utilisateur:', notFriends[0].first_name);
+        console.log('🔍 Email du premier utilisateur:', notFriends[0].email);
+      }
+      
+      setSuggestedFriends(notFriends);
+      
+      console.log('✅ Amis suggérés trouvés:', notFriends.length);
     } catch (error) {
-      console.error('❌ Erreur lors du chargement des amis suggérés:', error);
+      console.error('Erreur lors du chargement des amis suggérés:', error);
       setSuggestedFriends([]);
+    } finally {
+      setSuggestionsLoading(false);
     }
   };
 
-  // Fonction pour partager l'app
   const handleShareApp = async () => {
     try {
-      const shareUrl = 'https://veeni.app'; // URL de l'app
-      const message = 'Découvre Veeni, l\'app pour gérer ta cave à vin ! 🍷';
-      
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(shareUrl, {
-          mimeType: 'text/plain',
-          dialogTitle: 'Partager Veeni',
-        });
-      } else {
-        // Fallback pour les plateformes qui ne supportent pas Sharing
-        Alert.alert('Partage', `${message}\n\n${shareUrl}`);
-      }
+      await Share.share({
+        message: "Découvre Veeni, l'app pour gérer ta cave à vin et partager avec tes amis ! 🍷\nTélécharge-la ici : https://veeni.app",
+        title: "Inviter des amis sur Veeni"
+      });
     } catch (error) {
       console.error('Erreur lors du partage:', error);
-      // Fallback simple
-      Alert.alert(
-        'Partager Veeni', 
-        'Découvre Veeni, l\'app pour gérer ta cave à vin ! 🍷\n\nhttps://veeni.app'
-      );
     }
   };
 
-  // Charger les permissions et amis suggérés au montage
-  useEffect(() => {
-    checkContactsPermission();
-    loadSuggestedFriends();
-  }, [user]);
+  const handleAddFriend = async (friendId: string) => {
+    try {
+      const { error } = await supabase
+        .from('friend')
+        .insert([
+          {
+            user_id: user?.id,
+            friend_id: friendId,
+            status: 'pending'
+          }
+        ]);
 
-  // Charger les IDs des amis
+      if (error) {
+        console.error('Erreur lors de l\'envoi de la demande d\'ami:', error);
+        Alert.alert('Erreur', 'Impossible d\'envoyer la demande d\'ami');
+        return;
+      }
+
+      // Retirer l'ami de la liste des suggestions
+      setSuggestedFriends(prev => prev.filter(friend => friend.id !== friendId));
+      
+      Alert.alert('Succès', 'Demande d\'ami envoyée !');
+    } catch (error) {
+      console.error('Erreur lors de l\'envoi de la demande d\'ami:', error);
+      Alert.alert('Erreur', 'Impossible d\'envoyer la demande d\'ami');
+    }
+  };
+
   const loadFriendIds = async () => {
     if (!user) return;
     
@@ -344,10 +310,7 @@ export default function ProfileScreen() {
         .eq('user_id', user.id)
         .eq('status', 'accepted');
 
-      if (error) {
-        console.error('Erreur lors du chargement des amis:', error);
-        return;
-      }
+      if (error) throw error;
 
       const ids = data?.map(f => f.friend_id) || [];
       setFriendIds(ids);
@@ -356,6 +319,101 @@ export default function ProfileScreen() {
       console.error('Erreur lors du chargement des IDs amis:', error);
     } finally {
       setFriendsLoading(false);
+    }
+  };
+
+  // Fonction pour charger les demandes d'amis reçues (pending)
+  const loadPendingRequests = async () => {
+    if (!user) return;
+    try {
+      // On récupère les demandes où l'utilisateur est le destinataire et le statut est 'pending'
+      const { data, error } = await supabase
+        .from('friend')
+        .select('user_id, status, created_at, User:user_id(id, first_name, email, avatar)')
+        .eq('friend_id', user.id)
+        .eq('status', 'pending');
+      
+      if (error) {
+        console.error('Erreur lors du chargement des demandes d\'amis:', error);
+        setPendingRequests([]);
+        return;
+      }
+      
+      if (data) {
+        const requests = (data.map(r => r.User).filter(Boolean) as unknown) as Array<{
+          id: string;
+          first_name?: string;
+          email?: string;
+          avatar?: string;
+        }>;
+        setPendingRequests(requests);
+        console.log('📨 Demandes d\'amis en attente:', requests.length);
+      } else {
+        setPendingRequests([]);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des demandes d\'amis:', error);
+      setPendingRequests([]);
+    }
+  };
+
+  // Fonction pour répondre aux demandes d'amis
+  const handleRespondToRequest = async (requestId: string, accept: boolean) => {
+    if (!user) return;
+    
+    // Si c'est un refus, afficher une popup de confirmation
+    if (!accept) {
+      Alert.alert(
+        'Refuser la demande d\'ami',
+        'Êtes-vous sûr de vouloir refuser cette demande d\'ami ?',
+        [
+          {
+            text: 'Annuler',
+            style: 'cancel',
+          },
+          {
+            text: 'Refuser',
+            style: 'destructive',
+            onPress: () => processFriendRequest(requestId, false),
+          },
+        ]
+      );
+      return;
+    }
+    
+    // Si c'est une acceptation, traiter directement
+    await processFriendRequest(requestId, true);
+  };
+
+  // Fonction pour traiter la demande d'ami
+  const processFriendRequest = async (requestId: string, accept: boolean) => {
+    if (!user) return;
+    
+    try {
+      const newStatus = accept ? 'accepted' : 'rejected';
+      
+      // Mettre à jour le statut de la demande
+      const { error } = await supabase
+        .from('friend')
+        .update({ status: newStatus })
+        .eq('user_id', requestId)
+        .eq('friend_id', user.id);
+      
+      if (error) throw error;
+      
+      console.log(`✅ Demande d'ami ${accept ? 'acceptée' : 'refusée'} pour:`, requestId);
+      
+      // Recharger les demandes en attente
+      await loadPendingRequests();
+      
+      // Si acceptée, recharger aussi la liste des amis
+      if (accept) {
+        await loadFriendIds();
+      }
+      
+    } catch (error) {
+      console.error('Erreur lors de la réponse à la demande d\'ami:', error);
+      Alert.alert('Erreur', 'Impossible de traiter la demande d\'ami');
     }
   };
 
@@ -369,31 +427,30 @@ export default function ProfileScreen() {
     }
   }, [user]);
 
+  // Charger les contacts et amis suggérés après le chargement des amis
+  useEffect(() => {
+    if (user && friendIds.length >= 0) {
+      checkContactsPermission().then(hasPermission => {
+        if (hasPermission) {
+          loadSuggestedFriends();
+        }
+      });
+    }
+  }, [user, friendIds]);
+
+  // Charger l'historique de manière différée pour améliorer les performances
+  useEffect(() => {
+    if (user) {
+      loadPendingRequests();
+    }
+  }, [user, wines]);
+
   // Filtrer les vins récents (dégustés)
   const recentWines = wines?.filter(wine => wine.origin === 'cellar').slice(0, 5) || [];
 
-  // Suggestions d'amis : utilisateurs non amis et non soi-même
-  // useEffect(() => {
-  //   async function fetchSuggestions() {
-  //     if (!user) return;
-  //     setSuggestionsLoading(true);
-  //     try {
-  //       const { data, error } = await supabase
-  //         .from('User')
-  //         .select('id, name, first_name, email, avatar')
-  //         .neq('id', user.id);
-  //       if (error) throw error;
-  //       // Exclure déjà amis
-  //       const notFriends = (data || []).filter(u => !(user.friends || []).includes(u.id));
-  //       setSuggestions(notFriends);
-  //     } catch (e) {
-  //       setSuggestions([]);
-  //     } finally {
-  //       setSuggestionsLoading(false);
-  //     }
-  //   }
-  //   fetchSuggestions();
-  // }, [user]);
+
+
+
 
   // Afficher une erreur seulement si c'est critique
   if (userError) {
@@ -408,24 +465,16 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header fixe */}
-      <View style={styles.fixedHeader}>
-        <View style={{flex:1}} />
-        <TouchableOpacity 
-          style={styles.headerIconRight}
-          onPress={handleSettingsPress}
-        >
-          <Ionicons name="settings-outline" size={24} color="#FFF" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Contenu scrollable */}
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Section profil */}
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Header (non fixe) */}
+        <View style={styles.headerContainer}>
+          {/* SUPPRIMER LE BOUTON BACK */}
+          <View style={{flex: 1}} />
+          <TouchableOpacity onPress={handleSettingsPress} style={styles.headerIconRight}>
+            <Ionicons name="settings-outline" size={28} color="#FFF" />
+          </TouchableOpacity>
+        </View>
+        {/* Section profil - Affichage immédiat */}
         <View style={styles.profileHeader}>
           <TouchableOpacity style={styles.avatarContainer} onPress={handleAvatarPress}>
             <View style={styles.avatarUnified}>
@@ -447,16 +496,13 @@ export default function ProfileScreen() {
               <Ionicons name="camera" size={16} color="#FFF" />
             </View>
           </TouchableOpacity>
-          
           <Text style={styles.userName}>
             {userLoading ? '' : (user?.first_name || 'Utilisateur')}
           </Text>
-          
           {/* Informations de cave partagée */}
           <SharedCaveInfo />
-          
           {/* Préférence dynamique */}
-          {userPreference ? (
+          {!winesLoading && wines && wines.length > 0 && userPreference ? (
             <View style={styles.preferenceContainer}>
               <Text style={styles.userPreference}>
                 A une préférence pour le vin{' '}
@@ -468,59 +514,112 @@ export default function ProfileScreen() {
                 {' '}{colorLabels[userPreference as keyof typeof colorLabels]}
               </Text>
             </View>
-          ) : (
+          ) : !winesLoading && wines && wines.length > 0 ? (
             <Text style={styles.userPreference}>Amateur de vins</Text>
-          )}
+          ) : null}
         </View>
-
         {/* Barre de statistiques */}
         <View style={styles.statsBar}>
-          <ProfileStatsBar stats={profileStats} loading={statsLoading} />
+          <ProfileStatsBar />
         </View>
 
-        {/* Section Amis */}
-        <View style={styles.section}>
-          {/* Bouton Inviter des amis */}
-          <View style={styles.inviteButtonContainer}>
-            <TouchableOpacity 
-              style={styles.inviteButton}
-              onPress={handleShareApp}
-            >
-              <Ionicons name="add" size={20} color="#222" />
-              <Text style={styles.inviteButtonText}>Inviter des amis</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Section Amis */}
-          <View style={styles.friendsSubsection}>
-            <Text style={styles.subsectionTitle}>Amis</Text>
-            {friends.length === 0 ? (
-              <Text style={styles.emptyFriendsText}>
-                Tu n'as pas encore d'amis sur Veeni. Invite-en pour partager ta passion !
-              </Text>
-            ) : (
-              <View style={styles.friendsList}>
-                {friends.map((friend) => (
-                  <View key={friend.id} style={styles.friendItem}>
-                    <View style={styles.friendAvatar}>
-                      {friend.avatar ? (
-                        <Image source={{ uri: friend.avatar }} style={styles.friendAvatarImage} />
-                      ) : (
-                        <Text style={styles.friendAvatarInitial}>
-                          {friend.first_name?.charAt(0).toUpperCase() || 'A'}
-                        </Text>
-                      )}
-                    </View>
-                    <Text style={styles.friendName}>{friend.first_name}</Text>
+        {/* Section Demandes d'amis */}
+        {pendingRequests.length > 0 && (
+          <View style={[styles.section, styles.sectionWithSpacing]}>
+            <Text style={styles.sectionTitle}>Demandes d'amis ({pendingRequests.length})</Text>
+            <View style={styles.friendsList}>
+              {pendingRequests.map((request) => (
+                <View key={request.id} style={styles.friendItem}>
+                  <View style={styles.friendAvatar}>
+                    {request.avatar ? (
+                      <Image source={{ uri: request.avatar }} style={styles.friendAvatarImage} />
+                    ) : (
+                      <Text style={styles.friendAvatarInitial}>
+                        {request.first_name?.charAt(0).toUpperCase() || 'U'}
+                      </Text>
+                    )}
                   </View>
-                ))}
-              </View>
-            )}
+                  <Text style={styles.friendName}>
+                    {request.first_name || request.email || 'Utilisateur inconnu'}
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <TouchableOpacity 
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                        backgroundColor: '#4CAF50',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        shadowColor: '#000',
+                        shadowOffset: {
+                          width: 0,
+                          height: 2,
+                        },
+                        shadowOpacity: 0.25,
+                        shadowRadius: 3.84,
+                        elevation: 5,
+                      }}
+                      onPress={() => handleRespondToRequest(request.id, true)}
+                    >
+                      <Ionicons name="checkmark" size={20} color="#FFF" />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                        backgroundColor: '#F44336',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        shadowColor: '#000',
+                        shadowOffset: {
+                          width: 0,
+                          height: 2,
+                        },
+                        shadowOpacity: 0.25,
+                        shadowRadius: 3.84,
+                        elevation: 5,
+                      }}
+                      onPress={() => handleRespondToRequest(request.id, false)}
+                    >
+                      <Ionicons name="close" size={20} color="#FFF" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
           </View>
+        )}
 
-          {/* Section Amis suggérés */}
-          <View style={styles.friendsSubsection}>
-            <Text style={styles.subsectionTitle}>Suggestions d'amis</Text>
+        {/* Section Amis */}
+        <View style={[styles.section, styles.sectionWithSpacing]}>
+          <Text style={styles.sectionTitle}>Mes amis ({friends.length})</Text>
+          <View style={styles.friendsList}>
+            {friends.map((friend) => (
+              <TouchableOpacity
+                key={friend.id}
+                style={styles.friendItem}
+                onPress={() => router.push(`/friend/${friend.id}`)}
+              >
+                <View style={styles.friendAvatar}>
+                  {friend.avatar ? (
+                    <Image source={{ uri: friend.avatar }} style={styles.friendAvatarImage} />
+                  ) : (
+                    <Text style={styles.friendAvatarInitial}>
+                      {friend.first_name?.charAt(0).toUpperCase() || 'A'}
+                    </Text>
+                  )}
+                </View>
+                <Text style={styles.friendName}>{friend.first_name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+        {/* Section Amis suggérés - Affichage conditionnel */}
+        {contactsPermission !== 'undetermined' && (
+          <View style={[styles.section, styles.sectionWithSpacing]}>
+            <Text style={styles.sectionTitle}>Suggestions d'amis ({suggestedFriends.length})</Text>
             {contactsPermission !== 'granted' ? (
               <View style={styles.contactsPermissionBox}>
                 <Text style={styles.contactsPermissionText}>
@@ -535,66 +634,58 @@ export default function ProfileScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
+            ) : suggestionsLoading ? (
+              <Text style={styles.loadingText}>Recherche d'amis...</Text>
             ) : suggestedFriends.length === 0 ? (
               <Text style={styles.emptySuggestionsText}>
                 Aucun de tes contacts n'est encore sur Veeni.
               </Text>
             ) : (
-              <View style={styles.suggestedFriendsList}>
+              <View style={styles.friendsList}>
                 {suggestedFriends.map((friend) => (
-                  <View key={friend.id} style={styles.suggestedFriendItem}>
+                  <View key={friend.id} style={styles.friendItem}>
                     <View style={styles.friendAvatar}>
                       {friend.avatar ? (
                         <Image source={{ uri: friend.avatar }} style={styles.friendAvatarImage} />
                       ) : (
                         <Text style={styles.friendAvatarInitial}>
-                          {friend.first_name?.charAt(0).toUpperCase() || 'A'}
+                          {(friend.first_name?.charAt(0) || friend.email?.charAt(0) || 'U').toUpperCase()}
                         </Text>
                       )}
                     </View>
-                    <Text style={styles.friendName}>{friend.first_name}</Text>
-                    <TouchableOpacity style={styles.addFriendButton}>
-                      <Ionicons name="add" size={16} color="#F6A07A" />
+                    <Text style={styles.friendName}>
+                      {friend.first_name || friend.email || 'Utilisateur inconnu'}
+                    </Text>
+                    <TouchableOpacity 
+                      style={styles.addFriendButton}
+                      disabled={false}
+                      onPress={() => handleAddFriend(friend.id)}
+                    >
+                      <Ionicons name="add" size={20} color="#FFFFFF" />
+                      <Text style={styles.addFriendButtonText}>
+                        Ajouter
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 ))}
               </View>
             )}
           </View>
-        </View>
-
-        {/* Section historique */}
-        {tastingHistory.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Historique des dégustations</Text>
-            
-            {tastingHistory.map((item, index) => (
-              <WineCard
-                key={`${item.wine.id}-${index}`}
-                wine={item.wine}
-                onPress={() => router.push(`/wine/${item.wine.id}`)}
-                showStockButtons={false}
-                footer={
-                  <View style={styles.historyFooter}>
-                    <Text style={styles.historyDate}>
-                      Dégusté le {new Date(item.date).toLocaleDateString('fr-FR')}
-                    </Text>
-                    {item.rating && (
-                      <Text style={styles.historyRating}>
-                        Note : {item.rating}/5
-                      </Text>
-                    )}
-                    {item.type === 'removed' && item.previousStock && (
-                      <Text style={styles.historyStock}>
-                        Stock précédent : {item.previousStock}
-                      </Text>
-                    )}
-                  </View>
-                }
-              />
-            ))}
-          </View>
         )}
+        {/* BOUTON INVITER DES AMIS EN BAS */}
+        <View style={styles.inviteButtonContainerBottom}>
+          <TouchableOpacity 
+            style={styles.inviteButton}
+            onPress={handleShareApp}
+          >
+            <Ionicons name="add" size={20} color="#222" />
+            <Text style={styles.inviteButtonText}>Inviter des amis</Text>
+          </TouchableOpacity>
+        </View>
+        {/* Section historique - Chargement différé */}
+
+
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -620,7 +711,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 32,
+    paddingBottom: 120,
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#222',
+  },
+  headerIconLeft: {
+    padding: 8,
   },
   profileHeader: {
     alignItems: 'center',
@@ -689,7 +791,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: VeeniColors.text.primary,
     fontSize: Typography.size.xl,
-    fontWeight: Typography.weight.semibold,
+    fontWeight: '600',
     marginBottom: Spacing.base,
   },
   emptyText: {
@@ -705,7 +807,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   errorText: {
-    color: '#F6A07A',
+    color: '#FFFFFF',
     fontSize: 16,
     textAlign: 'center',
     marginTop: 24,
@@ -752,30 +854,30 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    borderWidth: 2,
+    borderWidth: 0,
     borderColor: 'transparent',
   },
   filterCircleActive: {
-    borderColor: '#F6A07A',
+    borderColor: 'transparent',
   },
   filterOption: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 12,
     backgroundColor: '#444',
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: 'transparent',
   },
   filterOptionActive: {
-    backgroundColor: '#F6A07A',
-    borderColor: '#F6A07A',
+    backgroundColor: '#393C40', borderWidth: 0,
+    borderColor: 'transparent',
   },
   filterOptionText: {
     color: '#FFF',
     fontSize: 14,
   },
   filterOptionTextActive: {
-    color: '#222',
+    color: '#FFF',
     fontWeight: '600',
   },
   preferenceContainer: {
@@ -798,7 +900,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   historyStock: {
-    color: '#F6A07A',
+    color: '#FFFFFF',
     fontSize: 14,
   },
   historyRating: {
@@ -854,13 +956,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   contactsPermissionButton: {
-    backgroundColor: '#F6A07A',
+    backgroundColor: '#393C40', borderWidth: 0,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 16,
   },
   contactsPermissionButtonText: {
-    color: '#222',
+    color: '#FFF',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -871,13 +973,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 8,
-    backgroundColor: '#333',
     borderRadius: 8,
   },
   friendAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#444',
     justifyContent: 'center',
     alignItems: 'center',
@@ -907,34 +1008,45 @@ const styles = StyleSheet.create({
   shareButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F6A07A',
+    backgroundColor: '#393C40', borderWidth: 0,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 24,
     gap: 8,
   },
   shareButtonText: {
-    color: '#222',
+    color: '#FFF',
     fontSize: 16,
     fontWeight: '600',
   },
   inviteButtonContainer: {
+    marginTop: 32,
+    marginBottom: 32,
     alignItems: 'center',
-    marginBottom: 16,
   },
   inviteButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F6A07A',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
-    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#555',
+    borderRadius: 16,
+    paddingHorizontal: 32,
+    height: 48,
+    justifyContent: 'center',
+    width: '90%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   inviteButtonText: {
     color: '#222',
-    fontSize: 16,
-    fontWeight: '600',
+    fontWeight: 'bold',
+    fontSize: 18,
+    marginLeft: 8,
   },
   friendsSubsection: {
     flex: 1,
@@ -942,8 +1054,8 @@ const styles = StyleSheet.create({
   },
   subsectionTitle: {
     color: VeeniColors.text.primary,
-    fontSize: Typography.size.xl,
-    fontWeight: Typography.weight.semibold,
+    fontSize: Typography.size.lg,
+    fontWeight: '600',
     marginBottom: Spacing.base,
   },
   emptyFriendsText: {
@@ -961,21 +1073,106 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 8,
-    backgroundColor: '#333',
     borderRadius: 8,
+    width: '100%',
   },
   friendAvatarImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   addFriendButton: {
-    padding: 4,
+    marginLeft: 'auto',
+    backgroundColor: '#393C40',
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 100,
+    borderWidth: 1,
+    borderColor: '#555',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    flexDirection: 'row',
+  },
+  addFriendButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 16,
+    marginLeft: 8,
   },
   emptySuggestionsText: {
     color: VeeniColors.text.tertiary,
     fontSize: Typography.size.base,
     textAlign: 'center',
     marginBottom: 16,
+  },
+  declineButton: {
+    marginLeft: 4,
+    backgroundColor: 'transparent',
+  },
+  pendingRequestsList: {
+    gap: 12,
+  },
+  pendingRequestItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: 'transparent', // plus de fond gris
+    borderWidth: 0,
+  },
+  pendingRequestButtons: {
+    flexDirection: 'row',
+    marginLeft: 'auto',
+    gap: 12,
+  },
+  pendingRequestButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  acceptButton: {
+    backgroundColor: '#4CAF50',
+  },
+  rejectButton: {
+    backgroundColor: '#FF4F8B',
+  },
+  inviteButtonContainerBottom: {
+    marginTop: 32,
+    marginBottom: 32,
+    alignItems: 'center',
+  },
+  inviteActionButton: {
+    marginLeft: 'auto',
+    backgroundColor: '#393C40', borderWidth: 0,
+    borderRadius: 22,
+  },
+  inviteActionButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  suggestionsSection: {
+    paddingHorizontal: Spacing.base,
+    marginTop: 24,
+    marginBottom: 24,
+  },
+  sectionWithSpacing: {
+    marginBottom: 32,
   },
 }); 

@@ -45,7 +45,7 @@ const getWineTypeColor = (wineType?: string) => {
     case 'sparkling':
       return '#FFD700';
     default:
-      return '#F6A07A';
+      return '#FFFFFF';
   }
 };
 
@@ -92,7 +92,7 @@ export const WinePhotoPreview: React.FC<WinePhotoPreviewProps> = ({ photo, onRem
       {/* Indicateur de chargement */}
       {photo.isScanning && (
         <View style={styles.scanningOverlay}>
-          <Ionicons name="scan" size={16} color="#F6A07A" />
+          <Ionicons name="scan" size={16} color="#FFFFFF" />
         </View>
       )}
 

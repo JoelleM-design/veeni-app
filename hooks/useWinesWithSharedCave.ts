@@ -59,11 +59,25 @@ export const useWinesWithSharedCave = () => {
         const wine = userWine.wine;
         if (!wine) continue;
 
+        // Déterminer le nom et le domaine
+        const rawName = String(wine.name || '');
+        const rawDomaine = typeof wine.producer === 'object' && wine.producer?.name ? String(wine.producer.name) : (typeof wine.producer === 'string' ? wine.producer : 'Domaine inconnu');
+        
+        // Si le nom est vide ou générique, utiliser le domaine comme nom
+        const isGenericName = !rawName || 
+          rawName === 'Vin sans nom' || 
+          rawName === 'Vin non identifié' || 
+          rawName === 'Nom inconnu' ||
+          rawName.length < 3;
+        
+        const finalName = isGenericName && rawDomaine !== 'Domaine inconnu' ? rawDomaine : rawName;
+        const finalDomaine = isGenericName && rawDomaine !== 'Domaine inconnu' ? '' : rawDomaine;
+
         const transformedWine: Wine = {
           id: String(wine.id || ''),
-          name: String(wine.name || 'Vin sans nom'),
+          name: finalName,
           vintage: wine.year ? parseInt(wine.year) : 0,
-          domaine: typeof wine.producer === 'object' && wine.producer?.name ? String(wine.producer.name) : (typeof wine.producer === 'string' ? wine.producer : 'Domaine inconnu'),
+          domaine: finalDomaine,
           color: (typeof wine.wine_type === 'string' ? wine.wine_type : 'red') as 'red' | 'white' | 'rose' | 'sparkling',
           region: typeof wine.region === 'string' ? wine.region : (wine.country && typeof wine.country === 'object' && wine.country.name ? String(wine.country.name) : ''),
           appellation: typeof wine.appellation === 'string' ? wine.appellation : '',
@@ -91,7 +105,6 @@ export const useWinesWithSharedCave = () => {
           acidity: 0,
           description: typeof wine.description === 'string' ? wine.description : '',
           imageUri: typeof wine.image_uri === 'string' ? wine.image_uri : undefined,
-          favorite: userWine.liked || false,
           note: userWine.rating || 0,
           stock: userWine.amount || 0,
           origin: userWine.origin || ((userWine.amount || 0) > 0 ? 'cellar' : 'wishlist'),

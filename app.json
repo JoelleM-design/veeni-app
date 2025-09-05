@@ -4,14 +4,15 @@
     "slug": "veeni-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/iconeveenipop.png",
     "scheme": "veeniapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Cette application nécessite l'accès à votre bibliothèque de photos pour vous permettre de changer votre photo de profil."
+        "NSPhotoLibraryUsageDescription": "Cette application nécessite l'accès à votre bibliothèque de photos pour vous permettre de changer votre photo de profil.",
+        "NSCameraUsageDescription": "Cette application nécessite l'accès à votre caméra pour scanner les étiquettes de vin et ajouter des vins à votre cave."
       }
     },
     "android": {
@@ -22,7 +23,8 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "CAMERA"
       ]
     },
     "web": {
@@ -46,7 +48,14 @@
         {
           "photosPermission": "Cette application nécessite l'accès à votre bibliothèque de photos pour vous permettre de changer votre photo de profil."
         }
-      ]
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Cette application nécessite l'accès à votre caméra pour scanner les étiquettes de vin et ajouter des vins à votre cave."
+        }
+      ],
+      "expo-mail-composer"
     ],
     "experiments": {
       "typedRoutes": true

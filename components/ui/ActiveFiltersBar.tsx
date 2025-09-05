@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterChip: {
-    backgroundColor: '#F6A07A',
+    backgroundColor: '#393C40', borderWidth: 0,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   filterChipText: {
-    color: '#222',
+    color: '#FFF',
     fontSize: 14,
     fontWeight: '600',
     marginRight: 4,

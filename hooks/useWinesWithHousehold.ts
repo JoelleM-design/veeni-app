@@ -66,18 +66,31 @@ export const useWinesWithHousehold = () => {
           }
         })();
         
+        // Déterminer le nom et le domaine
+        const rawName = String(wine.name || '');
+        const rawDomaine = wine.producer?.name || 'Domaine inconnu';
+        
+        // Si le nom est vide ou générique, utiliser le domaine comme nom
+        const isGenericName = !rawName || 
+          rawName === 'Vin sans nom' || 
+          rawName === 'Vin non identifié' || 
+          rawName === 'Nom inconnu' ||
+          rawName.length < 3;
+        
+        const finalName = isGenericName && rawDomaine !== 'Domaine inconnu' ? rawDomaine : rawName;
+        const finalDomaine = isGenericName && rawDomaine !== 'Domaine inconnu' ? '' : rawDomaine;
+
         return {
           id: wine.id,
-          name: wine.name,
+          name: finalName,
           vintage: wine.year,
           color: wine.wine_type,
-          domaine: wine.producer?.name || 'Domaine inconnu',
+          domaine: finalDomaine,
           region: wine.region || '',
           appellation: '',
           description: wine.description || '',
           imageUri: wine.image_uri,
           stock: item.amount,
-          favorite: item.liked,
           note: item.rating || 0,
           acidity: wine.acidity || 0,
           tannin: wine.tannins || 0,

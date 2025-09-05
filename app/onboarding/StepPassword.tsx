@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,18 +15,10 @@ export default function StepPassword({ value, onChange, onNext, onBack, stepInde
   const isValid = errors.length === 0;
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <View style={styles.topRow}>
-        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={{top: 16, bottom: 16, left: 16, right: 16}}>
-          <Ionicons name="chevron-back" size={28} color="#FFF" />
-        </TouchableOpacity>
-        <View style={styles.progressBarContainer}>
-          <View style={[styles.progressBar, { width: `${Math.round((stepIndex+1)/totalSteps*100)}%` }]} />
-        </View>
-      </View>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <View style={styles.container}>
           <Text style={styles.label}>Quel est ton mot de passe ?</Text>
@@ -62,15 +53,11 @@ export default function StepPassword({ value, onChange, onNext, onBack, stepInde
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#222' },
-  topRow: { flexDirection: 'row', alignItems: 'center', width: '100%', paddingHorizontal: 16, marginTop: 0, marginBottom: 0, minHeight: 48 },
-  headerBtn: { padding: 4, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.0)', marginRight: 8 },
-  progressBarContainer: { flex: 1, height: 6, backgroundColor: '#393C40', borderRadius: 3, overflow: 'hidden' },
-  progressBar: { height: 6, backgroundColor: '#F6A07A', borderRadius: 3 },
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   label: { color: '#FFF', fontSize: 20, marginBottom: 18 },
   input: { backgroundColor: '#333', color: '#FFF', borderRadius: 16, padding: 14, fontSize: 18, width: '100%', marginBottom: 8 },
-  button: { backgroundColor: '#FFF', borderRadius: 24, paddingVertical: 14, paddingHorizontal: 36, marginTop: 16, marginBottom: 8 },
-  buttonText: { color: '#222', fontWeight: '700', fontSize: 16 },
-  error: { color: '#F6A07A', marginBottom: 2, fontSize: 14 },
+  button: { backgroundColor: '#393C40', borderWidth: 1, borderColor: '#555', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 36, marginTop: 16, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  buttonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 16 },
+  error: { color: '#FFFFFF', marginBottom: 2, fontSize: 14 },
   errorList: { alignSelf: 'flex-start', marginBottom: 4, marginTop: 2 },
 }); 

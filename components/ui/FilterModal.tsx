@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { VeeniColors } from '../../constants/Colors';
 
 export interface FilterOption {
   key: string;
@@ -26,6 +27,21 @@ export const FilterModal: React.FC<FilterModalProps> = ({
   onFilterChange,
   title = 'Filtres'
 }) => {
+  const getWineColor = (filterKey: string) => {
+    switch (filterKey) {
+      case 'red':
+        return VeeniColors.wine.red;
+      case 'white':
+        return VeeniColors.wine.white;
+      case 'rose':
+        return VeeniColors.wine.rose;
+      case 'sparkling':
+        return VeeniColors.wine.sparkling;
+      default:
+        return '#FFFFFF';
+    }
+  };
+
   const toggleFilter = (key: string) => {
     const newFilters = selectedFilters.includes(key)
       ? selectedFilters.filter(f => f !== key)
@@ -85,7 +101,7 @@ export const FilterModal: React.FC<FilterModalProps> = ({
                       <Ionicons 
                         name={option.icon as any} 
                         size={16} 
-                        color={isSelected ? '#F6A07A' : '#FFF'} 
+                        color={getWineColor(option.key)} 
                         style={styles.filterIcon}
                       />
                     )}
@@ -153,19 +169,19 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#666',
+    borderWidth: 0,
+    borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
   radioButtonSelected: {
-    borderColor: '#F6A07A',
+    borderColor: 'transparent',
   },
   radioButtonInner: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#F6A07A',
+    backgroundColor: '#393C40', borderWidth: 0,
   },
   filterContent: {
     flex: 1,
@@ -187,7 +203,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   filterLabelSelected: {
-    color: '#F6A07A',
+    color: '#FFFFFF',
     fontWeight: '600',
   },
 }); 

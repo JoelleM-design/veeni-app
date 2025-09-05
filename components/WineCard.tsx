@@ -1,449 +1,624 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import React from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+    Dimensions,
+    Image,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import { VeeniColors } from '../constants/Colors';
-import type { Wine } from '../types/wine';
 
-interface WineCardProps {
-  wine: Wine;
+const { width } = Dimensions.get('window');
+
+// Types sécurisés pour éviter les objets complexes
+export interface WineCardProps {
+  wine: {
+    id: string;
+    name: string;
+    vintage: number | null;
+    color: 'red' | 'white' | 'rose' | 'sparkling';
+    domaine: string;
+    region: string;
+    country: string;
+    priceRange?: string;
+    grapes: string[];
+    imageUri: string | null;
+    stock: number;
+    origin: 'cellar' | 'wishlist';
+    note: number | null;
+    personalComment: string | null;
+    favorite?: boolean;
+  };
   showStockButtons?: boolean;
+  showActions?: boolean;
+  onPress?: () => void;
   onAddBottle?: () => void;
   onRemoveBottle?: () => void;
+  onEdit?: () => void;
   onToggleFavorite?: () => void;
-  onPress?: () => void;
   footer?: React.ReactNode;
+  isSharedCave?: boolean;
+  sharedWith?: string;
+  readOnly?: boolean;
+  // Nouvelles props pour les informations sociales
+  friendsWithWine?: Array<{
+    id: string;
+    firstName: string;
+    avatar?: string;
+  }>;
 }
-
-// Couleur du type de vin
-const getWineTypeColor = (type: string) => {
-  switch (type) {
-    case 'red': return VeeniColors.wine.red;
-    case 'white': return VeeniColors.wine.white;
-    case 'rose': return VeeniColors.wine.rose;
-    case 'sparkling': return VeeniColors.wine.sparkling;
-    default: return VeeniColors.wine.red;
-  }
-};
-
-// Icône du type de vin
-const getWineTypeIcon = (type: string) => {
-  switch (type) {
-    case 'red': return 'wine';
-    case 'white': return 'wine-outline';
-    case 'rose': return 'wine';
-    case 'sparkling': return 'sparkles';
-    default: return 'wine';
-  }
-};
-
-// Texte du type de vin
-const getWineTypeText = (type: string) => {
-  switch (type) {
-    case 'red': return 'Rouge';
-    case 'white': return 'Blanc';
-    case 'rose': return 'Rosé';
-    case 'sparkling': return 'Effervescent';
-    default: return 'Rouge';
-  }
-};
 
 export const WineCard: React.FC<WineCardProps> = ({
   wine,
   showStockButtons = true,
+  showActions = true,
+  onPress,
   onAddBottle,
   onRemoveBottle,
+  onEdit,
   onToggleFavorite,
-  onPress,
   footer,
+  isSharedCave = false,
+  sharedWith,
+  readOnly = false,
+  friendsWithWine = [],
 }) => {
-  const router = useRouter();
+  // Fonction de nettoyage pour s'assurer que tous les champs sont des primitifs
+  const safeWine = {
+    id: String(wine.id || ''),
+    name: String(wine.name || 'Nom inconnu'),
+    vintage: wine.vintage || null,
+    color: wine.color || 'red',
+    domaine: String(wine.domaine || 'Domaine inconnu'),
+    region: String(wine.region || ''),
+    country: String(wine.country || ''),
+    grapes: Array.isArray(wine.grapes) ? wine.grapes.map(String) : [],
+    imageUri: wine.imageUri || null,
+    stock: Number(wine.stock || 0),
+    origin: wine.origin || 'cellar',
+    note: wine.note || null,
+    personalComment: wine.personalComment || null,
+    favorite: wine.favorite || false,
+  };
 
-  const handlePress = () => {
-    if (onPress) {
-      onPress();
-    } else {
-      router.push({
-        pathname: '/wine/[id]',
-        params: { id: wine.id }
-      });
+  const getWineTypeColor = (color: string) => {
+    switch (color) {
+      case 'red': return VeeniColors.wine.red;
+      case 'white': return VeeniColors.wine.white;
+      case 'rose': return VeeniColors.wine.rose;
+      case 'sparkling': return VeeniColors.wine.sparkling;
+      default: return VeeniColors.wine.red;
     }
   };
 
+  const getWineTypeIcon = (color: string) => {
+    switch (color) {
+      case 'red': return 'wine';
+      case 'white': return 'wine';
+      case 'rose': return 'wine';
+      case 'sparkling': return 'wine';
+      default: return 'wine';
+    }
+  };
+
+  const truncateText = (text: string, maxLength: number) => {
+    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
+  };
+
+  // Fonction pour obtenir le drapeau du pays
+  const getCountryFlag = (country: string) => {
+    const flagMap: Record<string, string> = {
+      'France': '🇫🇷',
+      'Italie': '🇮🇹',
+      'Espagne': '🇪🇸',
+      'Portugal': '🇵🇹',
+      'Allemagne': '🇩🇪',
+      'États-Unis': '🇺🇸',
+      'Chili': '🇨🇱',
+      'Argentine': '🇦🇷',
+      'Australie': '🇦🇺',
+      'Nouvelle-Zélande': '🇳🇿',
+      'Afrique du Sud': '🇿🇦',
+      'Canada': '🇨🇦',
+      'Suisse': '🇨🇭',
+      'Autriche': '🇦🇹',
+      'Hongrie': '🇭🇺',
+      'Grèce': '🇬🇷',
+      'Croatie': '🇭🇷',
+      'Slovénie': '🇸🇮',
+      'Géorgie': '🇬🇪',
+      'Liban': '🇱🇧',
+      'Israël': '🇮🇱',
+      'Maroc': '🇲🇦',
+      'Tunisie': '🇹🇳',
+      'Algérie': '🇩🇿',
+    };
+    return flagMap[country] || '🏳️';
+  };
+
   return (
-    <TouchableOpacity style={styles.card} activeOpacity={0.9} onPress={handlePress}>
-      {/* Image principale */}
-      <View style={styles.imageContainer}>
-        {wine.imageUri ? (
-          <Image source={{ uri: wine.imageUri }} style={styles.imageFill} />
-        ) : (
-          <View style={styles.placeholderFill}>
-            <Ionicons name="wine" size={40} color="#666" />
+    <TouchableOpacity
+      style={styles.container}
+      onPress={onPress}
+      activeOpacity={0.8}
+      disabled={readOnly}
+    >
+      {/* Layout principal en row */}
+      <View style={styles.rowContainer}>
+        {/* Image du vin à gauche */}
+        <View style={styles.imageCol}>
+          <View style={styles.imageWrapper}>
+            {safeWine.imageUri ? (
+              <>
+                {console.log('🖼️ WineCard: Affichage image pour', safeWine.name, 'URL:', safeWine.imageUri)}
+                <Image
+                  source={{ uri: `${safeWine.imageUri}?t=${Date.now()}` }}
+                  style={styles.wineImage}
+                  resizeMode="cover"
+                  onLoad={() => console.log('✅ Image chargée avec succès:', safeWine.name)}
+                  onError={(error) => console.log('❌ Erreur chargement image:', safeWine.name, error.nativeEvent.error)}
+                />
+              </>
+            ) : (
+              <>
+                {console.log('🚫 WineCard: Pas d\'image pour', safeWine.name)}
+                <View style={[styles.placeholderImage, { backgroundColor: getWineTypeColor(safeWine.color) }]}> 
+                  <Ionicons name={getWineTypeIcon(safeWine.color)} size={32} color="#FFF" />
+                </View>
+              </>
+            )}
+            {/* Bouton favori en haut à droite de l'image */}
+            {showActions && onToggleFavorite && (
+              <TouchableOpacity
+                style={styles.likeButton}
+                onPress={onToggleFavorite}
+                disabled={readOnly}
+              >
+                <Ionicons
+                  name={safeWine.favorite ? 'heart' : 'heart-outline'}
+                  size={20}
+                  color={safeWine.favorite ? VeeniColors.wine.red : '#FFF'}
+                />
+              </TouchableOpacity>
+            )}
           </View>
-        )}
-        
-        {/* Badge millésime */}
-        {wine.vintage && (
-          <View style={styles.vintageBadge}>
-            <Text style={styles.vintageBadgeText}>{wine.vintage}</Text>
+        </View>
+        {/* Bloc infos à droite */}
+        <View style={styles.infoCol}>
+          {/* Section supérieure : nom */}
+          <View style={styles.headerRow}>
+            <Text style={styles.wineName} numberOfLines={2}>{truncateText(safeWine.name || 'Nom inconnu', 40)}</Text>
           </View>
-        )}
-        
-        {/* Bouton like */}
-        <TouchableOpacity 
-          style={styles.heartBtn} 
-          onPress={(e) => {
-            e.stopPropagation();
-            onToggleFavorite?.();
-          }}
-        >
-          <Ionicons 
-            name={wine.favorite ? 'heart' : 'heart-outline'} 
-            size={22} 
-            color={wine.favorite ? VeeniColors.wine.red : '#B0B0B0'} 
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Contenu principal */}
-      <View style={styles.cardContent}>
-        {/* En-tête avec nom et type */}
-        <View style={styles.header}>
-          <Text style={styles.wineName} numberOfLines={2} ellipsizeMode='tail'>
-            {wine.name}
-          </Text>
           
-          <View style={styles.typeBadge}>
-            <Ionicons 
-              name={getWineTypeIcon(wine.color)} 
-              size={14} 
-              color="#FFF" 
-            />
-            <Text style={styles.typeText}>
-              {getWineTypeText(wine.color)}
-            </Text>
-          </View>
-        </View>
-
-        {/* Domaine */}
-        {wine.domaine && wine.domaine !== 'Domaine inconnu' && (
-          <Text style={styles.domaine} numberOfLines={1} ellipsizeMode='tail'>
-            {wine.domaine}
-          </Text>
-        )}
-
-        {/* Informations détaillées */}
-        <View style={styles.details}>
-          {/* Région et appellation */}
-          {(wine.region || wine.appellation) && (
-            <View style={styles.detailRow}>
-              <Ionicons name="location-outline" size={14} color="#B0B0B0" />
-              <Text style={styles.detailText} numberOfLines={1} ellipsizeMode='tail'>
-                {wine.appellation && wine.appellation !== wine.region 
-                  ? `${wine.appellation}, ${wine.region}` 
-                  : wine.region || wine.appellation}
-              </Text>
-            </View>
-          )}
-
-          {/* Cépages */}
-          {wine.grapes && wine.grapes.length > 0 && (
-            <View style={styles.detailRow}>
-              <Ionicons name="leaf-outline" size={14} color="#B0B0B0" />
-              <Text style={styles.detailText} numberOfLines={1} ellipsizeMode='tail'>
-                {wine.grapes.join(', ')}
-              </Text>
-            </View>
-          )}
-
-          {/* Note utilisateur */}
-          {wine.note > 0 && (
-            <View style={styles.detailRow}>
-              <Ionicons name="star" size={14} color={VeeniColors.accent.secondary} />
-              <Text style={styles.detailText}>
-                {wine.note}/5
-              </Text>
-            </View>
-          )}
-
-          {/* Caractéristiques techniques */}
-          {(wine.power > 0 || wine.tannin > 0 || wine.sweet > 0 || wine.acidity > 0) && (
-            <View style={styles.characteristics}>
-              {wine.power > 0 && (
-                <View style={styles.characteristicItem}>
-                  <Text style={styles.characteristicLabel}>P</Text>
-                  <View style={styles.characteristicBar}>
-                    <View 
-                      style={[
-                        styles.characteristicFill, 
-                        { width: `${(wine.power / 5) * 100}%` }
-                      ]} 
-                    />
-                  </View>
-                </View>
-              )}
-              
-              {wine.tannin > 0 && (
-                <View style={styles.characteristicItem}>
-                  <Text style={styles.characteristicLabel}>T</Text>
-                  <View style={styles.characteristicBar}>
-                    <View 
-                      style={[
-                        styles.characteristicFill, 
-                        { width: `${(wine.tannin / 5) * 100}%` }
-                      ]} 
-                    />
-                  </View>
-                </View>
-              )}
-              
-              {wine.sweet > 0 && (
-                <View style={styles.characteristicItem}>
-                  <Text style={styles.characteristicLabel}>S</Text>
-                  <View style={styles.characteristicBar}>
-                    <View 
-                      style={[
-                        styles.characteristicFill, 
-                        { width: `${(wine.sweet / 5) * 100}%` }
-                      ]} 
-                    />
-                  </View>
-                </View>
-              )}
-              
-              {wine.acidity > 0 && (
-                <View style={styles.characteristicItem}>
-                  <Text style={styles.characteristicLabel}>A</Text>
-                  <View style={styles.characteristicBar}>
-                    <View 
-                      style={[
-                        styles.characteristicFill, 
-                        { width: `${(wine.acidity / 5) * 100}%` }
-                      ]} 
-                    />
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
-        </View>
-
-        {/* Footer custom */}
-        {footer && <View style={styles.footer}>{footer}</View>}
-
-        {/* Actions stock */}
-        {showStockButtons && (
-          <View style={styles.actionsRow}>
-            <TouchableOpacity 
-              style={styles.actionBtn} 
-              onPress={(e) => {
-                e.stopPropagation();
-                onRemoveBottle?.();
-              }}
-            >
-              <Ionicons name="remove" size={16} color="#FFF" />
-            </TouchableOpacity>
+          {/* Section centrale : informations du vin */}
+          <View style={styles.wineInfoSection}>
+            {/* Millésime */}
+            {safeWine.vintage && (
+              <Text style={styles.vintageText}>{String(safeWine.vintage)}</Text>
+            )}
             
-            <View style={styles.stockContainer}>
-              <Text style={styles.stockLabel}>Stock</Text>
-              <Text style={styles.stockValue}>{wine.stock}</Text>
+            {/* Domaine/Producteur */}
+            {safeWine.domaine && safeWine.domaine !== 'Domaine inconnu' && (
+              <Text style={styles.domaine} numberOfLines={1}>{truncateText(safeWine.domaine, 35)}</Text>
+            )}
+            
+            {/* Type de vin avec icône */}
+            <View style={styles.wineTypeRow}>
+              <Ionicons 
+                name={getWineTypeIcon(safeWine.color)} 
+                size={14} 
+                color={getWineTypeColor(safeWine.color)} 
+              />
+              <Text style={styles.wineTypeText}>
+                {safeWine.color === 'red' ? 'Rouge' : 
+                 safeWine.color === 'white' ? 'Blanc' : 
+                 safeWine.color === 'rose' ? 'Rosé' : 'Effervescent'}
+              </Text>
             </View>
             
-            <TouchableOpacity 
-              style={styles.actionBtn} 
-              onPress={(e) => {
-                e.stopPropagation();
-                onAddBottle?.();
-              }}
-            >
-              <Ionicons name="add" size={16} color="#FFF" />
-            </TouchableOpacity>
+            {/* Région + Pays avec drapeau */}
+            {(safeWine.region || safeWine.country) && (
+              <View style={styles.regionRow}>
+                {safeWine.region && (
+                  <Text style={styles.region} numberOfLines={1}>
+                    {safeWine.region}
+                  </Text>
+                )}
+                {safeWine.country && (
+                  <Text style={styles.countryFlag}>
+                    {getCountryFlag(safeWine.country)} {safeWine.country}
+                  </Text>
+                )}
+              </View>
+            )}
+            
+            {/* Cépages */}
+            {safeWine.grapes.length > 0 && (
+              <Text style={styles.grapes} numberOfLines={1}>
+                {safeWine.grapes.slice(0, 3).join(', ')}
+                {safeWine.grapes.length > 3 && '...'}
+              </Text>
+            )}
+            
+            {/* Prix */}
+            {safeWine.priceRange && (
+              <Text style={styles.priceRange}>
+                {safeWine.priceRange}
+              </Text>
+            )}
+            
+            {/* Information sociale - Amis qui ont ce vin */}
+            {friendsWithWine.length > 0 && (
+              <View style={styles.socialRow}>
+                <Ionicons name="people" size={12} color="#FFFFFF" />
+                <Text style={styles.socialText}>
+                  Aussi chez {friendsWithWine.slice(0, 2).map(f => f.firstName).join(', ')}
+                  {friendsWithWine.length > 2 && ` +${friendsWithWine.length - 2}`}
+                </Text>
+              </View>
+            )}
+            
+            {/* Note personnelle */}
+            {safeWine.note && safeWine.note > 0 && (
+              <View style={styles.ratingContainer}>
+                <Ionicons name="star" size={14} color="#FFD700" />
+                <Text style={styles.rating}>{String(safeWine.note)}/5</Text>
+              </View>
+            )}
           </View>
-        )}
+          
+          {/* Section inférieure : actions et footer */}
+          <View style={styles.bottomSection}>
+            {/* Boutons stock (seulement sur Ma cave) */}
+            {showStockButtons && !readOnly && (
+              <View style={styles.stockRow}>
+                <TouchableOpacity
+                  style={styles.stockButton}
+                  onPress={onRemoveBottle}
+                  disabled={safeWine.stock <= 0}
+                >
+                  <Ionicons
+                    name="remove"
+                    size={20}
+                    color={safeWine.stock > 0 ? '#FFFFFF' : '#999'}
+                  />
+                </TouchableOpacity>
+                <Text style={styles.stockText}>{String(safeWine.stock)}</Text>
+                <TouchableOpacity
+                  style={styles.stockButton}
+                  onPress={onAddBottle}
+                >
+                  <Ionicons
+                    name="add"
+                    size={20}
+                    color="#FFFFFF"
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
+            {/* Footer personnalisé */}
+            {footer && (
+              <View style={styles.footer}>{footer}</View>
+            )}
+          </View>
+        </View>
       </View>
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    backgroundColor: '#333',
-    borderRadius: 22,
-    marginBottom: 18,
-    padding: 12,
+  container: {
+    backgroundColor: '#2A2A2A',
+    borderRadius: 20,
+    marginBottom: 16,
+    overflow: 'hidden',
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.10,
-    shadowRadius: 8,
-    elevation: 3,
-    height: 300,
-    alignItems: 'stretch',
-    minHeight: 300,
-    maxHeight: 300,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   imageContainer: {
-    width: 140,
-    height: '100%',
-    borderRadius: 18,
-    overflow: 'hidden',
     position: 'relative',
-    backgroundColor: 'transparent',
-    marginRight: 18,
-    alignSelf: 'stretch',
-    flexShrink: 0,
-    flexGrow: 0,
+    width: '100%',
+    height: 120,
   },
-  imageFill: {
+  wineImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
-    borderRadius: 18,
-    backgroundColor: '#E0E0E0',
   },
-  placeholderFill: {
+  placeholderImage: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#E0E0E0',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  heartBtn: {
+  sharedBadge: {
     position: 'absolute',
-    top: 10,
-    left: 10,
-    zIndex: 2,
-    backgroundColor: 'rgba(0,0,0,0.0)',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(246, 160, 122, 0.9)',
     borderRadius: 12,
-    padding: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  cardContent: {
-    flex: 1,
-    justifyContent: 'space-between',
-    paddingVertical: 2,
-  },
-  wineName: {
-    fontSize: 19,
-    fontWeight: 'bold',
+  sharedText: {
     color: '#FFF',
-    flexShrink: 1,
-    maxWidth: 170,
+    fontSize: 10,
+    fontWeight: '600',
+    marginLeft: 4,
   },
-  domaine: {
-    fontSize: 16,
-    color: '#B0B0B0',
-    marginBottom: 2,
-    flexShrink: 1,
-    maxWidth: 170,
+  content: {
+    padding: 16,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 2,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
-  typeBadge: {
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    zIndex: 3,
-    minWidth: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
+  nameContainer: {
+    flex: 1,
+    marginRight: 8,
   },
-  typeText: {
+  wineName: {
     color: '#FFF',
-    fontWeight: 'bold',
-    fontSize: 12,
-    textAlign: 'center',
-    letterSpacing: 0.2,
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 20,
   },
-  details: {
+  vintage: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  wineTypeBadge: {
+    borderRadius: 12,
+    padding: 4,
+  },
+  domaine: {
+    color: '#CCC',
+    fontSize: 12,
     marginBottom: 2,
   },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  region: {
+    color: '#999',
+    fontSize: 12,
     marginBottom: 4,
   },
-  detailText: {
-    color: '#FFF',
-    fontSize: 15,
-    fontWeight: '500',
-    flexShrink: 1,
-    maxWidth: 110,
-  },
-  characteristics: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
-  },
-  characteristicItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  characteristicLabel: {
-    color: '#FFF',
+  grapes: {
+    color: '#999',
     fontSize: 12,
-    fontWeight: 'bold',
+    fontStyle: 'italic',
+    marginBottom: 8,
   },
-  characteristicBar: {
-    width: 20,
-    height: 6,
-    backgroundColor: '#444',
-    borderRadius: 3,
-    overflow: 'hidden',
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  characteristicFill: {
-    height: '100%',
+  rating: {
+    color: '#FFD700',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
   },
-  footer: {
-    marginTop: 10,
-  },
-  actionsRow: {
+  actions: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 8,
   },
-  actionBtn: {
-    backgroundColor: '#444',
-    borderRadius: 20,
+  actionButton: {
+    padding: 12,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stockText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginHorizontal: 20,
+    minWidth: 30,
+    textAlign: 'center',
+  },
+  footer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#444',
+  },
+  sharedInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  sharedInfoText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  rowContainer: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    width: '100%',
+    height: 300, // Même hauteur que l'image
+    backgroundColor: '#2A2A2A',
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  imageCol: {
+    width: 200, // Largeur fixe comme la fiche détaillée
+    height: 300, // Hauteur fixe comme la fiche détaillée
+    backgroundColor: '#222',
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageWrapper: {
+    width: '100%',
+    height: '100%',
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  wineImage: {
+    width: '100%',
+    height: '100%',
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
+  },
+  likeButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 16,
     width: 32,
     height: 32,
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 2,
   },
-  stockContainer: {
-    alignItems: 'center',
+  vintageText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
   },
-  stockLabel: {
-    color: '#B0B0B0',
-    fontSize: 12,
-    fontWeight: '500',
+  infoCol: {
+    flex: 1,
+    padding: 6,
+    justifyContent: 'space-between',
   },
-  stockValue: {
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  wineName: {
     color: '#FFF',
     fontSize: 18,
     fontWeight: 'bold',
+    flex: 1,
+    marginBottom: 4,
   },
-  vintageBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  domaine: {
+    color: '#CCC',
+    fontSize: 16,
+    marginBottom: 4,
   },
-  vintageBadgeText: {
-    color: '#FFF',
-    fontSize: 12,
+  region: {
+    color: '#999',
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  grapes: {
+    color: '#999',
+    fontSize: 14,
+    fontStyle: 'italic',
+    marginBottom: 4,
+  },
+  priceRange: {
+    fontSize: 14,
+    color: '#FFD700',
     fontWeight: 'bold',
+    marginTop: 4,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  rating: {
+    color: '#FFD700',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  stockRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  stockText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    minWidth: 20,
     textAlign: 'center',
-    letterSpacing: 0.2,
+    marginHorizontal: 6,
+  },
+  wineInfoSection: {
+    flex: 1,
+    justifyContent: 'flex-start',
+  },
+  bottomSection: {
+    justifyContent: 'flex-end',
+  },
+  // Nouveaux styles pour les informations ajoutées
+  wineTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  wineTypeText: {
+    color: '#999',
+    fontSize: 14,
+    marginLeft: 4,
+    textTransform: 'capitalize',
+  },
+  regionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  countryFlag: {
+    fontSize: 14,
+    marginLeft: 4,
+  },
+  socialRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  socialText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    marginLeft: 4,
+    fontStyle: 'italic',
+  },
+  stockButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#393C40',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#555',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
 }); 

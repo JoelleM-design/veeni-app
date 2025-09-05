@@ -15,42 +15,39 @@ export interface OCRResult {
 export interface Wine {
   id: string;
   name: string;
-  domaine: string;
-  vintage: number;
-  color: 'red' | 'white' | 'rose' | 'sparkling';
-  region: string;
-  appellation: string;
-  grapes: string[];
-  power: number;
-  tannin: number;
-  sweet: number;
-  acidity: number;
+  producer?: {
+    name: string;
+  };
+  vintage?: number;
+  color?: string;
+  grapes?: string[];
+  region?: string;
+  country?: string;
+  appellation?: string;
+  domaine?: string;
   description?: string;
   imageUri?: string;
-  favorite: boolean;
-  note: number;
-  stock: number;
-  origin: 'cellar' | 'wishlist';
-  history: {
-    type: 'added' | 'stock' | 'tasted' | 'noted' | 'seen';
-    date: string;
-    value?: number;
-    friend?: {
-      id: string;
-      name: string;
-      avatar?: string;
-    };
-  }[];
-  createdAt: string;
-  updatedAt: string;
-  // Champs pour l'OCR et enrichissement
-  ocrText?: string;
-  confidence?: 'high' | 'medium' | 'low';
-  missingFields?: string[];
-  // Information sur le propriétaire (pour les caves partagées)
-  ownerId?: string;
-  isOwnedByUser?: boolean;
+  note?: number;
   personalComment?: string;
+  stock?: number;
+  priceRange?: string;
+  origin?: 'cellar' | 'wishlist' | 'tasted';
+  createdAt?: string;
+  updatedAt?: string;
+  acidity?: number;
+  power?: number;
+  sweet?: number;
+  tannin?: number;
+  tastingProfile?: {
+    acidity: number;
+    power: number;
+    sweetness: number;
+    tannin: number;
+  };
+  history?: any[];
+  favorite?: boolean; // Propriété pour les favoris
+  lastTastedAt?: string; // Date de la dernière dégustation
+  tastingCount?: number; // Nombre de dégustations
 }
 
 export type AddWineStatus = 'pending' | 'validated' | 'edited' | 'error';

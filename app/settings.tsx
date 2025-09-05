@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import * as Contacts from 'expo-contacts';
+import * as MailComposer from 'expo-mail-composer';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SharedCaveModal } from '../components/SharedCaveModal';
 import { useSharedCave } from '../hooks/useSharedCave';
 
@@ -75,6 +77,65 @@ export default function SettingsScreen() {
     }
   };
 
+  // Gestion du contact support
+  const handleContactSupport = async () => {
+    try {
+      const isAvailable = await MailComposer.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert('Erreur', 'L\'application mail n\'est pas disponible sur cet appareil.');
+        return;
+      }
+
+      await MailComposer.composeAsync({
+        recipients: ['hello@veeni.fr'],
+        subject: '[Veeni Support] Demande d\'assistance',
+        body: `Bonjour l'équipe Veeni,
+
+J'ai besoin d'aide concernant l'application Veeni.
+
+Merci de votre retour.
+
+---
+Informations techniques :
+- Plateforme : ${Platform.OS}
+- Version OS : ${Platform.Version}
+- Version app : ${Constants.expoConfig?.version || '1.0.0'}`,
+      });
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible d\'ouvrir l\'application mail. Veuillez réessayer.');
+    }
+  };
+
+  // Gestion de la déconnexion
+  const handleLogout = async () => {
+    Alert.alert(
+      'Se déconnecter',
+      'Êtes-vous sûr de vouloir vous déconnecter ?',
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+        {
+          text: 'Se déconnecter',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase.auth.signOut();
+              if (error) {
+                Alert.alert('Erreur', 'Impossible de se déconnecter. Veuillez réessayer.');
+                return;
+              }
+              // La redirection sera gérée automatiquement par le RootLayout
+            } catch (error) {
+              Alert.alert('Erreur', 'Une erreur est survenue lors de la déconnexion.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header avec bouton back */}
@@ -96,7 +157,7 @@ export default function SettingsScreen() {
           <Switch
             value={pushEnabled}
             onValueChange={setPushEnabled}
-            trackColor={{ false: '#888', true: '#F6A07A' }}
+            trackColor={{ false: '#888', true: '#FFFFFF' }}
             thumbColor={pushEnabled ? '#FFF' : '#FFF'}
           />
         </View>
@@ -109,7 +170,7 @@ export default function SettingsScreen() {
           <Switch
             value={contactsEnabled}
             onValueChange={handleContactsSwitch}
-            trackColor={{ false: '#888', true: '#F6A07A' }}
+            trackColor={{ false: '#888', true: '#FFFFFF' }}
             thumbColor={contactsEnabled ? '#FFF' : '#FFF'}
             disabled={!contactsStatusChecked}
           />
@@ -118,14 +179,15 @@ export default function SettingsScreen() {
         <View style={styles.separator} />
         {/* Mon compte */}
         <Text style={styles.sectionTitle}>Mon compte</Text>
-        <TouchableOpacity style={styles.rowBetween}>
+        <TouchableOpacity style={styles.rowBetween} onPress={() => router.push('/settings/edit-email')}>
           <Text style={styles.label}>Mail</Text>
+          <Ionicons name="chevron-forward" size={20} color="#B0B0B0" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.rowBetween}>
+        <TouchableOpacity style={styles.rowBetween} onPress={() => router.push('/settings/edit-name')}>
           <Text style={styles.label}>Modifier mon nom</Text>
           <Ionicons name="chevron-forward" size={20} color="#B0B0B0" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.rowBetween}>
+        <TouchableOpacity style={styles.rowBetween} onPress={() => router.push('/settings/edit-password')}>
           <Text style={styles.label}>Modifier mon mot de passe</Text>
           <Ionicons name="chevron-forward" size={20} color="#B0B0B0" />
         </TouchableOpacity>
@@ -151,20 +213,21 @@ export default function SettingsScreen() {
         )}
         {/* Mentions légales */}
         <Text style={styles.sectionTitle}>Mentions légales</Text>
-        <TouchableOpacity style={styles.rowBetween}>
+        <TouchableOpacity style={styles.rowBetween} onPress={() => router.push('/settings/terms')}>
           <Text style={styles.label}>Conditions générales d'utilisation</Text>
           <Ionicons name="chevron-forward" size={20} color="#B0B0B0" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.rowBetween}>
+        <TouchableOpacity style={styles.rowBetween} onPress={() => router.push('/settings/privacy')}>
           <Text style={styles.label}>Politique de confidentialité</Text>
           <Ionicons name="chevron-forward" size={20} color="#B0B0B0" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.rowBetween}>
+        <TouchableOpacity style={styles.rowBetween} onPress={handleContactSupport}>
           <Text style={styles.label}>Contacter le support</Text>
           <Ionicons name="chevron-forward" size={20} color="#B0B0B0" />
         </TouchableOpacity>
+        
         {/* Déconnexion */}
-        <TouchableOpacity style={styles.logoutRow}>
+        <TouchableOpacity style={styles.logoutRow} onPress={handleLogout}>
           <Text style={styles.logoutText}>Se déconnecter</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -214,7 +277,7 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 1,
-    backgroundColor: '#393C40',
+    backgroundColor: '#393C40', borderWidth: 0,
     marginVertical: 22,
   },
   logoutRow: {
@@ -223,7 +286,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   logoutText: {
-    color: '#F6A07A',
+    color: '#FFFFFF',
     fontWeight: 'bold',
     fontSize: 16,
     marginLeft: 2,
@@ -248,7 +311,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   linkText: {
-    color: '#F6A07A',
+    color: '#FFFFFF',
     fontWeight: 'bold',
     fontSize: 16,
     marginLeft: 2,

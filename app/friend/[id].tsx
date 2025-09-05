@@ -1,19 +1,90 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useUser } from '../../hooks/useUser';
+import { supabase } from '../../lib/supabase';
+
+interface Friend {
+  id: string;
+  first_name: string;
+  email: string;
+  avatar?: string;
+  created_at: string;
+}
 
 export default function FriendDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { user } = useUser();
+  const [friend, setFriend] = useState<Friend | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const friend = null; // Temporairement désactivé car la fonctionnalité friends n'est pas implémentée
+  useEffect(() => {
+    const fetchFriend = async () => {
+      if (!id) {
+        setError('ID de l\'ami manquant');
+        setLoading(false);
+        return;
+      }
 
-  if (!friend) {
+      try {
+        const { data, error } = await supabase
+          .from('User')
+          .select('id, first_name, email, avatar, created_at')
+          .eq('id', id)
+          .single();
+
+        if (error) {
+          console.error('Erreur lors de la récupération de l\'ami:', error);
+          setError('Impossible de charger les données de l\'ami');
+        } else if (data) {
+          setFriend(data);
+        } else {
+          setError('Ami non trouvé');
+        }
+      } catch (err) {
+        console.error('Erreur lors de la récupération de l\'ami:', err);
+        setError('Erreur lors du chargement');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFriend();
+  }, [id]);
+
+  if (loading) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>Ami non trouvé</Text>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Profil</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Chargement...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (error || !friend) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Profil</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error || 'Ami non trouvé'}</Text>
+        </View>
       </View>
     );
   }
@@ -35,14 +106,16 @@ export default function FriendDetailScreen() {
               <Image source={{ uri: friend.avatar }} style={styles.avatar} />
             ) : (
               <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={32} color="#666" />
+                <Text style={styles.avatarInitial}>
+                  {friend.first_name?.charAt(0).toUpperCase() || 'A'}
+                </Text>
               </View>
             )}
-            {friend.online && <View style={styles.onlineIndicator} />}
           </View>
-          <Text style={styles.name}>{friend.name}</Text>
-          <Text style={styles.status}>
-            {friend.online ? 'En ligne' : 'Hors ligne'}
+          <Text style={styles.name}>{friend.first_name || 'Utilisateur'}</Text>
+          <Text style={styles.email}>{friend.email}</Text>
+          <Text style={styles.memberSince}>
+            Membre depuis {new Date(friend.created_at).toLocaleDateString('fr-FR')}
           </Text>
         </View>
 
@@ -61,6 +134,14 @@ export default function FriendDetailScreen() {
               <Text style={styles.statValue}>0</Text>
               <Text style={styles.statLabel}>Amis</Text>
             </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Vins en commun</Text>
+          <View style={styles.emptySection}>
+            <Ionicons name="wine" size={48} color="#666" />
+            <Text style={styles.emptyText}>Aucun vin en commun pour le moment</Text>
           </View>
         </View>
       </ScrollView>
@@ -100,6 +181,25 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#fff',
+    fontSize: 16,
+    textAlign: 'center',
+  },
   profile: {
     alignItems: 'center',
     paddingVertical: 24,
@@ -121,16 +221,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  onlineIndicator: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#4CAF50',
-    borderWidth: 2,
-    borderColor: '#222',
+  avatarInitial: {
+    color: '#fff',
+    fontSize: 48,
+    fontWeight: 'bold',
   },
   name: {
     fontSize: 24,
@@ -138,8 +232,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginBottom: 4,
   },
-  status: {
+  email: {
     fontSize: 16,
+    color: '#999',
+    marginBottom: 8,
+  },
+  memberSince: {
+    fontSize: 14,
     color: '#666',
   },
   section: {
@@ -164,17 +263,21 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#F6A07A',
+    color: '#FFFFFF',
   },
   statLabel: {
     fontSize: 14,
     color: '#666',
     marginTop: 4,
   },
-  errorText: {
-    color: '#fff',
+  emptySection: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  emptyText: {
+    color: '#666',
     fontSize: 16,
     textAlign: 'center',
-    marginTop: 40,
+    marginTop: 16,
   },
 }); 

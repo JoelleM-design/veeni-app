@@ -57,26 +57,18 @@ const ocrCorrections: Record<string, string> = {
 // Fonction pour appeler l'API Google Vision
 async function callGoogleVisionAPI(images: string[], apiKey: string): Promise<GoogleVisionResponse | null> {
   try {
-    console.log('🔍 === DÉBUT CALL GOOGLE VISION API ===');
-    console.log('📊 Nombre d\'images:', images.length);
-    console.log('🔑 Clé API présente:', !!apiKey);
-    console.log('🔑 Clé API (début):', apiKey.substring(0, 10) + '...');
+    console.log('🔍 Traitement de', images.length, 'images avec Google Vision');
     
-    // Vérifier chaque image
-    images.forEach((image, index) => {
-      console.log(`📸 Image ${index + 1}:`);
-      console.log(`  - Longueur: ${image.length} caractères`);
-      console.log(`  - Début: ${image.substring(0, 50)}`);
-      console.log(`  - Fin: ${image.substring(image.length - 20)}`);
-      
-      // Vérifier si c'est du base64 valide
+    // Vérification rapide des images
+    const validImages = images.filter(image => {
       const isValidBase64 = /^[A-Za-z0-9+/]*={0,2}$/.test(image);
-      console.log(`  - Base64 valide: ${isValidBase64}`);
-      
-      // Vérifier si ça ressemble à une image
       const isLikelyImage = image.startsWith('/9j/') || image.startsWith('iVBORw0KGgo=') || image.startsWith('R0lGODlh');
-      console.log(`  - Ressemble à une image: ${isLikelyImage}`);
+      return isValidBase64 && isLikelyImage;
     });
+    
+    if (validImages.length !== images.length) {
+      console.warn('⚠️ Certaines images ne sont pas valides:', images.length - validImages.length, 'rejetées');
+    }
     
     const visionRequests = images.map((base64Image: string) => ({
       image: { content: base64Image },
@@ -84,12 +76,6 @@ async function callGoogleVisionAPI(images: string[], apiKey: string): Promise<Go
     }));
 
     console.log('📤 Envoi de la requête à Google Vision...');
-    console.log('📋 Structure de la requête:', JSON.stringify({
-      requests: visionRequests.map(req => ({
-        image: { content: req.image.content.substring(0, 50) + '...' },
-        features: req.features
-      }))
-    }, null, 2));
     
     const visionResponse = await fetch(
       `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
@@ -101,7 +87,6 @@ async function callGoogleVisionAPI(images: string[], apiKey: string): Promise<Go
     );
 
     console.log('📡 Statut de la réponse Google Vision:', visionResponse.status);
-    console.log('📡 Headers de la réponse:', Object.fromEntries(visionResponse.headers.entries()));
     
     if (!visionResponse.ok) {
       const errorText = await visionResponse.text();
@@ -112,12 +97,9 @@ async function callGoogleVisionAPI(images: string[], apiKey: string): Promise<Go
 
     const visionData: GoogleVisionResponse = await visionResponse.json();
     console.log('✅ API Google Vision appelée avec succès');
-    console.log('📊 Réponse Google Vision:', JSON.stringify(visionData, null, 2));
-    console.log('🔍 === FIN CALL GOOGLE VISION API ===');
     return visionData;
   } catch (error) {
     console.error('❌ Erreur lors de l\'appel à l\'API Google Vision:', error);
-    console.error('🔍 === FIN CALL GOOGLE VISION API (ERREUR) ===');
     return null;
   }
 }
@@ -174,7 +156,8 @@ function parseWineOcrLocal(rawText: string): ParsedWine {
   // 8. Extraction producteur
   let producteur = '';
   for (const line of lines) {
-    if (/CH[ÂA]TEAU|DOMAINE|CLOS|MAISON/i.test(line)) {
+    // Recherche élargie pour les producteurs internationaux
+    if (/CH[ÂA]TEAU|DOMAINE|CLOS|MAISON|DOMINIO|BODEGA|VIÑA|FINCA|CASTILLO|PALACIO|CANTINA|AZIENDA|WEINGUT|WINZER|QUINTA|HEREDAD|BODEGAS|VIÑEDOS/i.test(line)) {
       producteur = line;
       break;
     }
@@ -342,17 +325,13 @@ Retourne UNIQUEMENT un JSON valide avec cette structure:
 
 // Fonction principale de traitement OCR avec fallback IA
 async function processWineImages(images: string[]): Promise<ParsedWine[]> {
-  console.log(`Traitement de ${images.length} images...`);
+  console.log('Traitement de', images.length, 'images...');
   
-  // Appel à l'API Google Vision
   const googleVisionApiKey = Deno.env.get('GOOGLE_VISION_API_KEY');
-  
   if (!googleVisionApiKey) {
-    console.error('Aucune clé API Google Vision configurée');
-    throw new Error('API Google Vision non configurée');
+    throw new Error('Clé API Google Vision manquante');
   }
 
-  console.log('Clé API Google Vision trouvée, appel en cours...');
   const visionResponse = await callGoogleVisionAPI(images, googleVisionApiKey);
   
   if (!visionResponse) {
@@ -377,13 +356,23 @@ async function processWineImages(images: string[]): Promise<ParsedWine[]> {
     }
 
     const ocrText = response.fullTextAnnotation.text;
-    console.log(`Texte OCR pour l'image ${i}:`, ocrText.substring(0, 200) + '...');
+    console.log(`Texte OCR pour l'image ${i}:`, ocrText.length, 'caractères');
+    
+    // Extraire la langue détectée
+    let detectedLanguage: string | undefined;
+    if (response.fullTextAnnotation.pages && response.fullTextAnnotation.pages[0]?.property?.detectedLanguages) {
+      const languages = response.fullTextAnnotation.pages[0].property.detectedLanguages;
+      if (languages.length > 0) {
+        detectedLanguage = languages[0].languageCode;
+        console.log(`🌍 Langue détectée pour l'image ${i}:`, detectedLanguage);
+      }
+    }
     
     const localParsed = parseWineOcrLocal(ocrText);
     const { confiance, nom, producteur } = localParsed;
 
-    // Log DEBUG pour analyse fine
-    console.log("[DEBUG] Résultat parsing local:", JSON.stringify(localParsed, null, 2));
+    // Log pour analyse fine (niveau info)
+    console.log("Résultat parsing local:", { confiance, nom, producteur });
 
     // Nouvelle logique stricte : fallback IA si nom ou producteur non identifié, ou confiance < 65
     const shouldUseAI =
@@ -395,7 +384,7 @@ async function processWineImages(images: string[]): Promise<ParsedWine[]> {
 
     if (shouldUseAI) {
       try {
-        const aiResult = await parseWithGPT(ocrText);
+        const aiResult = await parseWithGPT(ocrText, detectedLanguage);
         parsedWines.push(aiResult);
       } catch (err) {
         console.error("[OCR] Échec IA:", err.message);
@@ -490,7 +479,7 @@ serve(async (req) => {
     if (shouldUseAI) {
       console.log('📤 Appel enrichissement IA...')
       try {
-        const enrichedResult = await callEnrichmentAI(imageText, localParsed)
+        const enrichedResult = await callEnrichmentAI(imageText, localParsed, undefined) // Pas de langue détectée dans ce contexte
         finalResult = enrichedResult
         console.log('✅ Enrichissement IA réussi:', JSON.stringify(finalResult, null, 2))
       } catch (aiError) {
@@ -537,65 +526,19 @@ serve(async (req) => {
 })
 
 // Appel à la fonction d'enrichissement IA
-async function callEnrichmentAI(ocrText: string, localParsed: ParsedWine): Promise<ParsedWine> {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")
-  const authHeader = Deno.env.get("SUPABASE_ANON_KEY")
-
-  if (!supabaseUrl) {
-    throw new Error("SUPABASE_URL not configured")
-  }
-
-  // Déterminer les champs manquants
-  const missingFields = []
-  if (localParsed.nom === "Vin non identifié") missingFields.push("name")
-  if (localParsed.producteur === "Domaine inconnu") missingFields.push("producer")
-  if (!localParsed.année) missingFields.push("year")
-  if (localParsed.cépages.length === 0) missingFields.push("grapeVariety")
-  if (!localParsed.type) missingFields.push("wineType")
-  if (!localParsed.région) missingFields.push("region")
-
-  console.log('📋 Champs manquants détectés:', missingFields)
-
-  const enrichResponse = await fetch(`${supabaseUrl}/functions/v1/ocr-enrich`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${authHeader}`,
-    },
-    body: JSON.stringify({
-      ocrText: ocrText,
-      currentParsing: {
-        name: localParsed.nom,
-        producer: localParsed.producteur,
-        year: localParsed.année ? parseInt(localParsed.année) : undefined,
-        grapeVariety: localParsed.cépages,
-        wineType: localParsed.type.toLowerCase() as any,
-        region: localParsed.région,
-      },
-      missingFields: missingFields,
-    }),
-  })
-
-  if (!enrichResponse.ok) {
-    throw new Error(`Enrichment API error: ${enrichResponse.status}`)
-  }
-
-  const enrichData = await enrichResponse.json()
+async function callEnrichmentAI(ocrText: string, localParsed: ParsedWine, detectedLanguage?: string): Promise<ParsedWine> {
+  console.log('🤖 Appel enrichissement IA direct avec parseWithGPT...');
+  console.log('🌍 Langue détectée pour l\'IA:', detectedLanguage);
   
-  if (!enrichData.success) {
-    throw new Error(`Enrichment failed: ${enrichData.error}`)
-  }
-
-  // Convertir le format de réponse
-  const enriched = enrichData.data
-  return {
-    nom: enriched.name || localParsed.nom,
-    producteur: enriched.producer || localParsed.producteur,
-    année: enriched.year?.toString() || localParsed.année,
-    cépages: enriched.grapeVariety || localParsed.cépages,
-    type: (enriched.wineType?.charAt(0).toUpperCase() + enriched.wineType?.slice(1)) as any || localParsed.type,
-    région: enriched.region || localParsed.région,
-    source: "ai",
-    confiance: enriched.confidence === "high" ? 90 : enriched.confidence === "medium" ? 70 : 50,
+  try {
+    // Utiliser directement parseWithGPT au lieu d'appeler une autre Edge Function
+    const aiResult = await parseWithGPT(ocrText, detectedLanguage);
+    
+    console.log('✅ Enrichissement IA réussi:', JSON.stringify(aiResult, null, 2));
+    
+    return aiResult;
+  } catch (error) {
+    console.error('❌ Erreur enrichissement IA:', error);
+    throw error;
   }
 } 

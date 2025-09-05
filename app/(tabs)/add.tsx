@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import * as FileSystem from 'expo-file-system';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Dimensions,
     Image,
     ScrollView,
@@ -13,14 +15,15 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { CONFIG } from '../../constants/Config';
 import { supabase } from '../../lib/supabase';
 
-const ACCENT = '#F6A07A';
+const ACCENT = '#FFFFFF';
 const BG = '#23272F';
 const WHITE = '#FFF';
 const RADIUS = 16;
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const MAX_PHOTOS = 6; // Limite technique recommandée
+const MAX_PHOTOS_WARNING = 4; // Limite recommandée avec avertissement
 
 // Type pour les vins détectés par OCR
 interface DetectedWine {
@@ -47,6 +50,15 @@ export default function AddScreen() {
   const cameraRef = useRef<CameraView>(null);
 
   const takePicture = async () => {
+    if (photos.length >= MAX_PHOTOS) {
+      Alert.alert(
+        'Limite atteinte',
+        `Vous ne pouvez pas ajouter plus de ${MAX_PHOTOS} photos. Supprimez une photo existante pour en ajouter une nouvelle.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     if (cameraRef.current) {
       try {
         const photo = await cameraRef.current.takePictureAsync({
@@ -71,7 +83,6 @@ export default function AddScreen() {
     }
     
     console.log('🚀 Début analysePhotosWithOCR avec', photos.length, 'photos');
-    console.log('🔑 Clé API configurée:', CONFIG.GOOGLE_VISION_API_KEY.substring(0, 10) + '...');
     setIsAnalyzing(true);
     setError(null);
     
@@ -92,12 +103,12 @@ export default function AddScreen() {
           console.log('✅ Image encodée, taille:', base64.length);
 
           // Appeler la fonction edge Supabase avec l'image base64
-          console.log('🤖 Appel fonction ocr-scan (avec image base64)...');
+          console.log('🤖 Appel fonction ocr-scan...');
           const { data: result, error: ocrError } = await supabase.functions.invoke('ocr-scan', {
             body: { images: [base64] }
           });
 
-          console.log('📡 Réponse ocr-scan:', { result, error: ocrError });
+          console.log('📡 Réponse ocr-scan reçue');
 
           if (ocrError) {
             console.error('❌ Erreur ocr-scan:', ocrError);
@@ -113,21 +124,26 @@ export default function AddScreen() {
           let wine;
           if (result.success && (result.wine || (result.wines && result.wines[0]))) {
             wine = result.wine || result.wines[0];
-            // Vérifier si le vin est valide
-            if (wine.nom === 'Nom non identifié' || wine.nom === 'Vin non identifié') {
-              console.warn('⚠️ Vin non reconnu, tentative d\'enrichissement IA...');
-              setError('Impossible de reconnaître ce vin. Veuillez réessayer ou saisir manuellement.');
-              continue;
+            
+            // Vérifier si le vin est valide - être très souple
+            const hasValidData = wine.nom && wine.nom !== 'Nom non identifié' && wine.nom !== 'Vin non identifié';
+            const hasProducteur = wine.producteur && wine.producteur !== 'Domaine inconnu';
+            
+            if (!hasValidData && !hasProducteur) {
+              console.warn('⚠️ Vin non reconnu par le parsing local et l\'IA...');
+              setError('Vin non reconnu. Veuillez réessayer ou saisir manuellement.');
+              continue; // Passer à la photo suivante
             }
+            
             const detectedWine: DetectedWine = {
               id: `ocr-${Date.now()}-${i}`,
-              name: wine.nom,
+              name: wine.nom || wine.producteur || 'Vin non identifié',
               domaine: wine.producteur,
               vintage: wine.année ? parseInt(wine.année) : undefined,
               region: wine.région,
               appellation: wine.région,
-              grapes: wine.cépages,
-              imageUri: photoUri,
+              grapes: wine.cépages || [],
+              imageUri: photoUri, // Garder l'URI locale pour l'instant, upload dans useWines
               color: wine.type === 'Rouge' ? 'red' : 
                      wine.type === 'Blanc' ? 'white' : 
                      wine.type === 'Rosé' ? 'rose' : 
@@ -142,7 +158,13 @@ export default function AddScreen() {
           }
         } catch (photoError: any) {
           console.error(`❌ Erreur traitement photo ${i + 1}:`, photoError);
-          setError(`Erreur traitement photo ${i + 1}: ${photoError.message || 'Erreur inconnue'}`);
+          
+          // Gestion spécifique des erreurs réseau
+          if (photoError.message?.includes('Network request failed')) {
+            setError('Erreur de connexion. Vérifiez votre connexion internet et réessayez.');
+          } else {
+            setError(`Erreur traitement photo ${i + 1}: ${photoError.message || 'Erreur inconnue'}`);
+          }
         }
       }
       
@@ -158,11 +180,86 @@ export default function AddScreen() {
         setError('Aucun vin reconnu. Veuillez réessayer ou saisir manuellement.');
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erreur analyse OCR:', error);
-      setError('Erreur pendant l\'analyse. Veuillez réessayer.');
+      
+      // Gestion spécifique des erreurs réseau
+      if (error.message?.includes('Network request failed')) {
+        setError('Erreur de connexion. Vérifiez votre connexion internet et réessayez.');
+      } else {
+        setError('Erreur pendant l\'analyse. Veuillez réessayer.');
+      }
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const selectPhotosFromLibrary = async () => {
+    if (photos.length >= MAX_PHOTOS) {
+      Alert.alert(
+        'Limite atteinte',
+        `Vous ne pouvez pas ajouter plus de ${MAX_PHOTOS} photos. Supprimez une photo existante pour en ajouter une nouvelle.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    try {
+      // Demander les permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission requise',
+          'L\'accès à la bibliothèque de photos est nécessaire pour sélectionner des images.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Calculer le nombre de photos qu'on peut encore ajouter
+      const remainingSlots = MAX_PHOTOS - photos.length;
+      
+      // Avertissement si on dépasse la limite recommandée
+      if (photos.length >= MAX_PHOTOS_WARNING) {
+        Alert.alert(
+          'Attention',
+          `Vous avez déjà ${photos.length} photos. L'analyse de plus de ${MAX_PHOTOS_WARNING} photos peut prendre du temps. Voulez-vous continuer ?`,
+          [
+            { text: 'Annuler', style: 'cancel' },
+            { 
+              text: 'Continuer', 
+              onPress: () => openImagePicker(remainingSlots)
+            }
+          ]
+        );
+        return;
+      }
+
+      openImagePicker(remainingSlots);
+    } catch (error) {
+      console.error('Erreur sélection photos:', error);
+      setError('Impossible d\'accéder à la bibliothèque de photos');
+    }
+  };
+
+  const openImagePicker = async (maxImages: number) => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        selectionLimit: maxImages,
+      });
+
+      if (!result.canceled && result.assets) {
+        const newPhotos = result.assets.map(asset => asset.uri);
+        setPhotos(prev => [...prev, ...newPhotos]);
+        setError(null);
+        console.log(`${newPhotos.length} photos ajoutées depuis la bibliothèque`);
+      }
+    } catch (error) {
+      console.error('Erreur sélection images:', error);
+      setError('Erreur lors de la sélection des photos');
     }
   };
 
@@ -228,7 +325,7 @@ export default function AddScreen() {
           {isAnalyzing ? (
             <ActivityIndicator size="small" color={WHITE} />
           ) : (
-            <Text style={styles.analyzeHeaderButtonText}>Analyser</Text>
+            <Text style={styles.analyzeHeaderButtonText}>Suivant</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -250,23 +347,36 @@ export default function AddScreen() {
       </View>
 
       {/* Liste des vignettes photos */}
-      {photos.length > 0 && (
-        <View style={styles.thumbnailsContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {photos.map((photoUri, index) => (
-              <View key={index} style={styles.thumbnailWrapper}>
-                <Image source={{ uri: photoUri }} style={styles.thumbnail} />
-                <TouchableOpacity
-                  style={styles.removeButton}
-                  onPress={() => removePhoto(index)}
-                >
-                  <Ionicons name="close-circle" size={24} color={WHITE} />
-                </TouchableOpacity>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      )}
+      <View style={styles.thumbnailsContainer}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingTop: 20, paddingHorizontal: 0 }}
+        >
+          {photos.map((photoUri, index) => (
+            <View key={index} style={styles.thumbnailWrapper}>
+              <Image source={{ uri: photoUri }} style={styles.thumbnail} />
+              <TouchableOpacity
+                style={styles.removeButton}
+                onPress={() => removePhoto(index)}
+              >
+                <Ionicons name="close-circle" size={24} color={WHITE} />
+              </TouchableOpacity>
+            </View>
+          ))}
+          
+          {/* Bouton pour ajouter des photos depuis la bibliothèque */}
+          {photos.length < MAX_PHOTOS && (
+            <TouchableOpacity
+              style={styles.libraryButton}
+              onPress={selectPhotosFromLibrary}
+            >
+              <Ionicons name="library-outline" size={32} color={WHITE} />
+              <Text style={styles.libraryButtonText}>Bibliothèque</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+      </View>
 
       {/* Message d'erreur */}
       {error && (
@@ -345,12 +455,16 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   thumbnailsContainer: {
-    marginTop: 20,
+    marginTop: 30,
     paddingHorizontal: 20,
+    paddingTop: 30,
+    paddingBottom: 30,
+    overflow: 'visible',
   },
   thumbnailWrapper: {
     marginRight: 10,
     position: 'relative',
+    overflow: 'visible',
   },
   thumbnail: {
     width: 80,
@@ -361,8 +475,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -8,
     right: -8,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(35, 39, 47, 0.9)',
     borderRadius: 12,
+    padding: 2,
   },
   bottomContainer: {
     position: 'absolute',
@@ -436,10 +551,10 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   analyzeHeaderButtonDisabled: {
-    backgroundColor: 'rgba(246, 160, 122, 0.5)',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
   analyzeHeaderButtonText: {
-    color: WHITE,
+    color: '#000000', // Noir pour contraste avec fond blanc
     fontSize: 14,
     fontWeight: '600',
   },
@@ -455,5 +570,25 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderRadius: 8,
     pointerEvents: 'none',
+  },
+  libraryButton: {
+    width: 80,
+    height: 80,
+    borderRadius: RADIUS,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    marginLeft: 5,
+  },
+  libraryButtonText: {
+    color: WHITE,
+    fontSize: 10,
+    fontWeight: '500',
+    marginTop: 4,
+    textAlign: 'center',
   },
 }); 

@@ -54,7 +54,7 @@ export const TastingNoteModal: React.FC<TastingNoteModalProps> = ({
             <Ionicons
               name={star <= rating ? 'star' : 'star-outline'}
               size={32}
-              color={star <= rating ? '#F6A07A' : '#666'}
+              color={star <= rating ? '#FFFFFF' : '#666'}
             />
           </TouchableOpacity>
         ))}

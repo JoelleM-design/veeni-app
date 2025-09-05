@@ -40,12 +40,12 @@ export const VeeniColors = {
     primary: '#FFF',      // Main text
     secondary: '#B0B0B0', // Subtitle text
     tertiary: '#999',     // Placeholder, disabled
-    accent: '#F6A07A',    // Accent color for highlights
+    accent: '#FFFFFF',    // Accent color for highlights
   },
   
   // Accent colors
   accent: {
-    primary: '#F6A07A',   // Main accent (orange)
+    primary: '#FFFFFF',   // Main accent (white)
     secondary: '#FF4F8B', // Secondary accent (pink)
     success: '#4CAF50',   // Success states
     error: '#FF6B6B',     // Error states
@@ -71,7 +71,7 @@ export const VeeniColors = {
   button: {
     primary: '#FFF',      // Primary buttons
     secondary: '#333',    // Secondary buttons
-    accent: '#F6A07A',    // Accent buttons
+    accent: '#FFFFFF',    // Accent buttons
     danger: '#FF6B6B',    // Danger buttons
   },
   

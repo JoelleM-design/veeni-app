@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Alert, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 
 export default function LoginScreen() {
@@ -38,35 +39,43 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Connexion</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#888"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Mot de passe"
-        placeholderTextColor="#888"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-      <TouchableOpacity style={styles.forgotLink} onPress={handleForgotPassword}>
-        <Text style={styles.forgotText}>Mot de passe oublié ?</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.button, (!email || !password) && { opacity: 0.5 }]}
-        onPress={handleLogin}
-        disabled={!email || !password || loading}
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
       >
-        <Text style={styles.buttonText}>{loading ? 'Connexion…' : 'Se connecter'}</Text>
-      </TouchableOpacity>
+        <View style={styles.container}>
+          <Text style={styles.title}>Connexion</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor="#888"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Mot de passe"
+            placeholderTextColor="#888"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
+          <TouchableOpacity style={styles.forgotLink} onPress={handleForgotPassword}>
+            <Text style={styles.forgotText}>Mot de passe oublié ?</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, (!email || !password) && { opacity: 0.5 }]}
+            onPress={handleLogin}
+            disabled={!email || !password || loading}
+          >
+            <Text style={styles.buttonText}>{loading ? 'Connexion…' : 'Se connecter'}</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
       <Modal
         visible={showConfirm}
         transparent
@@ -83,18 +92,19 @@ export default function LoginScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: '#222' },
   container: { flex: 1, backgroundColor: '#222', alignItems: 'center', justifyContent: 'center', padding: 24 },
   title: { color: '#FFF', fontSize: 28, fontWeight: 'bold', marginBottom: 32 },
   input: { backgroundColor: '#333', color: '#FFF', borderRadius: 16, padding: 14, fontSize: 18, width: '100%', marginBottom: 18 },
-  button: { backgroundColor: '#F6A07A', borderRadius: 24, paddingVertical: 14, paddingHorizontal: 36, marginTop: 8, width: '100%', alignItems: 'center' },
-  buttonText: { color: '#222', fontWeight: 'bold', fontSize: 16 },
+  button: { backgroundColor: '#393C40', borderWidth: 1, borderColor: '#555', borderRadius: 20, paddingVertical: 16, paddingHorizontal: 32, marginTop: 8, width: '100%', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  buttonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 16 },
   forgotLink: { alignSelf: 'flex-end', marginBottom: 12 },
-  forgotText: { color: '#F6A07A', fontSize: 15 },
+  forgotText: { color: '#FFFFFF', fontSize: 15 },
   overlayBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
   iosAlertBox: {
     backgroundColor: '#FFF',
@@ -110,14 +120,14 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   iosAlertTitle: {
-    color: '#222',
+    color: '#FFF',
     fontSize: 17,
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 6,
   },
   iosAlertText: {
-    color: '#222',
+    color: '#FFF',
     fontSize: 15,
     textAlign: 'center',
     marginBottom: 18,

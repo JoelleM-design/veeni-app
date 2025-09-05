@@ -150,7 +150,33 @@ export function HouseholdInfo({ variant = 'default' }: HouseholdInfoProps) {
           style: 'destructive',
           onPress: async () => {
             try {
-              // TODO: Implémenter la suppression du membre
+              // Vérifier que l'utilisateur actuel est le propriétaire
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) {
+                Alert.alert('Erreur', 'Vous devez être connecté');
+                return;
+              }
+
+              // Vérifier que l'utilisateur est le propriétaire de la household
+              if (household?.owner_id !== user.id) {
+                Alert.alert('Erreur', 'Seul le propriétaire peut retirer des membres');
+                return;
+              }
+
+              // Supprimer le membre de la household
+              const { error: removeError } = await supabase
+                .from('user_household')
+                .delete()
+                .eq('user_id', memberId)
+                .eq('household_id', householdId);
+
+              if (removeError) {
+                throw removeError;
+              }
+
+              // Recharger les membres
+              await loadMembers();
+              
               Alert.alert('Succès', `${memberName} a été retiré de la cave commune`);
             } catch (error) {
               Alert.alert('Erreur', error instanceof Error ? error.message : 'Erreur lors de la suppression');
@@ -482,7 +508,7 @@ export function HouseholdInfo({ variant = 'default' }: HouseholdInfoProps) {
                       style={styles.memberModalRemoveButton}
                       onPress={() => handleRemoveMember(member.user_id, member.user?.first_name || 'ce membre')}
                     >
-                      <Ionicons name="close" size={20} color="#F6A07A" />
+                      <Ionicons name="close" size={20} color="#FFFFFF" />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -717,7 +743,7 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
   dangerText: {
-    color: '#F6A07A',
+    color: '#FFFFFF',
   },
   modalIntroText: {
     color: '#FFF',
@@ -765,7 +791,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F6A07A',
+    backgroundColor: '#393C40', borderWidth: 0,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,

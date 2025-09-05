@@ -60,7 +60,6 @@ export function useWineScan() {
             encoding: FileSystem.EncodingType.Base64
           });
           base64Images.push(base64);
-          console.log('Image encodée en base64:', imageUri);
         } catch (encodeError) {
           console.error('Erreur encodage image:', encodeError);
           throw new Error(`Impossible d'encoder l'image: ${imageUri}`);
@@ -81,7 +80,7 @@ export function useWineScan() {
         throw new Error('Échec du traitement OCR');
       }
 
-      console.log('Résultat OCR reçu:', ocrResult);
+      console.log('Résultat OCR reçu:', ocrResult.wines?.length || 0, 'vins détectés');
 
       const enrichedWines: Wine[] = [];
       const winesToProcess = ocrResult.wines || [];
@@ -107,7 +106,6 @@ export function useWineScan() {
               tannin: 0,
               sweet: 0,
               acidity: 0,
-              favorite: false,
               note: 0,
               stock: 0,
               origin: 'cellar',
@@ -134,7 +132,6 @@ export function useWineScan() {
             tannin: 0,
             sweet: 0,
             acidity: 0,
-            favorite: false,
             note: 0,
             stock: 0,
             origin: 'cellar',
@@ -161,7 +158,6 @@ export function useWineScan() {
             acidity: enrichedData.acidity || 0,
             description: typeof enrichedData.description === 'string' ? enrichedData.description : '',
             imageUri: typeof enrichedData.imageUri === 'string' ? enrichedData.imageUri : undefined,
-            favorite: enrichedData.favorite || false,
             note: enrichedData.note || 0,
             stock: enrichedData.stock || 0,
             origin: enrichedData.origin || 'cellar',
@@ -187,7 +183,6 @@ export function useWineScan() {
             tannin: 0,
             sweet: 0,
             acidity: 0,
-            favorite: false,
             note: 0,
             stock: 0,
             origin: 'cellar',
@@ -230,7 +225,6 @@ export function useWineScan() {
         tannin: wineData.tannin || 0,
         sweet: wineData.sweet || 0,
         acidity: wineData.acidity || 0,
-        favorite: wineData.favorite || false,
         note: wineData.note || 0,
         stock: wineData.stock || 0,
         origin: wineData.origin || 'cellar',
@@ -256,7 +250,6 @@ export function useWineScan() {
         acidity: enrichedData.acidity || 0,
         description: typeof enrichedData.description === 'string' ? enrichedData.description : '',
         imageUri: typeof enrichedData.imageUri === 'string' ? enrichedData.imageUri : undefined,
-        favorite: enrichedData.favorite || false,
         note: enrichedData.note || 0,
         stock: enrichedData.stock || 0,
         origin: enrichedData.origin || 'cellar',
