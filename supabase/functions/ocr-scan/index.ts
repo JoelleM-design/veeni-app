@@ -29,6 +29,80 @@ interface ParsedWine {
 }
 
 // Données de référence pour le parsing local
+// Données de référence pour le parsing local
+const appellationsFrancaises = {
+  'SAINT-JOSEPH': { region: 'RHÔNE', country: 'France' },
+  'CÔTE-RÔTIE': { region: 'RHÔNE', country: 'France' },
+  'HERMITAGE': { region: 'RHÔNE', country: 'France' },
+  'CROZES-HERMITAGE': { region: 'RHÔNE', country: 'France' },
+  'CONDRIEU': { region: 'RHÔNE', country: 'France' },
+  'CHÂTEAUNEUF-DU-PAPE': { region: 'RHÔNE', country: 'France' },
+  'GIGONDAS': { region: 'RHÔNE', country: 'France' },
+  'VACQUEYRAS': { region: 'RHÔNE', country: 'France' },
+  'CÔTES DU RHÔNE': { region: 'RHÔNE', country: 'France' },
+  'CHABLIS': { region: 'BOURGOGNE', country: 'France' },
+  'CÔTE DE NUITS': { region: 'BOURGOGNE', country: 'France' },
+  'CÔTE DE BEAUNE': { region: 'BOURGOGNE', country: 'France' },
+  'MÉDOC': { region: 'BORDEAUX', country: 'France' },
+  'SAINT-ÉMILION': { region: 'BORDEAUX', country: 'France' },
+  'POMEROL': { region: 'BORDEAUX', country: 'France' },
+  'GRAVES': { region: 'BORDEAUX', country: 'France' },
+  'SAUTERNES': { region: 'BORDEAUX', country: 'France' },
+  'PESSAC-LÉOGNAN': { region: 'BORDEAUX', country: 'France' },
+  'MARGAUX': { region: 'BORDEAUX', country: 'France' },
+  'PAUILLAC': { region: 'BORDEAUX', country: 'France' },
+  'SAINT-JULIEN': { region: 'BORDEAUX', country: 'France' },
+  'SAVENNIÈRES': { region: 'LOIRE', country: 'France' },
+  'ANJOU': { region: 'LOIRE', country: 'France' },
+  'VOUVRAY': { region: 'LOIRE', country: 'France' },
+  'MUSCADET': { region: 'LOIRE', country: 'France' },
+  'COTEAUX DU LAYON': { region: 'LOIRE', country: 'France' },
+  'QUINCY': { region: 'LOIRE', country: 'France' },
+  'REUILLY': { region: 'LOIRE', country: 'France' },
+  'SANCERRE': { region: 'LOIRE', country: 'France' },
+  'POUILLY-FUMÉ': { region: 'LOIRE', country: 'France' },
+  'COTEAUX DU LANGUEDOC': { region: 'LANGUEDOC', country: 'France' },
+  'FITOU': { region: 'LANGUEDOC', country: 'France' },
+  'CORBIÈRES': { region: 'LANGUEDOC', country: 'France' },
+  'MINERVOIS': { region: 'LANGUEDOC', country: 'France' },
+  'COTES DU ROUSSILLON': { region: 'LANGUEDOC', country: 'France' },
+  'BANYULS': { region: 'LANGUEDOC', country: 'France' },
+  'COTES DE PROVENCE': { region: 'PROVENCE', country: 'France' },
+  'BANDOL': { region: 'PROVENCE', country: 'France' },
+  'CASSIS': { region: 'PROVENCE', country: 'France' },
+  'PALETTE': { region: 'PROVENCE', country: 'France' },
+  'COTEAUX VAROIS': { region: 'PROVENCE', country: 'France' },
+  'COTEAUX D\'AIX-EN-PROVENCE': { region: 'PROVENCE', country: 'France' },
+  'ALSACE': { region: 'ALSACE', country: 'France' },
+  'ALSACE GRAND CRU': { region: 'ALSACE', country: 'France' },
+  'CREMANT D\'ALSACE': { region: 'ALSACE', country: 'France' },
+  'JURA': { region: 'JURA', country: 'France' },
+  'ARBOIS': { region: 'JURA', country: 'France' },
+  'CHÂTEAU-CHALON': { region: 'JURA', country: 'France' },
+  'L\'ÉTOILE': { region: 'JURA', country: 'France' },
+  'CÔTES DU JURA': { region: 'JURA', country: 'France' },
+  'SAVOIE': { region: 'SAVOIE', country: 'France' },
+  'SEYSSEL': { region: 'SAVOIE', country: 'France' },
+  'RIPAILLE': { region: 'SAVOIE', country: 'France' },
+  'MONDEUSE': { region: 'SAVOIE', country: 'France' },
+  'BEAUJOLAIS': { region: 'BEAUJOLAIS', country: 'France' },
+  'BEAUJOLAIS VILLAGES': { region: 'BEAUJOLAIS', country: 'France' },
+  'BROUILLY': { region: 'BEAUJOLAIS', country: 'France' },
+  'CHENAS': { region: 'BEAUJOLAIS', country: 'France' },
+  'CHIROUBLES': { region: 'BEAUJOLAIS', country: 'France' },
+  'CÔTE DE BROUILLY': { region: 'BEAUJOLAIS', country: 'France' },
+  'FLEURIE': { region: 'BEAUJOLAIS', country: 'France' },
+  'JULIÉNAS': { region: 'BEAUJOLAIS', country: 'France' },
+  'MORGON': { region: 'BEAUJOLAIS', country: 'France' },
+  'MOULIN-À-VENT': { region: 'BEAUJOLAIS', country: 'France' },
+  'RÉGNIÉ': { region: 'BEAUJOLAIS', country: 'France' },
+  'SAINT-AMOUR': { region: 'BEAUJOLAIS', country: 'France' },
+  'COTES DE GASCOGNE': { region: 'SUD-OUEST', country: 'France' },
+  'MADIRAN': { region: 'SUD-OUEST', country: 'France' },
+  'JURANÇON': { region: 'SUD-OUEST', country: 'France' },
+  'GAILLAC': { region: 'SUD-OUEST', country: 'France' }
+};
+
 const knownGrapes = [
   'SYRAH', 'MERLOT', 'CHARDONNAY', 'CABERNET', 'SAUVIGNON', 'PINOT', 'NOIR', 'GRENACHE', 'MOURVEDRE',
   'CARIGNAN', 'CINSAULT', 'MALBEC', 'GAMAY', 'SÉMILLON', 'VIOGNIER', 'MUSCAT', 'RIESLING', 'ALIGOTÉ',
@@ -104,6 +178,29 @@ async function callGoogleVisionAPI(images: string[], apiKey: string): Promise<Go
     console.error('❌ Erreur lors de l\'appel à l\'API Google Vision:', error);
     return null;
   }
+}
+
+// Fonction de conversion région → appellation
+function applyRegionToAppellationConversion(wine: ParsedWine): ParsedWine {
+  console.log('🔧 Conversion région → appellation pour:', JSON.stringify(wine, null, 2))
+  
+  // Si pas d'appellation mais une région, vérifier si c'est une appellation
+  if (!wine.appellation && wine.région) {
+    const upperRegion = wine.région.toUpperCase();
+    for (const [appellationName, data] of Object.entries(appellationsFrancaises)) {
+      if (upperRegion.includes(appellationName) || appellationName.includes(upperRegion)) {
+        console.log(`🍷 Conversion: ${wine.région} → ${appellationName} (${data.region}, ${data.country})`);
+        return {
+          ...wine,
+          appellation: appellationName,
+          région: data.region,
+          pays: data.country
+        };
+      }
+    }
+  }
+  
+  return wine;
 }
 
 // Fonction de parsing local intelligent améliorée
@@ -591,6 +688,14 @@ serve(async (req) => {
         console.warn('⚠️ Erreur enrichissement IA, utilisation parsing local:', aiError)
         // Garder le parsing local en cas d'échec IA
       }
+    }
+
+    // 4. NOUVELLE ÉTAPE : Appliquer la logique de conversion région → appellation APRÈS l'IA
+    console.log('🔧 Application logique de conversion région → appellation...')
+    const convertedResult = applyRegionToAppellationConversion(finalResult)
+    if (convertedResult !== finalResult) {
+      console.log('✅ Conversion appliquée:', JSON.stringify(convertedResult, null, 2))
+      finalResult = convertedResult
     }
 
     return new Response(
