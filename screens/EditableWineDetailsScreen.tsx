@@ -174,7 +174,8 @@ export default function EditableWineDetailsScreen({
   }
 
   // Trouver le vin dans la liste combinée ou utiliser les données passées
-  const wine = wineDataFromParams || ocrWineData || allWines.find(w => w?.id === wineId);
+  // Pour les vins OCR, prioriser les données mises à jour (ocrWineData) sur les données originales
+  const wine = (isFromOcr && ocrWineData) ? ocrWineData : (wineDataFromParams || allWines.find(w => w?.id === wineId));
   console.log('[EditableWineDetailsScreen] Diagnostic:', { 
     wineId, 
     wineFound: !!wine, 
