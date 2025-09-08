@@ -385,6 +385,8 @@ Retourne UNIQUEMENT un JSON valide avec cette structure:
       cépages: Array.isArray(parsed.cépages) ? parsed.cépages : [],
       type: parsed.type || '',
       région: parsed.région || '',
+      appellation: parsed.appellation || '',
+      pays: parsed.pays || '',
       source: 'ai',
       confiance: 85 // Confiance élevée pour l'IA
     };
@@ -465,11 +467,13 @@ async function processWineImages(images: string[]): Promise<ParsedWine[]> {
           nom: "Vin non identifié",
           producteur: "Domaine inconnu",
           confiance: 0,
-          source: "fallback",
+          source: "local",
           année: '',
           cépages: [],
           type: '',
-          région: ''
+          région: '',
+          appellation: '',
+          pays: ''
         });
       }
     } else {
