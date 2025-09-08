@@ -77,6 +77,10 @@ export default function AddScreen() {
   };
 
   const analyzePhotosWithOCR = async () => {
+    console.log('🔥 FONCTION analyzePhotosWithOCR APPELÉE !');
+    console.log('🔥 Nombre de photos:', photos.length);
+    console.log('🔥 Photos:', photos);
+    
     if (photos.length === 0) {
       console.log('❌ Aucune photo à analyser');
       setError('Prenez d\'abord une photo');
