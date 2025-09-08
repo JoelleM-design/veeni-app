@@ -256,6 +256,7 @@ export default function EditableWineDetailsScreen({
         const wineData = JSON.parse(params.wineData as string);
         setOcrWineData(wineData);
         console.log('🍷 Données vin OCR chargées:', wineData);
+        console.log('🍷 Détails OCR - country:', wineData.country, 'region:', wineData.region, 'appellation:', wineData.appellation);
       } catch (error) {
         console.error('Erreur parsing données vin OCR:', error);
       }

@@ -147,6 +147,7 @@ export default function OcrResultsScreen() {
     // Naviguer directement vers l'écran de détails du vin OCR
     // Le vin n'est pas encore ajouté à la cave, c'est juste pour vérifier/modifier les infos
     console.log('🍷 Navigation vers fiche détaillée:', wine);
+    console.log('🍷 Données wine complètes:', JSON.stringify(wine, null, 2));
     router.push({
       pathname: `/wine/${wine.id}`,
       params: { 
