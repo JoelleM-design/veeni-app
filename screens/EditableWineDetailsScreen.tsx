@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Dimensions, FlatList, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { TastingNoteModal } from '../components/TastingNoteModal';
 import { VeeniColors } from '../constants/Colors';
 import { useSharedCave } from '../hooks/useSharedCave';
 import { useUser } from '../hooks/useUser';
@@ -32,7 +33,7 @@ export default function EditableWineDetailsScreen({
   const router = useRouter();
   const params = useLocalSearchParams();
   const { wines, updateWine, addWineToWishlist, addWineToCellar, fetchWines } = useWines();
-  const { tastedWines } = useWineHistory();
+  const { tastedWines, refreshTastings, addTasting } = useWineHistory();
   const { user } = useUser();
   const friendsWithWine: any[] = [];
   const { sharedCave } = useSharedCave();
@@ -64,6 +65,9 @@ export default function EditableWineDetailsScreen({
   const [showDesignationPicker, setShowDesignationPicker] = useState(false);
   const [showGrapePicker, setShowGrapePicker] = useState(false);
   
+  // États pour la modale de dégustation
+  const [tastingModalVisible, setTastingModalVisible] = useState(false);
+  const [selectedWineForTasting, setSelectedWineForTasting] = useState<any>(null);
   
   // Données de référence
   const [vintageYears, setVintageYears] = useState<number[]>([]);
@@ -137,9 +141,20 @@ export default function EditableWineDetailsScreen({
 
   // Historique du vin
   const wineHistory = wine?.history || [];
+  
+  // Récupérer la dernière note de dégustation depuis l'historique
+  const lastTastingNote = wineHistory
+    .filter((entry: any) => entry.event_type === 'tasted' && entry.notes)
+    .sort((a: any, b: any) => new Date(b.event_date || b.created_at).getTime() - new Date(a.event_date || a.created_at).getTime())
+    [0]?.notes || '';
 
   useEffect(() => {
     if (safeWine) {
+      console.log('🔄 Chargement des données du vin:', {
+        wineId: safeWine.id,
+        personalComment: safeWine.personalComment,
+        note: safeWine.note
+      });
       setPersonalComment(safeWine.personalComment || '');
       setRating(safeWine.note || 0);
       setTastingProfile(safeWine.tastingProfile || {
@@ -300,17 +315,67 @@ export default function EditableWineDetailsScreen({
   };
 
   // Fonction pour ajouter une bouteille
-  const handleAddBottle = () => {
+  const handleAddBottle = async () => {
     if (safeWine) {
-      updateWine(wineId, { stock: (safeWine.stock || 0) + 1 });
+      console.log('➕ Ajout de stock dans fiche détaillée:', {
+        wineId,
+        currentStock: safeWine.stock,
+        newStock: (safeWine.stock || 0) + 1
+      });
+      await updateWine(wineId, { stock: (safeWine.stock || 0) + 1 });
+      // Rafraîchir les données pour mettre à jour l'UI
+      await fetchWines();
+      await refreshTastings();
     }
   };
 
   // Fonction pour retirer une bouteille
   const handleRemoveBottle = () => {
     if (safeWine && safeWine.stock > 0) {
-      updateWine(wineId, { stock: safeWine.stock - 1 });
+      // Ouvrir la modale de dégustation au lieu de réduire directement le stock
+      setSelectedWineForTasting(safeWine);
+      setTastingModalVisible(true);
     }
+  };
+
+  // Fonction pour confirmer la dégustation
+  const handleConfirmTasting = async (rating: number, notes?: string) => {
+    if (!selectedWineForTasting) return;
+
+    try {
+      console.log('🔄 handleConfirmTasting: Vin sélectionné:', selectedWineForTasting);
+      
+      // Utiliser addTasting pour créer l'entrée dans wine_history avec la note
+      const result = await addTasting(selectedWineForTasting.id, notes);
+      
+      if (result && result.success) {
+        // Supprimer une bouteille après la dégustation
+        const currentStock = selectedWineForTasting.stock || selectedWineForTasting.amount || 0;
+        console.log('🔄 handleConfirmTasting: Stock actuel:', currentStock, 'Nouveau stock:', currentStock - 1);
+        
+        if (currentStock > 0) {
+          await updateWine(selectedWineForTasting.id, { stock: currentStock - 1 });
+          console.log('✅ handleConfirmTasting: Stock mis à jour');
+        }
+        
+        // Fermer la modale et rafraîchir les données
+        setTastingModalVisible(false);
+        setSelectedWineForTasting(null);
+        await fetchWines();
+        await refreshTastings();
+      } else {
+        Alert.alert('Erreur', 'Impossible d\'enregistrer la dégustation');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la dégustation:', error);
+      Alert.alert('Erreur', 'Une erreur est survenue lors de la dégustation');
+    }
+  };
+
+  // Fonction pour annuler la dégustation
+  const handleCancelTasting = () => {
+    setTastingModalVisible(false);
+    setSelectedWineForTasting(null);
   };
 
   // Fonction pour déplacer vers la wishlist
@@ -368,9 +433,39 @@ export default function EditableWineDetailsScreen({
   };
 
   // Fonction pour sauvegarder le commentaire
-  const handleSaveComment = () => {
-    if (safeWine) {
-      updateWine(wineId, { personalComment });
+  const handleSaveComment = async () => {
+    if (safeWine && personalComment.trim() && user?.id) {
+      console.log('📝 Sauvegarde de note personnelle:', {
+        wineId,
+        comment: personalComment
+      });
+      
+      // Sauvegarder le commentaire
+      console.log('💾 Sauvegarde du commentaire dans user_wine:', personalComment);
+      await updateWine(wineId, { personalComment });
+      console.log('✅ Commentaire sauvegardé avec succès');
+      
+      // Créer une entrée dans l'historique directement dans Supabase
+      const { error } = await supabase
+        .from('wine_history')
+        .insert({
+          user_id: user.id,
+          wine_id: wineId,
+          event_type: 'noted',
+          event_date: new Date().toISOString(),
+          notes: personalComment,
+          rating: rating || null
+        });
+      
+      if (error) {
+        console.error('❌ Erreur lors de l\'ajout de la note dans l\'historique:', error);
+      } else {
+        console.log('✅ Note ajoutée dans l\'historique');
+      }
+      
+      // Rafraîchir les données
+      await fetchWines();
+      await refreshTastings();
     }
   };
 
@@ -382,10 +477,38 @@ export default function EditableWineDetailsScreen({
   };
 
   // Fonction pour définir la note
-  const handleSetRating = (newRating: number) => {
+  const handleSetRating = async (newRating: number) => {
     setRating(newRating);
-    if (safeWine) {
-      updateWine(wineId, { note: newRating });
+    if (safeWine && user?.id) {
+      console.log('⭐ Sauvegarde de note:', {
+        wineId,
+        rating: newRating
+      });
+      
+      // Sauvegarder la note
+      await updateWine(wineId, { note: newRating });
+      
+      // Créer une entrée dans l'historique directement dans Supabase
+      const { error } = await supabase
+        .from('wine_history')
+        .insert({
+          user_id: user.id,
+          wine_id: wineId,
+          event_type: 'noted',
+          event_date: new Date().toISOString(),
+          rating: newRating,
+          notes: personalComment || null
+        });
+      
+      if (error) {
+        console.error('❌ Erreur lors de l\'ajout de la note dans l\'historique:', error);
+      } else {
+        console.log('✅ Note ajoutée dans l\'historique');
+      }
+      
+      // Rafraîchir les données
+      await fetchWines();
+      await refreshTastings();
     }
   };
 
@@ -820,7 +943,7 @@ export default function EditableWineDetailsScreen({
           <Text style={styles.sectionTitle}>Note personnelle</Text>
           <TextInput
             style={styles.textArea}
-            value={personalComment}
+            value={lastTastingNote || personalComment}
             onChangeText={setPersonalComment}
             placeholder="Ajoutez vos notes personnelles..."
             placeholderTextColor="#999"
@@ -860,6 +983,10 @@ export default function EditableWineDetailsScreen({
                       return String(event.notes || 'Origine modifiée');
                     case 'tasted':
                       return `Dégusté (${event.rating || 0}/5)`;
+                    case 'noted':
+                      const noteText = event.notes ? `Note personnelle: "${event.notes}"` : '';
+                      const ratingText = event.rating ? `Note: ${event.rating}/5` : '';
+                      return [noteText, ratingText].filter(Boolean).join(' - ') || 'Note ajoutée';
                     default:
                       return String(event.event_type || 'Action effectuée');
                   }
@@ -1009,33 +1136,34 @@ export default function EditableWineDetailsScreen({
           onPress={() => setShowVintagePicker(false)}
         >
           <TouchableOpacity
-            style={styles.pickerModal}
             activeOpacity={1}
             onPress={(e) => e.stopPropagation()}
           >
-            <Text style={styles.pickerTitle}>Sélectionner le millésime</Text>
-            <FlatList
-              data={vintageYears}
-              keyExtractor={(item) => item.toString()}
-              renderItem={({ item, index }) => (
-                <TouchableOpacity
-                  style={index === vintageYears.length - 1 ? styles.pickerItemLast : styles.pickerItem}
-                  onPress={async () => {
-                    try {
-                      await updateWine(wineId, { vintage: item });
-                      await fetchWines();
-                      setShowVintagePicker(false);
-                    } catch (error) {
-                      console.error('Erreur sauvegarde millésime:', error);
-                      Alert.alert('Erreur', 'Impossible de sauvegarder le millésime');
-                    }
-                  }}
-                >
-                  <Text style={styles.pickerItemText}>{item}</Text>
-                </TouchableOpacity>
-              )}
-              style={styles.pickerList}
-            />
+            <View style={styles.pickerModal}>
+              <Text style={styles.pickerTitle}>Sélectionner le millésime</Text>
+              <FlatList
+                data={vintageYears}
+                keyExtractor={(item) => item.toString()}
+                renderItem={({ item, index }) => (
+                  <TouchableOpacity
+                    style={index === vintageYears.length - 1 ? styles.pickerItemLast : styles.pickerItem}
+                    onPress={async () => {
+                      try {
+                        await updateWine(wineId, { vintage: item });
+                        await fetchWines();
+                        setShowVintagePicker(false);
+                      } catch (error) {
+                        console.error('Erreur sauvegarde millésime:', error);
+                        Alert.alert('Erreur', 'Impossible de sauvegarder le millésime');
+                      }
+                    }}
+                  >
+                    <Text style={styles.pickerItemText}>{item}</Text>
+                  </TouchableOpacity>
+                )}
+                style={styles.pickerList}
+              />
+            </View>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -1141,36 +1269,45 @@ export default function EditableWineDetailsScreen({
           onPress={() => setShowPricePicker(false)}
         >
           <TouchableOpacity
-            style={styles.pickerModal}
             activeOpacity={1}
             onPress={(e) => e.stopPropagation()}
           >
-            <Text style={styles.pickerTitle}>Sélectionner la gamme de prix</Text>
-            <FlatList
-              data={priceRanges}
-              keyExtractor={(item) => item}
-              renderItem={({ item, index }) => (
-                <TouchableOpacity
-                  style={index === priceRanges.length - 1 ? styles.pickerItemLast : styles.pickerItem}
-                  onPress={async () => {
-                    try {
-                      await updateWine(wineId, { priceRange: item });
-                      await fetchWines();
-                      setShowPricePicker(false);
-                    } catch (error) {
-                      console.error('Erreur sauvegarde prix:', error);
-                      Alert.alert('Erreur', 'Impossible de sauvegarder la gamme de prix');
-                    }
-                  }}
-                >
-                  <Text style={styles.pickerItemText}>{item}</Text>
-                </TouchableOpacity>
-              )}
-              style={styles.pickerList}
-            />
+            <View style={styles.pickerModal}>
+              <Text style={styles.pickerTitle}>Sélectionner la gamme de prix</Text>
+              <FlatList
+                data={priceRanges}
+                keyExtractor={(item) => item}
+                renderItem={({ item, index }) => (
+                  <TouchableOpacity
+                    style={index === priceRanges.length - 1 ? styles.pickerItemLast : styles.pickerItem}
+                    onPress={async () => {
+                      try {
+                        await updateWine(wineId, { priceRange: item });
+                        await fetchWines();
+                        setShowPricePicker(false);
+                      } catch (error) {
+                        console.error('Erreur sauvegarde prix:', error);
+                        Alert.alert('Erreur', 'Impossible de sauvegarder la gamme de prix');
+                      }
+                    }}
+                  >
+                    <Text style={styles.pickerItemText}>{item}</Text>
+                  </TouchableOpacity>
+                )}
+                style={styles.pickerList}
+              />
+            </View>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* Modal de dégustation */}
+      <TastingNoteModal
+        visible={tastingModalVisible}
+        onClose={handleCancelTasting}
+        onSave={handleConfirmTasting}
+        wineName={selectedWineForTasting?.name || ''}
+      />
     </SafeAreaView>
   );
 }
@@ -1444,11 +1581,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 20,
   },
+  tastingNoteLabel: {
+    fontSize: 12,
+    color: '#F6A07A',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-start',
-    paddingTop: 100, // Plus bas pour éviter la safe area
+    paddingTop: 100, // Position sous la barre de navigation
   },
   modalContent: {
     backgroundColor: '#2a2a2a',
@@ -1485,7 +1628,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2a2a2a',
     margin: 20,
     borderRadius: 12,
-    maxHeight: 400, // Réduit pour tenir compte de la safe area
+    maxHeight: 400,
     position: 'absolute',
     top: 0,
     left: 0,
