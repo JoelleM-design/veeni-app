@@ -59,6 +59,19 @@ export default function EditableWineDetailsScreen({
   const { user } = useUser();
   const friendsWithWine: any[] = [];
   const { sharedCave } = useSharedCave();
+
+  // Fonction pour mettre à jour un vin (gère le cas OCR)
+  const updateWineSafe = async (wineId: string, updates: any) => {
+    if (isFromOcr && ocrWineData) {
+      // Pour les vins OCR, on met à jour les données locales
+      console.log('🍷 Mise à jour locale OCR:', updates);
+      setOcrWineData(prev => ({ ...prev, ...updates }));
+      return;
+    } else {
+      // Pour les vins normaux, on utilise la fonction updateWine
+      return await updateWine(wineId, updates);
+    }
+  };
   
   const [showEditModal, setShowEditModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -524,7 +537,7 @@ export default function EditableWineDetailsScreen({
   const handleToggleFavorite = () => {
     console.log("[Like] EditableWineDetailsScreen - wineId:", safeWine?.id, "newFavoriteValue:", !safeWine?.favorite);
     if (safeWine) {
-      updateWine(wineId, { favorite: !safeWine.favorite });
+      updateWineSafe(wineId, { favorite: !safeWine.favorite });
     }
   };
 
@@ -536,7 +549,7 @@ export default function EditableWineDetailsScreen({
         currentStock: safeWine.stock,
         newStock: (safeWine.stock || 0) + 1
       });
-      await updateWine(wineId, { stock: (safeWine.stock || 0) + 1 });
+      await updateWineSafe(wineId, { stock: (safeWine.stock || 0) + 1 });
       // Rafraîchir les données pour mettre à jour l'UI
       await fetchWines();
       await refreshTastings();
@@ -608,7 +621,7 @@ export default function EditableWineDetailsScreen({
         }
 
         // Déplacer le vin vers la wishlist
-        await updateWine(wineId, { origin: 'wishlist' });
+        await updateWineSafe(wineId, { origin: 'wishlist' });
         setShowActionsModal(false);
       } catch (error) {
         console.error('Erreur déplacement vers wishlist:', error);
@@ -637,7 +650,7 @@ export default function EditableWineDetailsScreen({
         }
 
         // Déplacer le vin vers la cave
-        await updateWine(wineId, { origin: 'cellar', stock: 1 });
+        await updateWineSafe(wineId, { origin: 'cellar', stock: 1 });
         setShowActionsModal(false);
       } catch (error) {
         console.error('Erreur déplacement vers cave:', error);
@@ -656,7 +669,7 @@ export default function EditableWineDetailsScreen({
       
       // Sauvegarder le commentaire
       console.log('💾 Sauvegarde du commentaire dans user_wine:', personalComment);
-      await updateWine(wineId, { personalComment });
+      await updateWineSafe(wineId, { personalComment });
       console.log('✅ Commentaire sauvegardé avec succès');
       
       // Créer une entrée dans l'historique directement dans Supabase
@@ -686,7 +699,7 @@ export default function EditableWineDetailsScreen({
   // Fonction pour sauvegarder la description
   const handleSaveDescription = () => {
     if (safeWine) {
-      updateWine(wineId, { description });
+      updateWineSafe(wineId, { description });
     }
   };
 
@@ -700,7 +713,7 @@ export default function EditableWineDetailsScreen({
       });
       
       // Sauvegarder la note
-      await updateWine(wineId, { note: newRating });
+      await updateWineSafe(wineId, { note: newRating });
       
       // Créer une entrée dans l'historique directement dans Supabase
       const { error } = await supabase
@@ -731,7 +744,7 @@ export default function EditableWineDetailsScreen({
     const newTastingProfile = { ...tastingProfile, [criteria]: value };
     setTastingProfile(newTastingProfile);
     if (safeWine) {
-      updateWine(wineId, { tastingProfile: newTastingProfile });
+      updateWineSafe(wineId, { tastingProfile: newTastingProfile });
     }
   };
 
@@ -743,12 +756,12 @@ export default function EditableWineDetailsScreen({
   const handleFieldUpdate = useCallback(async (field: string, value: string | number) => {
     if (safeWine) {
       try {
-        await updateWine(wineId, { [field]: value });
+        await updateWineSafe(wineId, { [field]: value });
       } catch (error) {
         console.error('Erreur mise à jour champ:', error);
       }
     }
-  }, [safeWine, wineId, updateWine]);
+  }, [safeWine, wineId, updateWineSafe]);
 
   // Fonction pour gérer le changement de texte (sans sauvegarde immédiate)
   const handleFieldChange = (field: string, value: string) => {
@@ -1267,7 +1280,7 @@ export default function EditableWineDetailsScreen({
                       (async () => {
                         try {
                           console.log('🍷 Sauvegarde type:', item.key, 'pour vin:', wineId);
-                          await updateWine(wineId, { color: item.key });
+                          await updateWineSafe(wineId, { color: item.key });
                           console.log('✅ Type sauvegardé, rechargement...');
                           await fetchWines();
                           console.log('✅ Données rechargées');
@@ -1379,7 +1392,7 @@ export default function EditableWineDetailsScreen({
                       style={index === vintageYears.length - 1 ? styles.pickerItemLast : styles.pickerItem}
                       onPress={async () => {
                         try {
-                          await updateWine(wineId, { vintage: item });
+                          await updateWineSafe(wineId, { vintage: item });
                           await fetchWines();
                           setShowVintagePicker(false);
                         } catch (error) {
@@ -1465,7 +1478,7 @@ export default function EditableWineDetailsScreen({
                       style={index === regions.length - 1 ? styles.pickerItemLast : styles.pickerItem}
                       onPress={async () => {
                         try {
-                          await updateWine(wineId, { region: item.name });
+                          await updateWineSafe(wineId, { region: item.name });
                           await fetchWines();
                           setShowRegionPicker(false);
                           // Charger les appellations pour cette région
@@ -1535,7 +1548,7 @@ export default function EditableWineDetailsScreen({
                           setRegions(prev => [...prev, data]);
                           
                           // Sélectionner la nouvelle région
-                          await updateWine(wineId, { region: data.name });
+                          await updateWineSafe(wineId, { region: data.name });
                           await fetchWines();
                           setShowRegionPicker(false);
                           setNewRegionName('');
@@ -1623,7 +1636,7 @@ export default function EditableWineDetailsScreen({
                       style={index === appellations.length - 1 ? styles.pickerItemLast : styles.pickerItem}
                       onPress={async () => {
                         try {
-                          await updateWine(wineId, { appellation: item.name });
+                          await updateWineSafe(wineId, { appellation: item.name });
                           await fetchWines();
                           setShowAppellationPicker(false);
                           // Charger les cépages pour cette appellation
@@ -1693,7 +1706,7 @@ export default function EditableWineDetailsScreen({
                         setAppellations(prev => [...prev, data]);
                         
                         // Sélectionner la nouvelle appellation
-                        await updateWine(wineId, { appellation: data.name });
+                        await updateWineSafe(wineId, { appellation: data.name });
                         await fetchWines();
                         setShowAppellationPicker(false);
                         setNewAppellationName('');
@@ -1787,7 +1800,7 @@ export default function EditableWineDetailsScreen({
                             ? currentGrapes.filter(g => g !== item.name)
                             : [...currentGrapes, item.name];
                           
-                          await updateWine(wineId, { grapes: newGrapes });
+                          await updateWineSafe(wineId, { grapes: newGrapes });
                           await fetchWines();
                           setShowGrapesPicker(false);
                         } catch (error) {
@@ -1854,7 +1867,7 @@ export default function EditableWineDetailsScreen({
                         const currentGrapes = Array.isArray(safeWine?.grapes) ? safeWine.grapes : [];
                         const newGrapes = [...currentGrapes, data.name];
                         
-                        await updateWine(wineId, { grapes: newGrapes });
+                        await updateWineSafe(wineId, { grapes: newGrapes });
                         await fetchWines();
                         setShowGrapesPicker(false);
                         setNewGrapeName('');
@@ -1961,7 +1974,7 @@ export default function EditableWineDetailsScreen({
                         (async () => {
                           try {
                             console.log('🌍 Sauvegarde pays:', item.name, 'pour vin:', wineId);
-                            await updateWine(wineId, { country: item.name });
+                            await updateWineSafe(wineId, { country: item.name });
                             console.log('✅ Pays sauvegardé, rechargement...');
                             await fetchWines();
                             console.log('✅ Données rechargées');
@@ -2021,7 +2034,7 @@ export default function EditableWineDetailsScreen({
                       style={index === priceRanges.length - 1 ? styles.pickerItemLast : styles.pickerItem}
                       onPress={async () => {
                         try {
-                          await updateWine(wineId, { priceRange: item });
+                          await updateWineSafe(wineId, { priceRange: item });
                           await fetchWines();
                           setShowPricePicker(false);
                         } catch (error) {
