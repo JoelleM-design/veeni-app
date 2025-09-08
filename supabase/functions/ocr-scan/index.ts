@@ -180,18 +180,40 @@ async function callGoogleVisionAPI(images: string[], apiKey: string): Promise<Go
   }
 }
 
+// Fonction de normalisation de la casse
+function normalizeCase(text: string): string {
+  if (!text) return text;
+  
+  // Convertir en minuscules puis capitaliser chaque mot
+  return text
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 // Fonction de conversion région → appellation
 function applyRegionToAppellationConversion(wine: ParsedWine): ParsedWine {
   console.log('🔧 Conversion région → appellation pour:', JSON.stringify(wine, null, 2))
   
+  // Normaliser la casse de tous les champs textuels
+  const normalizedWine = {
+    ...wine,
+    nom: normalizeCase(wine.nom),
+    producteur: normalizeCase(wine.producteur),
+    région: normalizeCase(wine.région),
+    appellation: normalizeCase(wine.appellation),
+    pays: normalizeCase(wine.pays)
+  };
+  
   // Si pas d'appellation mais une région, vérifier si c'est une appellation
-  if (!wine.appellation && wine.région) {
-    const upperRegion = wine.région.toUpperCase();
+  if (!normalizedWine.appellation && normalizedWine.région) {
+    const upperRegion = normalizedWine.région.toUpperCase();
     for (const [appellationName, data] of Object.entries(appellationsFrancaises)) {
       if (upperRegion.includes(appellationName) || appellationName.includes(upperRegion)) {
-        console.log(`🍷 Conversion: ${wine.région} → ${appellationName} (${data.region}, ${data.country})`);
+        console.log(`🍷 Conversion: ${normalizedWine.région} → ${appellationName} (${data.region}, ${data.country})`);
         return {
-          ...wine,
+          ...normalizedWine,
           appellation: appellationName,
           région: data.region,
           pays: data.country
@@ -200,7 +222,7 @@ function applyRegionToAppellationConversion(wine: ParsedWine): ParsedWine {
     }
   }
   
-  return wine;
+  return normalizedWine;
 }
 
 // Fonction de parsing local intelligent améliorée
