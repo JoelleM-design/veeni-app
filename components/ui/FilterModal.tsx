@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { VeeniColors } from '../../constants/Colors';
 
 export interface FilterOption {
@@ -58,66 +58,67 @@ export const FilterModal: React.FC<FilterModalProps> = ({
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="slide"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.modalOverlay} onPress={onClose}>
-        <Pressable style={styles.filterModal} onPress={() => {}}>
-          <View style={styles.filterHeader}>
-            <Text style={styles.filterTitle}>{title}</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={styles.closeButton}>✕</Text>
-            </TouchableOpacity>
-          </View>
+      <TouchableOpacity 
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View style={styles.filterModal}>
+            <View style={styles.filterHeader}>
+              <Text style={styles.filterTitle}>{title}</Text>
+            </View>
 
-          <View style={styles.filterOptions}>
-            {options.map((option) => {
-              const isSelected = selectedFilters.includes(option.key);
-              return (
-                <TouchableOpacity
-                  key={option.key}
-                  style={styles.filterRow}
-                  onPress={() => toggleFilter(option.key)}
-                >
-                  <View style={styles.radioContainer}>
-                    <View style={[
-                      styles.radioButton,
-                      isSelected && styles.radioButtonSelected
-                    ]}>
-                      {isSelected && (
-                        <View style={styles.radioButtonInner} />
-                      )}
-                    </View>
-                  </View>
-                  
-                  <View style={styles.filterContent}>
-                    {option.color && (
+            <View style={styles.filterOptions}>
+              {options.map((option, index) => {
+                const isSelected = selectedFilters.includes(option.key);
+                const isLast = index === options.length - 1;
+                return (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[styles.filterRow, isLast && styles.filterRowLast]}
+                    onPress={() => toggleFilter(option.key)}
+                  >
+                    <View style={styles.radioContainer}>
                       <View style={[
-                        styles.colorIndicator,
-                        { backgroundColor: option.color }
-                      ]} />
-                    )}
-                    {option.icon && (
-                      <Ionicons 
-                        name={option.icon as any} 
-                        size={16} 
-                        color={getWineColor(option.key)} 
-                        style={styles.filterIcon}
-                      />
-                    )}
-                    <Text style={[
-                      styles.filterLabel,
-                      isSelected && styles.filterLabelSelected
-                    ]}>
-                      {option.label}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+                        styles.radioButton,
+                        isSelected && styles.radioButtonSelected
+                      ]}>
+                        {isSelected && (
+                          <View style={styles.radioButtonInner} />
+                        )}
+                      </View>
+                    </View>
+                    
+                    <View style={styles.filterContent}>
+                      {option.icon && (
+                        <Ionicons 
+                          name={option.icon as any} 
+                          size={16} 
+                          color={getWineColor(option.key)} 
+                          style={styles.filterIcon}
+                        />
+                      )}
+                      <Text style={[
+                        styles.filterLabel,
+                        isSelected && styles.filterLabelSelected
+                      ]}>
+                        {option.label}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
-        </Pressable>
-      </Pressable>
+        </TouchableOpacity>
+      </TouchableOpacity>
     </Modal>
   );
 };
@@ -127,40 +128,42 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-start',
-    alignItems: 'flex-end',
-    paddingTop: 100,
-    paddingRight: 20,
+    paddingTop: 100, // Même position que la fiche de vin
   },
   filterModal: {
-    backgroundColor: '#333',
-    borderRadius: 16,
-    padding: 20,
-    width: 280,
-    maxWidth: 280,
+    backgroundColor: '#2a2a2a', // Même couleur que la fiche de vin
+    margin: 20, // Centré avec marges
+    borderRadius: 12, // Même border radius
+    maxHeight: 400, // Même hauteur max
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
   filterHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
+    alignItems: 'center', // Centrer le titre
+    padding: 20, // Même padding que la fiche de vin
+    borderBottomWidth: 1,
+    borderBottomColor: '#444', // Même couleur de bordure
   },
   filterTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFF',
-  },
-  closeButton: {
-    fontSize: 24,
-    color: '#999',
-    padding: 4,
+    fontWeight: '600', // Même font weight que la fiche de vin
+    color: '#FFFFFF', // Même couleur
+    textAlign: 'center', // Centrer le texte
   },
   filterOptions: {
-    gap: 12,
+    // Supprimé gap pour utiliser paddingVertical sur les items
   },
   filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    padding: 16, // Même padding que pickerItem de la fiche de vin
+    borderBottomWidth: 1,
+    borderBottomColor: '#444', // Même couleur de bordure
+  },
+  filterRowLast: {
+    borderBottomWidth: 0, // Supprimer la dernière bordure
   },
   radioContainer: {
     marginRight: 12,
@@ -181,25 +184,20 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#393C40', borderWidth: 0,
+    backgroundColor: '#393C40',
+    borderWidth: 0,
   },
   filterContent: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
   },
-  colorIndicator: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    marginRight: 8,
-  },
   filterIcon: {
-    marginRight: 8,
+    marginRight: 12, // Même espacement que pickerItemIcon
   },
   filterLabel: {
-    color: '#FFF',
-    fontSize: 16,
+    color: '#FFFFFF', // Même couleur que pickerItemText
+    fontSize: 16, // Même taille
     flex: 1,
   },
   filterLabelSelected: {

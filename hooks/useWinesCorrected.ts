@@ -3,15 +3,14 @@ import { supabase } from '../lib/supabase';
 import { uploadWineImage } from '../lib/uploadWineImage';
 import { checkWineDuplicate, getDuplicateErrorMessage, getSimilarWineMessage } from '../lib/wineDuplicateDetection';
 import { Wine } from '../types/wine';
+import { useActiveCave } from './useActiveCave';
 
 // Génère un UUID v4 vraiment aléatoire
 function generateId(): string {
-  // Utiliser crypto.randomUUID() si disponible (plus fiable)
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
   
-  // Fallback avec génération vraiment aléatoire
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -19,7 +18,8 @@ function generateId(): string {
   });
 }
 
-export function useWines() {
+export function useWinesCorrected() {
+  const { caveMode, caveId, isShared, householdName } = useActiveCave();
   const [wines, setWines] = useState<Wine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -45,7 +45,7 @@ export function useWines() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Subscription aux changements de user_wine
+      // Subscription aux changements de user_wine selon le mode
       const subscription = supabase
         .channel('user_wine_changes')
         .on(
@@ -54,11 +54,12 @@ export function useWines() {
             event: '*',
             schema: 'public',
             table: 'user_wine',
-            filter: `user_id=eq.${user.id}`
+            filter: caveMode === 'user' 
+              ? `user_id=eq.${user.id}` 
+              : `household_id=eq.${caveId}`
           },
           (payload) => {
             console.log('Changement détecté dans user_wine:', payload);
-            // Rafraîchir les données quand il y a un changement
             fetchWines();
           }
         )
@@ -77,22 +78,20 @@ export function useWines() {
         subscription.unsubscribe();
       }
     };
-  }, []);
+  }, [caveMode, caveId]);
 
   const addHistoryEvent = async (wineId: string, eventType: string, data?: any) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Valider le type d'événement selon les contraintes de la base
       const validEventTypes = ['added', 'tasted', 'stock_change', 'removed', 'noted', 'favorited'];
       if (!validEventTypes.includes(eventType)) {
         console.warn('Type d\'événement non valide, ignoré:', eventType);
         return;
       }
 
-      // Vérifier s'il n'y a pas déjà un événement similaire récent (dans les 5 dernières secondes)
-      // SAUF pour les dégustations qui peuvent être multiples
+      // Vérifier s'il n'y a pas déjà un événement similaire récent
       if (eventType !== 'tasted') {
         const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
         const { data: recentEvents } = await supabase
@@ -104,7 +103,6 @@ export function useWines() {
           .gte('created_at', fiveSecondsAgo)
           .limit(1);
 
-        // Si un événement similaire existe déjà récemment, ne pas en ajouter un nouveau
         if (recentEvents && recentEvents.length > 0) {
           console.log('Événement historique similaire déjà présent, ignoré:', eventType);
           return;
@@ -112,7 +110,8 @@ export function useWines() {
       }
 
       const historyEvent = {
-        user_id: user.id,
+        user_id: caveMode === 'user' ? user.id : null,
+        household_id: caveMode === 'household' ? caveId : null,
         wine_id: wineId,
         event_type: eventType,
         event_date: new Date().toISOString(),
@@ -122,7 +121,8 @@ export function useWines() {
       console.log('📝 Tentative d\'ajout d\'événement historique:', {
         eventType,
         wineId,
-        userId: user.id,
+        caveMode,
+        caveId,
         data
       });
 
@@ -142,18 +142,17 @@ export function useWines() {
 
   const fetchWines = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.log('Utilisateur non connecté');
+      if (!caveId) {
+        console.log('Aucune cave active');
         setWines([]);
         setLoading(false);
         return;
       }
 
-      console.log('Récupération des vins pour l\'utilisateur:', user.id);
+      console.log('Récupération des vins pour la cave:', { caveMode, caveId });
 
-      // Récupérer les vins de l'utilisateur avec les détails des vins
-      const { data: userWines, error: fetchError } = await supabase
+      // Construire la requête selon le mode
+      let query = supabase
         .from('user_wine')
         .select(`
           *,
@@ -162,27 +161,15 @@ export function useWines() {
             producer (*),
             country (*)
           )
-        `)
-        .eq('user_id', user.id);
+        `);
 
-      // Récupérer l'historique pour tous les vins
-      const wineIds = userWines?.map(uw => uw.wine_id) || [];
-      let wineHistory: any[] = [];
-      
-      if (wineIds.length > 0) {
-        const { data: historyData, error: historyError } = await supabase
-          .from('wine_history')
-          .select('id, wine_id, event_type, event_date, rating, notes')
-          .eq('user_id', user.id)
-          .in('wine_id', wineIds)
-          .order('event_date', { ascending: false });
-
-        if (!historyError) {
-          wineHistory = historyData || [];
-        } else {
-          console.warn('Erreur lors de la récupération de l\'historique:', historyError);
-        }
+      if (caveMode === 'user') {
+        query = query.eq('user_id', caveId).is('household_id', null);
+      } else {
+        query = query.eq('household_id', caveId).is('user_id', null);
       }
+
+      const { data: userWines, error: fetchError } = await query.order('created_at', { ascending: false });
 
       if (fetchError) {
         console.error('Erreur Supabase lors de la récupération:', fetchError);
@@ -206,7 +193,6 @@ export function useWines() {
         const rawName = String(wine.name || '');
         const rawDomaine = typeof wine.producer === 'object' && wine.producer?.name ? String(wine.producer.name) : (typeof wine.producer === 'string' ? wine.producer : 'Domaine inconnu');
         
-        // Si le nom est vide ou générique, utiliser le domaine comme nom
         const isGenericName = !rawName || 
           rawName === 'Vin sans nom' || 
           rawName === 'Vin non identifié' || 
@@ -218,13 +204,6 @@ export function useWines() {
 
         const countryName = wine.country && typeof wine.country === 'object' && wine.country.name ? String(wine.country.name) : '';
         const priceRange = typeof wine.price_range === 'string' ? wine.price_range : '';
-        
-        console.log('🍷 Mapping vin:', finalName, {
-          country: wine.country,
-          countryName,
-          priceRange,
-          region: wine.region
-        });
 
         const transformedWine: Wine = {
           id: String(wine.id || ''),
@@ -270,16 +249,7 @@ export function useWines() {
             acidity: 0,
             sweetness: 0
           },
-          history: wineHistory.filter(h => h.wine_id === wine.id).map(h => ({
-            id: h.id,
-            event_type: h.event_type,
-            previous_amount: h.previous_amount,
-            new_amount: h.new_amount,
-            rating: h.rating,
-            notes: h.notes,
-            event_date: h.event_date,
-            created_at: h.created_at
-          })).sort((a, b) => new Date(b.event_date || b.created_at).getTime() - new Date(a.event_date || a.created_at).getTime()),
+          history: [], // TODO: Récupérer l'historique
           favorite: userWine.favorite || false,
           createdAt: userWine.created_at,
           updatedAt: userWine.updated_at || userWine.created_at
@@ -301,7 +271,7 @@ export function useWines() {
 
   const updateWine = async (wineId: string, updates: Partial<Wine>) => {
     try {
-      console.log('🔄 updateWine appelé avec:', { wineId, updates });
+      console.log('🔄 updateWine appelé avec:', { wineId, updates, caveMode, caveId });
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Utilisateur non connecté');
 
@@ -309,18 +279,9 @@ export function useWines() {
       const userWineUpdates: any = {};
       
       if (updates.stock !== undefined) {
-        // Récupérer le stock actuel pour détecter une réduction
-        const { data: currentWine } = await supabase
-          .from('user_wine')
-          .select('amount')
-          .eq('user_id', user.id)
-          .eq('wine_id', wineId)
-          .single();
-        
-        const currentStock = currentWine?.amount || 0;
+        const currentStock = wines.find(w => w.id === wineId)?.stock || 0;
         const newStock = updates.stock;
         
-        // Si le stock diminue, créer une entrée de dégustation
         if (newStock < currentStock) {
           console.log('🍷 Création d\'une dégustation:', {
             wineId,
@@ -333,9 +294,6 @@ export function useWines() {
             new_amount: newStock,
             notes: 'Dégustation via réduction de stock'
           });
-          
-          // Rafraîchir les vins pour mettre à jour l'UI
-          await fetchWines();
         }
         
         userWineUpdates.amount = updates.stock;
@@ -343,16 +301,21 @@ export function useWines() {
       if (updates.note !== undefined) userWineUpdates.rating = updates.note;
       if (updates.origin !== undefined) userWineUpdates.origin = updates.origin;
       if (updates.personalComment !== undefined) userWineUpdates.personal_comment = updates.personalComment;
-      // tastingProfile n'est pas stocké dans user_wine, il est géré localement
-      // if (updates.tastingProfile !== undefined) userWineUpdates.tasting_profile = updates.tastingProfile;
       if (updates.favorite !== undefined) userWineUpdates.favorite = updates.favorite;
 
       if (Object.keys(userWineUpdates).length > 0) {
-        const { error: userWineError } = await supabase
+        let updateQuery = supabase
           .from('user_wine')
           .update(userWineUpdates)
-          .eq('user_id', user.id)
           .eq('wine_id', wineId);
+
+        if (caveMode === 'user') {
+          updateQuery = updateQuery.eq('user_id', caveId).is('household_id', null);
+        } else {
+          updateQuery = updateQuery.eq('household_id', caveId).is('user_id', null);
+        }
+
+        const { error: userWineError } = await updateQuery;
 
         if (userWineError) {
           console.error('Erreur Supabase lors de la mise à jour user_wine:', userWineError);
@@ -369,9 +332,7 @@ export function useWines() {
       if (updates.vintage !== undefined) wineUpdates.year = updates.vintage?.toString();
       if (updates.region !== undefined) wineUpdates.region = updates.region;
       if (updates.color !== undefined) wineUpdates.wine_type = updates.color;
-      // Le pays est géré via country_id, pas directement
       if (updates.country !== undefined) {
-        // Trouver l'ID du pays dans la table country
         const { data: countryData } = await supabase
           .from('country')
           .select('id')
@@ -385,8 +346,6 @@ export function useWines() {
       if (updates.priceRange !== undefined) wineUpdates.price_range = updates.priceRange;
       if (updates.grapes !== undefined) wineUpdates.grapes = updates.grapes;
 
-      console.log('📝 Mise à jour wine avec:', wineUpdates);
-
       if (Object.keys(wineUpdates).length > 0) {
         const { error: wineError } = await supabase
           .from('wine')
@@ -399,40 +358,13 @@ export function useWines() {
         }
       }
 
-      // Ajouter des événements d'historique pour les modifications importantes
-      const currentWine = wines.find(w => w.id === wineId);
-      if (currentWine) {
-        // Ajouter un événement pour le changement de stock
-        if (updates.stock !== undefined && updates.stock !== currentWine.stock) {
-          await addHistoryEvent(wineId, 'stock_change', {
-            previous_amount: currentWine.stock,
-            new_amount: updates.stock
-          });
-        }
-        
-        // Ajouter un événement pour le changement de note
-        if (updates.note !== undefined && updates.note !== currentWine.note) {
-          await addHistoryEvent(wineId, 'rating_change', {
-            rating: updates.note
-          });
-        }
-        
-        // Ajouter un événement pour le changement d'origine
-        if (updates.origin !== undefined && updates.origin !== currentWine.origin) {
-          await addHistoryEvent(wineId, 'origin_change', {
-            notes: `Déplacé vers ${updates.origin === 'cellar' ? 'la cave' : 'la wishlist'}`
-          });
-        }
-      }
-
-      // Mettre à jour l'état local immédiatement avec les nouvelles données
+      // Mettre à jour l'état local immédiatement
       setWines(prevWines => {
         const updatedWines = prevWines.map(wine => 
           wine.id === wineId 
             ? { 
                 ...wine, 
                 ...updates,
-                // Mettre à jour les champs spécifiques
                 stock: updates.stock !== undefined ? updates.stock : wine.stock,
                 note: updates.note !== undefined ? updates.note : wine.note,
                 origin: updates.origin !== undefined ? updates.origin : wine.origin,
@@ -445,20 +377,13 @@ export function useWines() {
         );
         
         console.log('🍷 Vins mis à jour localement:', updatedWines.length, 'vins');
-        if (updates.favorite !== undefined) {
-          console.log('❤️ Mise à jour favorite:', { wineId, newFavorite: updates.favorite });
-        }
         return updatedWines;
       });
       
-      // Notifier tous les abonnés de la mise à jour
       notifyUpdate();
-      
-      // Pas de rechargement supplémentaire - la mise à jour locale suffit
     } catch (err) {
       console.error('Erreur complète lors de la mise à jour:', err);
       setError(err instanceof Error ? err : new Error('Erreur lors de la mise à jour'));
-      // Ne pas faire planter l'app, juste afficher l'erreur
     }
   };
 
@@ -472,7 +397,6 @@ export function useWines() {
       const duplicateCheck = checkWineDuplicate(wine, cellarWines);
       
       if (duplicateCheck.isDuplicate) {
-        // Pour la cave, on peut ajouter une bouteille supplémentaire
         const existingWine = duplicateCheck.existingWine;
         if (existingWine) {
           console.log('Vin existant trouvé, ajout d\'une bouteille supplémentaire');
@@ -481,7 +405,6 @@ export function useWines() {
         }
       }
 
-      // Afficher un message d'information pour les vins similaires
       if (duplicateCheck.duplicateType === 'similar') {
         console.log('ℹ️', getSimilarWineMessage(duplicateCheck));
       }
@@ -489,14 +412,10 @@ export function useWines() {
       // 1. Vérifier si le vin existe déjà dans la table wine
       let wineId = wine.id;
       
-      // Si l'ID commence par "ocr-" ou est un ID temporaire, c'est un vin temporaire de l'OCR, il faut le créer
       if (wineId.startsWith('ocr-') || wineId.length < 36) {
         console.log('Création d\'un nouveau vin dans la base de données');
-        
-        // Générer un nouvel ID UUID compatible Expo
         wineId = generateId();
       } else {
-        // Vérifier si le vin existe déjà dans la base
         const { data: existingWine } = await supabase
           .from('wine')
           .select('id')
@@ -505,30 +424,33 @@ export function useWines() {
         
         if (existingWine) {
           console.log('Vin existe déjà, utilisation de l\'ID existant:', wineId);
-          // Passer directement à l'insertion dans user_wine
+          
+          // Insérer dans user_wine avec le bon mode
+          const wineData = {
+            wine_id: wineId,
+            amount: wine.stock || 1,
+            rating: null,
+            origin: wine.origin || 'cellar',
+            ...(caveMode === 'user' 
+              ? { user_id: caveId, household_id: null }
+              : { user_id: null, household_id: caveId }
+            )
+          };
+
           const { error } = await supabase
             .from('user_wine')
-            .insert({
-              user_id: user.id,
-              wine_id: wineId,
-              amount: wine.stock || 1,
-              rating: null,
-              origin: wine.origin || 'cellar'
-            });
+            .insert(wineData);
 
           if (error) throw error;
 
-          // Ajouter un événement d'historique pour l'ajout
-          await addHistoryEvent(wineId, 'added');
+          await addHistoryEvent(wineId, 'added', {
+            new_amount: wine.stock || 1
+          });
 
           console.log('Vin ajouté à la cave avec succès');
-          
-          // Recharger les vins
           await fetchWines();
           notifyUpdate();
           return;
-        } else {
-          console.log('Vin n\'existe pas, création nécessaire');
         }
       }
         
@@ -596,27 +518,29 @@ export function useWines() {
       
       console.log('Vin créé avec succès:', wineId);
 
-      // 2. Insérer dans user_wine
+      // 2. Insérer dans user_wine avec le bon mode
+      const wineData = {
+        wine_id: wineId,
+        amount: wine.stock || 1,
+        rating: wine.note || null,
+        origin: 'cellar',
+        ...(caveMode === 'user' 
+          ? { user_id: caveId, household_id: null }
+          : { user_id: null, household_id: caveId }
+        )
+      };
+
       const { error } = await supabase
         .from('user_wine')
-        .insert({
-          user_id: user.id,
-          wine_id: wineId,
-          amount: wine.stock || 1,
-          rating: wine.note || null,
-          origin: 'cellar'
-        });
+        .insert(wineData);
 
       if (error) throw error;
 
-      // Ajouter un événement d'historique pour l'ajout
       await addHistoryEvent(wineId, 'added', {
         new_amount: wine.stock || 1
       });
 
       console.log('Vin ajouté à la cave avec succès');
-      
-      // Recharger les vins
       await fetchWines();
     } catch (err) {
       console.error('Erreur ajout cave:', err);
@@ -638,152 +562,29 @@ export function useWines() {
         throw new Error(errorMessage);
       }
 
-      // Afficher un message d'information pour les vins similaires
       if (duplicateCheck.duplicateType === 'similar') {
         console.log('ℹ️', getSimilarWineMessage(duplicateCheck));
       }
 
-      // 1. Vérifier si le vin existe déjà dans la table wine
-      let wineId = wine.id;
-      
-      // Si l'ID commence par "ocr-" ou est un ID temporaire, c'est un vin temporaire de l'OCR, il faut le créer
-      if (wineId.startsWith('ocr-') || wineId.length < 36) {
-        console.log('Création d\'un nouveau vin dans la base de données');
-        
-        // Générer un nouvel ID UUID compatible Expo
-        wineId = generateId();
-      } else {
-        // Vérifier si le vin existe déjà dans la base
-        const { data: existingWine } = await supabase
-          .from('wine')
-          .select('id')
-          .eq('id', wineId)
-          .single();
-        
-        if (existingWine) {
-          console.log('Vin existe déjà, utilisation de l\'ID existant:', wineId);
-          
-          // Mettre à jour l'image si nécessaire
-          if (wine.imageUri && wine.imageUri.startsWith('file://')) {
-            const updatedImageUri = await uploadWineImage(wineId, wine.imageUri);
-            if (updatedImageUri) {
-              await supabase
-                .from('wine')
-                .update({ image_uri: updatedImageUri })
-                .eq('id', wineId);
-            }
-          }
-          
-          // Passer directement à l'insertion dans user_wine
-          const { error } = await supabase
-            .from('user_wine')
-            .insert({
-              user_id: user.id,
-              wine_id: wineId,
-              amount: 0,
-              rating: null,
-              origin: 'wishlist'
-            });
+      // La wishlist reste toujours personnelle, même en mode household
+      const wineData = {
+        wine_id: wine.id,
+        amount: 0,
+        rating: null,
+        origin: 'wishlist',
+        user_id: user.id,
+        household_id: null
+      };
 
-          if (error) throw error;
-
-          // Ajouter un événement d'historique pour l'ajout
-          await addHistoryEvent(wineId, 'added');
-
-          console.log('Vin ajouté à la wishlist avec succès');
-          
-          // Recharger les vins
-          await fetchWines();
-          notifyUpdate();
-          return;
-        } else {
-          console.log('Vin n\'existe pas, création nécessaire');
-        }
-      }
-        
-        // Créer le producteur s'il n'existe pas
-        let producerId = null;
-        if (wine.domaine && wine.domaine !== 'Domaine inconnu') {
-          const { data: existingProducer } = await supabase
-            .from('producer')
-            .select('id')
-            .eq('name', wine.domaine)
-            .single();
-          
-          if (existingProducer) {
-            producerId = existingProducer.id;
-          } else {
-            const { data: newProducer } = await supabase
-              .from('producer')
-              .insert({ name: wine.domaine })
-              .select('id')
-              .single();
-            producerId = newProducer?.id;
-          }
-        }
-        
-        // Créer le pays s'il n'existe pas
-        let countryId = null;
-        if (wine.region) {
-          const { data: existingCountry } = await supabase
-            .from('country')
-            .select('id')
-            .eq('name', wine.region)
-            .single();
-          
-          if (existingCountry) {
-            countryId = existingCountry.id;
-          } else {
-            const { data: newCountry } = await supabase
-              .from('country')
-              .insert({ name: wine.region, flag_emoji: '🏳️' })
-              .select('id')
-              .single();
-            countryId = newCountry?.id;
-          }
-        }
-        
-        // Créer le vin dans la table wine
-        const { error: wineError } = await supabase
-          .from('wine')
-          .insert({
-            id: wineId,
-            name: wine.name,
-            year: wine.vintage?.toString() || null,
-            wine_type: wine.color,
-            region: wine.region,
-            producer_id: producerId,
-            country_id: countryId,
-            image_uri: await uploadWineImage(wineId, wine.imageUri || ''),
-            grapes: wine.grapes
-          });
-        
-        if (wineError) {
-          console.error('Erreur création vin:', wineError);
-          throw wineError;
-        }
-        
-        console.log('Vin créé avec succès:', wineId);
-
-      // 2. Insérer dans user_wine
       const { error } = await supabase
         .from('user_wine')
-        .insert({
-          user_id: user.id,
-          wine_id: wineId,
-          amount: 0,
-          rating: null,
-          origin: 'wishlist'
-        });
+        .insert(wineData);
 
       if (error) throw error;
 
-      // Ajouter un événement d'historique pour l'ajout
-      await addHistoryEvent(wineId, 'added');
+      await addHistoryEvent(wine.id, 'added');
 
       console.log('Vin ajouté à la wishlist avec succès');
-      
-      // Recharger les vins
       await fetchWines();
     } catch (err) {
       console.error('Erreur ajout wishlist:', err);
@@ -791,98 +592,9 @@ export function useWines() {
     }
   };
 
-  const removeWineFromCellar = async (wineId: string) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Utilisateur non connecté');
-
-      const { error } = await supabase
-        .from('user_wine')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('wine_id', wineId);
-
-      if (error) throw error;
-
-      console.log('Vin supprimé de la cave avec succès');
-      
-      // Recharger les vins
-      await fetchWines();
-    } catch (err) {
-      console.error('Erreur suppression cave:', err);
-      setError(err instanceof Error ? err : new Error('Erreur lors de la suppression'));
-    }
-  };
-
-  const removeWineFromWishlist = async (wineId: string) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Utilisateur non connecté');
-
-      const { error } = await supabase
-        .from('user_wine')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('wine_id', wineId);
-
-      if (error) throw error;
-
-      console.log('Vin supprimé de la wishlist avec succès');
-      
-      // Recharger les vins
-      await fetchWines();
-    } catch (err) {
-      console.error('Erreur suppression wishlist:', err);
-      setError(err instanceof Error ? err : new Error('Erreur lors de la suppression'));
-    }
-  };
-
   useEffect(() => {
     fetchWines();
-  }, []);
-
-  const cleanupDuplicates = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Utilisateur non connecté');
-
-      console.log('🧹 Nettoyage des doublons...');
-      
-      // Nettoyer les doublons de la wishlist
-      const wishlistWines = wines.filter(w => w.origin === 'wishlist');
-      const duplicatesToRemove: string[] = [];
-      const processedWines: Wine[] = [];
-
-      for (const wine of wishlistWines) {
-        const duplicateCheck = checkWineDuplicate(wine, processedWines);
-        
-        if (duplicateCheck.isDuplicate) {
-          console.log(`🚫 Doublon trouvé: ${wine.name} (${wine.domaine})`);
-          duplicatesToRemove.push(wine.id);
-        } else {
-          processedWines.push(wine);
-        }
-      }
-
-      if (duplicatesToRemove.length > 0) {
-        const { error } = await supabase
-          .from('user_wine')
-          .delete()
-          .eq('user_id', user.id)
-          .in('wine_id', duplicatesToRemove);
-
-        if (error) throw error;
-        
-        console.log(`✅ ${duplicatesToRemove.length} doublons supprimés`);
-        await fetchWines();
-      }
-
-      return duplicatesToRemove.length;
-    } catch (err) {
-      console.error('Erreur nettoyage doublons:', err);
-      throw err;
-    }
-  };
+  }, [caveMode, caveId]);
 
   return {
     wines,
@@ -892,10 +604,10 @@ export function useWines() {
     updateWine,
     addWineToCellar,
     addWineToWishlist,
-    removeWineFromCellar,
-    removeWineFromWishlist,
     subscribeToUpdates,
     notifyUpdate,
-    cleanupDuplicates
+    caveMode,
+    isShared,
+    householdName
   };
-} 
+}

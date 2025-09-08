@@ -41,7 +41,8 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
 const styles = StyleSheet.create({
   stickySearchRow: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingTop: 0,
+    paddingBottom: 4,
     zIndex: 10,
   },
   searchRow: {

@@ -11,7 +11,26 @@ import { useWineHistory } from '../hooks/useWineHistory';
 import { useWines } from '../hooks/useWines';
 import { supabase } from '../lib/supabase';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+
+// Fonction utilitaire pour calculer la hauteur optimale des modales
+const getModalHeight = (itemCount: number, hasSearch: boolean, hasAddSection: boolean) => {
+  const screenHeight = height;
+  const baseHeight = 80; // Titre + header
+  const searchHeight = hasSearch ? 60 : 0;
+  const addSectionHeight = hasAddSection ? 140 : 0; // Augmenté pour éviter la coupure
+  const itemHeight = 50; // Hauteur approximative d'un item
+  const padding = 60; // Marges et padding augmentés
+  
+  const contentHeight = baseHeight + searchHeight + addSectionHeight + (itemCount * itemHeight) + padding;
+  const maxHeight = screenHeight * 0.8; // 80% de l'écran
+  const minHeight = 300; // Augmenté pour s'assurer que le bouton n'est pas coupé
+  
+  const finalHeight = Math.min(Math.max(contentHeight, minHeight), maxHeight);
+  console.log(`📏 Modal height calculation: items=${itemCount}, search=${hasSearch}, add=${hasAddSection}, height=${finalHeight}`);
+  
+  return finalHeight;
+};
 
 interface EditableWineDetailsScreenProps {
   wineId: string;
@@ -43,6 +62,9 @@ export default function EditableWineDetailsScreen({
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [showActionsModal, setShowActionsModal] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showRegionPicker, setShowRegionPicker] = useState(false);
+  const [showAppellationPicker, setShowAppellationPicker] = useState(false);
+  const [showGrapesPicker, setShowGrapesPicker] = useState(false);
   const [personalComment, setPersonalComment] = useState('');
   const [rating, setRating] = useState(0);
   const [tastingProfile, setTastingProfile] = useState({
@@ -61,7 +83,6 @@ export default function EditableWineDetailsScreen({
   const [showVintagePicker, setShowVintagePicker] = useState(false);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [showPricePicker, setShowPricePicker] = useState(false);
-  const [showRegionPicker, setShowRegionPicker] = useState(false);
   const [showDesignationPicker, setShowDesignationPicker] = useState(false);
   const [showGrapePicker, setShowGrapePicker] = useState(false);
   
@@ -74,19 +95,32 @@ export default function EditableWineDetailsScreen({
   const [countries, setCountries] = useState<{id: string, name: string, flag_emoji: string}[]>([]);
   const [designations, setDesignations] = useState<{id: string, name: string}[]>([]);
   const [grapeVarieties, setGrapeVarieties] = useState<{id: string, name: string}[]>([]);
-  const [selectedGrapes, setSelectedGrapes] = useState<string[]>([]);
+  
+  // Données de hiérarchie viticole
+  const [regions, setRegions] = useState<{id: string, name: string}[]>([]);
+  const [appellations, setAppellations] = useState<{id: string, name: string}[]>([]);
+  const [grapes, setGrapes] = useState<{id: string, name: string, color: string}[]>([]);
   
   // États pour la recherche
   const [countrySearchText, setCountrySearchText] = useState('');
   const [filteredCountries, setFilteredCountries] = useState<{id: string, name: string, flag_emoji: string}[]>([]);
+  const [isCountriesLoaded, setIsCountriesLoaded] = useState(false);
+  
+  // États pour l'ajout de nouvelles valeurs
+  const [newRegionName, setNewRegionName] = useState('');
+  const [newAppellationName, setNewAppellationName] = useState('');
+  const [newGrapeName, setNewGrapeName] = useState('');
+  
+  // États pour la recherche dans les modales
+  const [regionSearchText, setRegionSearchText] = useState('');
+  const [appellationSearchText, setAppellationSearchText] = useState('');
+  const [grapesSearchText, setGrapesSearchText] = useState('');
+  
+  // États pour le clavier
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   
   // Options fixes
   const priceRanges = ['€', '€€', '€€€', '€€€€'];
-  const regions = [
-    'Bordeaux', 'Bourgogne', 'Champagne', 'Alsace', 'Loire', 'Rhône',
-    'Languedoc-Roussillon', 'Provence', 'Sud-Ouest', 'Corsica', 'Jura', 'Savoie',
-    'Anjou', 'Touraine', 'Sancerre', 'Côtes du Rhône', 'Côtes de Provence'
-  ];
 
   // Créer une liste combinée de tous les vins (cave + dégustés)
   const allWines = [
@@ -164,6 +198,7 @@ export default function EditableWineDetailsScreen({
         sweetness: 0
       });
       setDescription(safeWine.description || '');
+      
       // Initialiser les données d'édition
       if (isFromOcr) {
         setEditedWine({
@@ -192,6 +227,61 @@ export default function EditableWineDetailsScreen({
     loadReferenceData();
   }, []);
 
+  // Charger les régions quand le pays change
+  useEffect(() => {
+    if (safeWine?.country) {
+      loadRegionsByCountry(safeWine.country);
+    }
+  }, [safeWine?.country]);
+
+  // Charger les appellations quand la région change
+  useEffect(() => {
+    if (safeWine?.region) {
+      loadAppellationsByRegion(safeWine.region);
+    }
+  }, [safeWine?.region]);
+
+  // Charger les cépages quand l'appellation change
+  useEffect(() => {
+    if (safeWine?.appellation) {
+      loadGrapesByAppellation(safeWine.appellation);
+    }
+  }, [safeWine?.appellation]);
+
+  // Recharger les pays quand la modale s'ouvre
+  useEffect(() => {
+    if (showCountryPicker && countries.length === 0) {
+      console.log('🔄 Rechargement des pays car modale ouverte et liste vide');
+      loadReferenceData();
+    }
+  }, [showCountryPicker, countries.length]);
+
+  // Charger les pays pour les clés étrangères (utilise la variable countries existante)
+  useEffect(() => {
+    const loadCountriesForForeignKeys = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('wine_countries')
+          .select('id, name')
+          .order('name');
+        if (error) throw error;
+        // Mettre à jour la variable countries existante avec les données nécessaires
+        setCountries(prev => {
+          const existingCountries = prev || [];
+          const newCountries = data || [];
+          // Fusionner les données existantes avec les nouvelles
+          return newCountries.map(country => ({
+            ...country,
+            flag_emoji: existingCountries.find(c => c.id === country.id)?.flag_emoji || '🏳️'
+          }));
+        });
+      } catch (error) {
+        console.error('Erreur chargement pays:', error);
+      }
+    };
+    loadCountriesForForeignKeys();
+  }, []);
+
   const loadReferenceData = async () => {
     try {
       // Charger les années (1800 à année actuelle)
@@ -201,12 +291,14 @@ export default function EditableWineDetailsScreen({
 
       // Charger les pays
       const { data: countriesData } = await supabase
-        .from('country')
+        .from('wine_countries')
         .select('id, name, flag_emoji')
         .order('name');
       if (countriesData) {
+        console.log('🌍 Pays chargés:', countriesData.length, 'pays');
         setCountries(countriesData);
         setFilteredCountries(countriesData);
+        setIsCountriesLoaded(true);
       }
 
       // Charger les appellations
@@ -222,9 +314,73 @@ export default function EditableWineDetailsScreen({
         .select('id, name')
         .order('name');
       if (grapesData) setGrapeVarieties(grapesData);
+      
+      // Charger les régions si un pays est sélectionné
+      if (safeWine?.country) {
+        await loadRegionsByCountry(safeWine.country);
+      }
     } catch (error) {
       console.error('Erreur chargement données référence:', error);
     }
+  };
+
+  // Fonctions pour charger la hiérarchie viticole
+  const loadRegionsByCountry = async (countryName: string) => {
+    try {
+      const { data, error } = await supabase.rpc('get_regions_by_country', {
+        country_name: countryName
+      });
+      if (error) throw error;
+      setRegions(data || []);
+    } catch (error) {
+      console.error('Erreur chargement régions:', error);
+    }
+  };
+
+  const loadAppellationsByRegion = async (regionName: string) => {
+    try {
+      const { data, error } = await supabase.rpc('get_appellations_by_region', {
+        region_name: regionName
+      });
+      if (error) throw error;
+      setAppellations(data || []);
+    } catch (error) {
+      console.error('Erreur chargement appellations:', error);
+    }
+  };
+
+  const loadGrapesByAppellation = async (appellationName: string) => {
+    try {
+      const { data, error } = await supabase.rpc('get_grapes_by_appellation', {
+        appellation_name: appellationName
+      });
+      if (error) throw error;
+      setGrapes(data || []);
+    } catch (error) {
+      console.error('Erreur chargement cépages:', error);
+    }
+  };
+
+  // Fonctions de filtrage pour la recherche
+  const getFilteredRegions = () => {
+    if (!regionSearchText.trim()) return regions;
+    return regions.filter(region => 
+      region.name.toLowerCase().includes(regionSearchText.toLowerCase())
+    );
+  };
+
+  const getFilteredAppellations = () => {
+    if (!appellationSearchText.trim()) return appellations;
+    return appellations.filter(appellation => 
+      appellation.name.toLowerCase().includes(appellationSearchText.toLowerCase())
+    );
+  };
+
+  const getFilteredGrapes = () => {
+    if (!grapesSearchText.trim()) return grapes;
+    return grapes.filter(grape => 
+      grape.name.toLowerCase().includes(grapesSearchText.toLowerCase())
+    );
   };
 
   // Filtrer les pays selon la recherche
@@ -628,6 +784,17 @@ export default function EditableWineDetailsScreen({
     }
   };
 
+  // Fonction pour obtenir la couleur des cépages
+  const getGrapeColor = (color: string) => {
+    switch (color) {
+      case 'red': return '#8B0000';
+      case 'white': return '#F5F5DC';
+      case 'rose': return '#FFB6C1';
+      case 'sparkling': return '#FFF8DC';
+      default: return '#666666';
+    }
+  };
+
   // Fonction pour rendre les étoiles
   const renderStars = (currentRating: number, onPress?: (rating: number) => void) => {
     return (
@@ -835,60 +1002,46 @@ export default function EditableWineDetailsScreen({
           {/* Région */}
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Région</Text>
-            <TextInput
+            <TouchableOpacity 
               style={styles.detailValue}
-              value={editingFields.region !== undefined ? editingFields.region : (safeWine.region || '')}
-              onChangeText={(text) => handleFieldChange('region', text)}
-              onFocus={() => handleFieldFocus('region', safeWine.region || '', 'Languedoc-Roussillon')}
-              onBlur={() => handleFieldBlur('region')}
-              placeholder="Languedoc-Roussillon"
-              placeholderTextColor="#666"
-              autoCorrect={false}
-              autoCapitalize="words"
-            />
+              onPress={() => setShowRegionPicker(true)}
+            >
+              <Text style={styles.detailValueText}>
+                {safeWine.region || 'Sélectionner'}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
+            </TouchableOpacity>
           </View>
 
           {/* Appellation */}
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Appellation</Text>
-            <TextInput
+            <TouchableOpacity 
               style={styles.detailValue}
-              value={editingFields.appellation !== undefined ? editingFields.appellation : (safeWine.appellation || '')}
-              onChangeText={(text) => handleFieldChange('appellation', text)}
-              onFocus={() => handleFieldFocus('appellation', safeWine.appellation || '', 'IGP Gard')}
-              onBlur={() => handleFieldBlur('appellation')}
-              placeholder="IGP Gard"
-              placeholderTextColor="#666"
-              autoCorrect={false}
-              autoCapitalize="words"
-            />
+              onPress={() => setShowAppellationPicker(true)}
+            >
+              <Text style={styles.detailValueText}>
+                {safeWine.appellation || 'Sélectionner'}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
+            </TouchableOpacity>
           </View>
 
           {/* Cépages */}
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Cépage</Text>
-            <TextInput
+            <TouchableOpacity 
               style={styles.detailValue}
-              value={editingFields.grapes !== undefined ? editingFields.grapes : (Array.isArray(safeWine?.grapes) ? safeWine.grapes.join(', ') : '')}
-              onChangeText={(text) => handleFieldChange('grapes', text)}
-              onFocus={() => handleFieldFocus('grapes', Array.isArray(safeWine?.grapes) ? safeWine.grapes.join(', ') : '', 'Syrah, Grenache')}
-              onBlur={() => {
-                const value = editingFields.grapes;
-                if (value !== undefined) {
-                                  const grapes = value.split(',').map(g => g.trim()).filter(g => g.length > 0);
-                handleFieldUpdate('grapes', grapes.join(', '));
-                  setEditingFields(prev => {
-                    const newFields = { ...prev };
-                    delete newFields.grapes;
-                    return newFields;
-                  });
+              onPress={() => setShowGrapesPicker(true)}
+            >
+              <Text style={styles.detailValueText}>
+                {Array.isArray(safeWine?.grapes) && safeWine.grapes.length > 0 
+                  ? safeWine.grapes.join(', ') 
+                  : 'Sélectionner'
                 }
-              }}
-              placeholder="Syrah, Grenache"
-              placeholderTextColor="#666"
-              autoCorrect={false}
-              autoCapitalize="words"
-            />
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -1022,57 +1175,67 @@ export default function EditableWineDetailsScreen({
             activeOpacity={1}
             onPress={(e) => e.stopPropagation()}
           >
-            <KeyboardAvoidingView 
+            <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.pickerModal}
-            >
-            <Text style={styles.pickerTitle}>Sélectionner le type de vin</Text>
-            
-            <FlatList
-              data={[
-                { key: 'red', label: 'Rouge', color: VeeniColors.wine.red },
-                { key: 'white', label: 'Blanc', color: VeeniColors.wine.white },
-                { key: 'rose', label: 'Rosé', color: VeeniColors.wine.rose },
-                { key: 'sparkling', label: 'Effervescent', color: VeeniColors.wine.sparkling },
+              style={[
+                styles.pickerModal,
+                { height: getModalHeight(4, false, false) }
               ]}
-              keyExtractor={(item) => item.key}
-              renderItem={({ item, index }) => (
-                <TouchableOpacity
-                  style={index === 3 ? styles.pickerItemLast : styles.pickerItem}
-                  onPress={() => {
-                    // Fermer le modal immédiatement
-                    setShowColorPicker(false);
-                    
-                    // Sauvegarder en arrière-plan
-                    (async () => {
-                      try {
-                        console.log('🍷 Sauvegarde type:', item.key, 'pour vin:', wineId);
-                        await updateWine(wineId, { color: item.key });
-                        console.log('✅ Type sauvegardé, rechargement...');
-                        await fetchWines();
-                        console.log('✅ Données rechargées');
-                      } catch (error) {
-                        console.error('❌ Erreur sauvegarde type:', error);
-                        Alert.alert('Erreur', 'Impossible de sauvegarder le type');
-                      }
-                    })();
-                  }}
-                >
-                  <View style={styles.pickerItemContent}>
-                    <Ionicons 
-                      name="wine" 
-                      size={16} 
-                      color={item.color}
-                      style={styles.pickerItemIcon}
-                    />
-                    <Text style={styles.pickerItemText}>
-                      {item.label}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-              style={styles.pickerList}
-            />
+            >
+            <View style={styles.modalHeader}>
+              <Text style={styles.pickerTitle}>Sélectionner le type de vin</Text>
+              <TouchableOpacity onPress={() => setShowColorPicker(false)} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.pickerContentContainer}>
+              <FlatList
+                data={[
+                  { key: 'red', label: 'Rouge', color: VeeniColors.wine.red },
+                  { key: 'white', label: 'Blanc', color: VeeniColors.wine.white },
+                  { key: 'rose', label: 'Rosé', color: VeeniColors.wine.rose },
+                  { key: 'sparkling', label: 'Effervescent', color: VeeniColors.wine.sparkling },
+                ]}
+                keyExtractor={(item) => item.key}
+                renderItem={({ item, index }) => (
+                  <TouchableOpacity
+                    style={index === 3 ? styles.pickerItemLast : styles.pickerItem}
+                    onPress={() => {
+                      // Fermer le modal immédiatement
+                      setShowColorPicker(false);
+                      
+                      // Sauvegarder en arrière-plan
+                      (async () => {
+                        try {
+                          console.log('🍷 Sauvegarde type:', item.key, 'pour vin:', wineId);
+                          await updateWine(wineId, { color: item.key });
+                          console.log('✅ Type sauvegardé, rechargement...');
+                          await fetchWines();
+                          console.log('✅ Données rechargées');
+                        } catch (error) {
+                          console.error('❌ Erreur sauvegarde type:', error);
+                          Alert.alert('Erreur', 'Impossible de sauvegarder le type');
+                        }
+                      })();
+                    }}
+                  >
+                    <View style={styles.pickerItemContent}>
+                      <Ionicons 
+                        name="wine" 
+                        size={16} 
+                        color={item.color}
+                        style={styles.pickerItemIcon}
+                      />
+                      <Text style={styles.pickerItemText}>
+                        {item.label}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+                style={styles.pickerList}
+              />
+            </View>
             </KeyboardAvoidingView>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -1139,30 +1302,508 @@ export default function EditableWineDetailsScreen({
             activeOpacity={1}
             onPress={(e) => e.stopPropagation()}
           >
-            <View style={styles.pickerModal}>
-              <Text style={styles.pickerTitle}>Sélectionner le millésime</Text>
-              <FlatList
-                data={vintageYears}
-                keyExtractor={(item) => item.toString()}
-                renderItem={({ item, index }) => (
+            <View style={[
+              styles.pickerModal,
+              { height: getModalHeight(Math.max(vintageYears.length, 1), false, false) }
+            ]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.pickerTitle}>Sélectionner le millésime</Text>
+                <TouchableOpacity onPress={() => setShowVintagePicker(false)} style={styles.closeButton}>
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.pickerContentContainer}>
+                <FlatList
+                  data={vintageYears}
+                  keyExtractor={(item) => item.toString()}
+                  renderItem={({ item, index }) => (
+                    <TouchableOpacity
+                      style={index === vintageYears.length - 1 ? styles.pickerItemLast : styles.pickerItem}
+                      onPress={async () => {
+                        try {
+                          await updateWine(wineId, { vintage: item });
+                          await fetchWines();
+                          setShowVintagePicker(false);
+                        } catch (error) {
+                          console.error('Erreur sauvegarde millésime:', error);
+                          Alert.alert('Erreur', 'Impossible de sauvegarder le millésime');
+                        }
+                      }}
+                    >
+                      <Text style={styles.pickerItemText}>{item}</Text>
+                    </TouchableOpacity>
+                  )}
+                  style={styles.pickerList}
+                />
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Modal sélection région */}
+      <Modal
+        visible={showRegionPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowRegionPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowRegionPicker(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={[
+              styles.pickerModal,
+              { height: getModalHeight(Math.max(regions.length, 1), regions.length > 5, true) }
+            ]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.pickerTitle}>Sélectionner la région</Text>
+                <TouchableOpacity onPress={() => setShowRegionPicker(false)} style={styles.closeButton}>
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+              
+              {/* Champ de recherche */}
+              {regions.length > 5 && (
+                <View style={styles.searchContainer}>
+                  <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Rechercher une région..."
+                    placeholderTextColor="#666"
+                    value={regionSearchText}
+                    onChangeText={setRegionSearchText}
+                    autoCorrect={false}
+                    autoCapitalize="words"
+                    onFocus={() => setKeyboardVisible(true)}
+                    onBlur={() => setKeyboardVisible(false)}
+                  />
+                </View>
+              )}
+              
+              <View style={styles.pickerContentContainer}>
+                {regions.length === 0 ? (
+                  <View style={styles.loadingContainer}>
+                    <Text style={styles.loadingText}>Chargement des régions...</Text>
+                  </View>
+                ) : getFilteredRegions().length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>Aucune région trouvée</Text>
+                  </View>
+                ) : (
+                  <FlatList
+                    data={getFilteredRegions()}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item, index }) => (
+                    <TouchableOpacity
+                      style={index === regions.length - 1 ? styles.pickerItemLast : styles.pickerItem}
+                      onPress={async () => {
+                        try {
+                          await updateWine(wineId, { region: item.name });
+                          await fetchWines();
+                          setShowRegionPicker(false);
+                          // Charger les appellations pour cette région
+                          await loadAppellationsByRegion(item.name);
+                        } catch (error) {
+                          console.error('Erreur sauvegarde région:', error);
+                          Alert.alert('Erreur', 'Impossible de sauvegarder la région');
+                        }
+                      }}
+                    >
+                      <Text style={styles.pickerItemText}>{item.name}</Text>
+                    </TouchableOpacity>
+                  )}
+                    style={styles.pickerList}
+                  />
+                )}
+                
+                {/* Champ de saisie libre pour ajouter une nouvelle région */}
+                <View style={styles.addNewItemContainer}>
+                  <Text style={styles.addNewItemLabel}>Ajouter une nouvelle région :</Text>
+                  <TextInput
+                    style={styles.addNewItemInput}
+                    placeholder="Nom de la région"
+                    placeholderTextColor="#666"
+                    value={newRegionName}
+                    onChangeText={setNewRegionName}
+                    autoCorrect={false}
+                    autoCapitalize="words"
+                    onFocus={() => setKeyboardVisible(true)}
+                    onBlur={() => setKeyboardVisible(false)}
+                  />
                   <TouchableOpacity
-                    style={index === vintageYears.length - 1 ? styles.pickerItemLast : styles.pickerItem}
+                    style={styles.addNewItemButton}
                     onPress={async () => {
-                      try {
-                        await updateWine(wineId, { vintage: item });
-                        await fetchWines();
-                        setShowVintagePicker(false);
-                      } catch (error) {
-                        console.error('Erreur sauvegarde millésime:', error);
-                        Alert.alert('Erreur', 'Impossible de sauvegarder le millésime');
+                      if (newRegionName.trim()) {
+                        try {
+                          // Vérifier si la région existe déjà (insensible à la casse)
+                          const existingRegion = regions.find(r => 
+                            r.name.toLowerCase() === newRegionName.trim().toLowerCase()
+                          );
+                          
+                          if (existingRegion) {
+                            Alert.alert('Région existante', 'Cette région existe déjà dans la liste');
+                            return;
+                          }
+                          
+                          // Trouver l'ID du pays
+                          const countryId = countries.find(c => c.name === safeWine?.country)?.id;
+                          if (!countryId) {
+                            Alert.alert('Erreur', 'Pays non trouvé. Veuillez d\'abord sélectionner un pays.');
+                            return;
+                          }
+                          
+                          // Ajouter la nouvelle région à la base de données
+                          const { data, error } = await supabase
+                            .from('wine_regions')
+                            .insert({
+                              name: newRegionName.trim(),
+                              country_id: countryId
+                            })
+                            .select()
+                            .single();
+                          
+                          if (error) throw error;
+                          
+                          // Mettre à jour la liste locale
+                          setRegions(prev => [...prev, data]);
+                          
+                          // Sélectionner la nouvelle région
+                          await updateWine(wineId, { region: data.name });
+                          await fetchWines();
+                          setShowRegionPicker(false);
+                          setNewRegionName('');
+                          
+                          Alert.alert('Succès', 'Nouvelle région ajoutée et sélectionnée');
+                        } catch (error) {
+                          console.error('Erreur ajout région:', error);
+                          Alert.alert('Erreur', 'Impossible d\'ajouter la région');
+                        }
                       }
                     }}
                   >
-                    <Text style={styles.pickerItemText}>{item}</Text>
+                    <Text style={styles.addNewItemButtonText}>Ajouter</Text>
                   </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Modal sélection appellation */}
+      <Modal
+        visible={showAppellationPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAppellationPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAppellationPicker(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={[
+              styles.pickerModal,
+              { height: getModalHeight(Math.max(appellations.length, 1), appellations.length > 5, true) }
+            ]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.pickerTitle}>Sélectionner l'appellation</Text>
+                <TouchableOpacity onPress={() => setShowAppellationPicker(false)} style={styles.closeButton}>
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+              
+              {/* Champ de recherche */}
+              {appellations.length > 5 && (
+                <View style={styles.searchContainer}>
+                  <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Rechercher une appellation..."
+                    placeholderTextColor="#666"
+                    value={appellationSearchText}
+                    onChangeText={setAppellationSearchText}
+                    autoCorrect={false}
+                    autoCapitalize="words"
+                    onFocus={() => setKeyboardVisible(true)}
+                    onBlur={() => setKeyboardVisible(false)}
+                  />
+                </View>
+              )}
+              
+              <View style={styles.pickerContentContainer}>
+                {appellations.length === 0 ? (
+                  <View style={styles.loadingContainer}>
+                    <Text style={styles.loadingText}>Aucune appellation trouvée</Text>
+                  </View>
+                ) : getFilteredAppellations().length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>Aucune appellation trouvée</Text>
+                  </View>
+                ) : (
+                  <FlatList
+                    data={getFilteredAppellations()}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item, index }) => (
+                    <TouchableOpacity
+                      style={index === appellations.length - 1 ? styles.pickerItemLast : styles.pickerItem}
+                      onPress={async () => {
+                        try {
+                          await updateWine(wineId, { appellation: item.name });
+                          await fetchWines();
+                          setShowAppellationPicker(false);
+                          // Charger les cépages pour cette appellation
+                          await loadGrapesByAppellation(item.name);
+                        } catch (error) {
+                          console.error('Erreur sauvegarde appellation:', error);
+                          Alert.alert('Erreur', 'Impossible de sauvegarder l\'appellation');
+                        }
+                      }}
+                    >
+                      <Text style={styles.pickerItemText}>{item.name}</Text>
+                    </TouchableOpacity>
+                  )}
+                    style={styles.pickerList}
+                  />
                 )}
-                style={styles.pickerList}
-              />
+                
+                {/* Champ de saisie libre pour ajouter une nouvelle appellation */}
+                <View style={styles.addNewItemContainer}>
+                <Text style={styles.addNewItemLabel}>Ajouter une nouvelle appellation :</Text>
+                <TextInput
+                  style={styles.addNewItemInput}
+                  placeholder="Nom de l'appellation"
+                  placeholderTextColor="#666"
+                  value={newAppellationName}
+                  onChangeText={setNewAppellationName}
+                  autoCorrect={false}
+                  autoCapitalize="words"
+                  onFocus={() => setKeyboardVisible(true)}
+                  onBlur={() => setKeyboardVisible(false)}
+                />
+                <TouchableOpacity
+                  style={styles.addNewItemButton}
+                  onPress={async () => {
+                    if (newAppellationName.trim()) {
+                      try {
+                        // Vérifier si l'appellation existe déjà (insensible à la casse)
+                        const existingAppellation = appellations.find(a => 
+                          a.name.toLowerCase() === newAppellationName.trim().toLowerCase()
+                        );
+                        
+                        if (existingAppellation) {
+                          Alert.alert('Appellation existante', 'Cette appellation existe déjà dans la liste');
+                          return;
+                        }
+                        
+                        // Trouver l'ID de la région actuelle
+                        const currentRegion = regions.find(r => r.name === safeWine?.region);
+                        if (!currentRegion) {
+                          Alert.alert('Erreur', 'Veuillez d\'abord sélectionner une région');
+                          return;
+                        }
+                        
+                        // Ajouter la nouvelle appellation à la base de données
+                        const { data, error } = await supabase
+                          .from('wine_appellations')
+                          .insert({
+                            name: newAppellationName.trim(),
+                            region_id: currentRegion.id
+                          })
+                          .select()
+                          .single();
+                        
+                        if (error) throw error;
+                        
+                        // Mettre à jour la liste locale
+                        setAppellations(prev => [...prev, data]);
+                        
+                        // Sélectionner la nouvelle appellation
+                        await updateWine(wineId, { appellation: data.name });
+                        await fetchWines();
+                        setShowAppellationPicker(false);
+                        setNewAppellationName('');
+                        
+                        Alert.alert('Succès', 'Nouvelle appellation ajoutée et sélectionnée');
+                      } catch (error) {
+                        console.error('Erreur ajout appellation:', error);
+                        Alert.alert('Erreur', 'Impossible d\'ajouter l\'appellation');
+                      }
+                    }
+                  }}
+                >
+                  <Text style={styles.addNewItemButtonText}>Ajouter</Text>
+                </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Modal sélection cépages */}
+      <Modal
+        visible={showGrapesPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowGrapesPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowGrapesPicker(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={[
+              styles.pickerModal,
+              { height: getModalHeight(Math.max(grapes.length, 1), grapes.length > 5, true) }
+            ]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.pickerTitle}>Sélectionner les cépages</Text>
+                <TouchableOpacity onPress={() => setShowGrapesPicker(false)} style={styles.closeButton}>
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+              
+              {/* Champ de recherche */}
+              {grapes.length > 5 && (
+                <View style={styles.searchContainer}>
+                  <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Rechercher un cépage..."
+                    placeholderTextColor="#666"
+                    value={grapesSearchText}
+                    onChangeText={setGrapesSearchText}
+                    autoCorrect={false}
+                    autoCapitalize="words"
+                    onFocus={() => setKeyboardVisible(true)}
+                    onBlur={() => setKeyboardVisible(false)}
+                  />
+                </View>
+              )}
+              
+              <View style={styles.pickerContentContainer}>
+                {grapes.length === 0 ? (
+                  <View style={styles.loadingContainer}>
+                    <Text style={styles.loadingText}>Aucun cépage trouvé</Text>
+                  </View>
+                ) : getFilteredGrapes().length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>Aucun cépage trouvé</Text>
+                  </View>
+                ) : (
+                  <FlatList
+                    data={getFilteredGrapes()}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item, index }) => (
+                    <TouchableOpacity
+                      style={index === grapes.length - 1 ? styles.pickerItemLast : styles.pickerItem}
+                      onPress={async () => {
+                        try {
+                          // Pour les cépages, on ajoute à la liste existante
+                          const currentGrapes = Array.isArray(safeWine?.grapes) ? safeWine.grapes : [];
+                          const newGrapes = currentGrapes.includes(item.name) 
+                            ? currentGrapes.filter(g => g !== item.name)
+                            : [...currentGrapes, item.name];
+                          
+                          await updateWine(wineId, { grapes: newGrapes });
+                          await fetchWines();
+                          setShowGrapesPicker(false);
+                        } catch (error) {
+                          console.error('Erreur sauvegarde cépages:', error);
+                          Alert.alert('Erreur', 'Impossible de sauvegarder les cépages');
+                        }
+                      }}
+                    >
+                      <View style={styles.grapeItem}>
+                        <Text style={styles.pickerItemText}>{item.name}</Text>
+                        <View style={[styles.grapeColorIndicator, { backgroundColor: getGrapeColor(item.color) }]} />
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                    style={styles.pickerList}
+                  />
+                )}
+                
+                {/* Champ de saisie libre pour ajouter un nouveau cépage */}
+                <View style={styles.addNewItemContainer}>
+                <Text style={styles.addNewItemLabel}>Ajouter un nouveau cépage :</Text>
+                <TextInput
+                  style={styles.addNewItemInput}
+                  placeholder="Nom du cépage"
+                  placeholderTextColor="#666"
+                  value={newGrapeName}
+                  onChangeText={setNewGrapeName}
+                  autoCorrect={false}
+                  autoCapitalize="words"
+                  onFocus={() => setKeyboardVisible(true)}
+                  onBlur={() => setKeyboardVisible(false)}
+                />
+                <TouchableOpacity
+                  style={styles.addNewItemButton}
+                  onPress={async () => {
+                    if (newGrapeName.trim()) {
+                      try {
+                        // Vérifier si le cépage existe déjà (insensible à la casse)
+                        const existingGrape = grapes.find(g => 
+                          g.name.toLowerCase() === newGrapeName.trim().toLowerCase()
+                        );
+                        
+                        if (existingGrape) {
+                          Alert.alert('Cépage existant', 'Ce cépage existe déjà dans la liste');
+                          return;
+                        }
+                        
+                        // Ajouter le nouveau cépage à la base de données
+                        const { data, error } = await supabase
+                          .from('wine_grape_varieties')
+                          .insert({
+                            name: newGrapeName.trim(),
+                            color: 'red' // Par défaut, on peut améliorer cela plus tard
+                          })
+                          .select()
+                          .single();
+                        
+                        if (error) throw error;
+                        
+                        // Mettre à jour la liste locale
+                        setGrapes(prev => [...prev, data]);
+                        
+                        // Ajouter le nouveau cépage à la sélection
+                        const currentGrapes = Array.isArray(safeWine?.grapes) ? safeWine.grapes : [];
+                        const newGrapes = [...currentGrapes, data.name];
+                        
+                        await updateWine(wineId, { grapes: newGrapes });
+                        await fetchWines();
+                        setShowGrapesPicker(false);
+                        setNewGrapeName('');
+                        
+                        Alert.alert('Succès', 'Nouveau cépage ajouté et sélectionné');
+                      } catch (error) {
+                        console.error('Erreur ajout cépage:', error);
+                        Alert.alert('Erreur', 'Impossible d\'ajouter le cépage');
+                      }
+                    }
+                  }}
+                >
+                  <Text style={styles.addNewItemButtonText}>Ajouter</Text>
+                </TouchableOpacity>
+                </View>
+              </View>
             </View>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -1194,63 +1835,85 @@ export default function EditableWineDetailsScreen({
           >
             <KeyboardAvoidingView 
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.pickerModal}
+              style={[
+                styles.pickerModal,
+                { height: getModalHeight(Math.max(countries.length, 1), countries.length > 5, false) }
+              ]}
             >
-            <Text style={styles.pickerTitle}>Sélectionner le pays</Text>
-            
-            {/* Champ de recherche */}
-            <View style={styles.searchContainer}>
-              <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Rechercher un pays..."
-                placeholderTextColor="#666"
-                value={countrySearchText}
-                onChangeText={filterCountries}
-                autoCorrect={false}
-                autoCapitalize="none"
-                autoFocus={true}
-                blurOnSubmit={false}
-                onFocus={() => console.log('🔍 Focus sur recherche pays')}
-                onBlur={() => console.log('🔍 Blur sur recherche pays')}
-              />
+            <View style={styles.modalHeader}>
+              <Text style={styles.pickerTitle}>Sélectionner le pays</Text>
+              <TouchableOpacity onPress={() => setShowCountryPicker(false)} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
             </View>
             
-            <FlatList
-              data={filteredCountries}
-              keyExtractor={(item) => item.id}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item, index }) => (
-                <TouchableOpacity
-                  style={index === filteredCountries.length - 1 ? styles.pickerItemLast : styles.pickerItem}
-                  onPress={() => {
-                    // Fermer le modal immédiatement
-                    setShowCountryPicker(false);
-                    setCountrySearchText('');
-                    setFilteredCountries(countries);
-                    
-                    // Sauvegarder en arrière-plan
-                    (async () => {
-                      try {
-                        console.log('🌍 Sauvegarde pays:', item.name, 'pour vin:', wineId);
-                        await updateWine(wineId, { country: item.name });
-                        console.log('✅ Pays sauvegardé, rechargement...');
-                        await fetchWines();
-                        console.log('✅ Données rechargées');
-                      } catch (error) {
-                        console.error('❌ Erreur sauvegarde pays:', error);
-                        Alert.alert('Erreur', 'Impossible de sauvegarder le pays');
-                      }
-                    })();
-                  }}
-                >
-                  <Text style={styles.pickerItemText}>
-                    {item.flag_emoji} {item.name}
-                  </Text>
-                </TouchableOpacity>
+            {/* Champ de recherche */}
+            {countries.length > 5 && (
+              <View style={styles.searchContainer}>
+                <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Rechercher un pays..."
+                  placeholderTextColor="#666"
+                  value={countrySearchText}
+                  onChangeText={filterCountries}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  autoFocus={false}
+                  blurOnSubmit={false}
+                  onFocus={() => console.log('🔍 Focus sur recherche pays')}
+                  onBlur={() => console.log('🔍 Blur sur recherche pays')}
+                />
+              </View>
+            )}
+            
+            <View style={styles.pickerContentContainer}>
+              {!isCountriesLoaded ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>Chargement des pays...</Text>
+                </View>
+              ) : filteredCountries.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>Aucun pays trouvé</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={filteredCountries}
+                  keyExtractor={(item) => item.id}
+                  keyboardShouldPersistTaps="handled"
+                  renderItem={({ item, index }) => (
+                    <TouchableOpacity
+                      style={index === filteredCountries.length - 1 ? styles.pickerItemLast : styles.pickerItem}
+                      onPress={() => {
+                        // Fermer le modal immédiatement
+                        setShowCountryPicker(false);
+                        setCountrySearchText('');
+                        setFilteredCountries(countries);
+                        
+                        // Sauvegarder en arrière-plan
+                        (async () => {
+                          try {
+                            console.log('🌍 Sauvegarde pays:', item.name, 'pour vin:', wineId);
+                            await updateWine(wineId, { country: item.name });
+                            console.log('✅ Pays sauvegardé, rechargement...');
+                            await fetchWines();
+                            console.log('✅ Données rechargées');
+                          } catch (error) {
+                            console.error('❌ Erreur sauvegarde pays:', error);
+                            Alert.alert('Erreur', 'Impossible de sauvegarder le pays');
+                          }
+                        })();
+                      }}
+                    >
+                      <Text style={styles.pickerItemText}>
+                        {item.flag_emoji} {item.name}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  style={styles.pickerList}
+                />
               )}
-              style={styles.pickerList}
-            />
+            </View>
             </KeyboardAvoidingView>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -1272,30 +1935,40 @@ export default function EditableWineDetailsScreen({
             activeOpacity={1}
             onPress={(e) => e.stopPropagation()}
           >
-            <View style={styles.pickerModal}>
-              <Text style={styles.pickerTitle}>Sélectionner la gamme de prix</Text>
-              <FlatList
-                data={priceRanges}
-                keyExtractor={(item) => item}
-                renderItem={({ item, index }) => (
-                  <TouchableOpacity
-                    style={index === priceRanges.length - 1 ? styles.pickerItemLast : styles.pickerItem}
-                    onPress={async () => {
-                      try {
-                        await updateWine(wineId, { priceRange: item });
-                        await fetchWines();
-                        setShowPricePicker(false);
-                      } catch (error) {
-                        console.error('Erreur sauvegarde prix:', error);
-                        Alert.alert('Erreur', 'Impossible de sauvegarder la gamme de prix');
-                      }
-                    }}
-                  >
-                    <Text style={styles.pickerItemText}>{item}</Text>
-                  </TouchableOpacity>
-                )}
-                style={styles.pickerList}
-              />
+            <View style={[
+              styles.pickerModal,
+              { height: getModalHeight(Math.max(priceRanges.length, 1), false, false) }
+            ]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.pickerTitle}>Sélectionner la gamme de prix</Text>
+                <TouchableOpacity onPress={() => setShowPricePicker(false)} style={styles.closeButton}>
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.pickerContentContainer}>
+                <FlatList
+                  data={priceRanges}
+                  keyExtractor={(item) => item}
+                  renderItem={({ item, index }) => (
+                    <TouchableOpacity
+                      style={index === priceRanges.length - 1 ? styles.pickerItemLast : styles.pickerItem}
+                      onPress={async () => {
+                        try {
+                          await updateWine(wineId, { priceRange: item });
+                          await fetchWines();
+                          setShowPricePicker(false);
+                        } catch (error) {
+                          console.error('Erreur sauvegarde prix:', error);
+                          Alert.alert('Erreur', 'Impossible de sauvegarder la gamme de prix');
+                        }
+                      }}
+                    >
+                      <Text style={styles.pickerItemText}>{item}</Text>
+                    </TouchableOpacity>
+                  )}
+                  style={styles.pickerList}
+                />
+              </View>
             </View>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -1321,6 +1994,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#2a2a2a',
   },
   loadingText: {
     fontSize: 16,
@@ -1589,9 +2263,9 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'flex-start',
-    paddingTop: 100, // Position sous la barre de navigation
+    paddingTop: 100, // Position sous la topbar
   },
   modalContent: {
     backgroundColor: '#2a2a2a',
@@ -1628,23 +2302,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#2a2a2a',
     margin: 20,
     borderRadius: 12,
-    maxHeight: 400,
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    paddingBottom: 10,
   },
   pickerTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#FFFFFF',
     textAlign: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
+    flex: 1,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  pickerContentContainer: {
+    flex: 1,
+    flexDirection: 'column',
+    backgroundColor: '#2a2a2a',
+    minHeight: 100,
   },
   pickerList: {
-    maxHeight: 350, // Réduit pour laisser de la place au champ de recherche
+    flex: 1,
+    minHeight: 100,
   },
   pickerItem: {
     padding: 16,
@@ -1665,6 +2350,52 @@ const styles = StyleSheet.create({
   pickerItemText: {
     fontSize: 16,
     color: '#FFFFFF',
+  },
+  grapeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  grapeColorIndicator: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    marginLeft: 12,
+  },
+  addNewItemContainer: {
+    padding: 16,
+    backgroundColor: '#2a2a2a',
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    marginTop: 'auto',
+    minHeight: 120,
+  },
+  addNewItemLabel: {
+    fontSize: 14,
+    color: '#CCCCCC',
+    marginBottom: 8,
+  },
+  addNewItemInput: {
+    backgroundColor: '#2a2a2a',
+    borderWidth: 1,
+    borderColor: '#444',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  addNewItemButton: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  addNewItemButtonText: {
+    color: '#333333',
+    fontSize: 16,
+    fontWeight: '600',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -1702,5 +2433,25 @@ const styles = StyleSheet.create({
   criteriaStars: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    color: '#CCCCCC',
+    fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyText: {
+    color: '#CCCCCC',
+    fontSize: 16,
   },
 });

@@ -192,24 +192,25 @@ export const WineCard: React.FC<WineCardProps> = ({
             <Text style={styles.wineName} numberOfLines={2}>{truncateText(safeWine.name || 'Nom inconnu', 40)}</Text>
           </View>
           
-          {/* Section centrale : informations du vin */}
+          {/* Section centrale : informations du vin - ordre spécifique */}
           <View style={styles.wineInfoSection}>
-            {/* Millésime */}
-            {safeWine.vintage && (
-              <Text style={styles.vintageText}>{String(safeWine.vintage)}</Text>
-            )}
-            
-            {/* Domaine/Producteur */}
+            {/* 1. Domaine/Producteur */}
             {safeWine.domaine && safeWine.domaine !== 'Domaine inconnu' && (
               <Text style={styles.domaine} numberOfLines={1}>{truncateText(safeWine.domaine, 35)}</Text>
             )}
             
-            {/* Type de vin avec icône */}
+            {/* 2. Millésime */}
+            {safeWine.vintage && (
+              <Text style={styles.vintageText}>{String(safeWine.vintage)}</Text>
+            )}
+            
+            {/* 3. Type de vin avec icône */}
             <View style={styles.wineTypeRow}>
               <Ionicons 
                 name={getWineTypeIcon(safeWine.color)} 
-                size={14} 
-                color={getWineTypeColor(safeWine.color)} 
+                size={16} 
+                color={getWineTypeColor(safeWine.color)}
+                style={styles.wineTypeIcon}
               />
               <Text style={styles.wineTypeText}>
                 {safeWine.color === 'red' ? 'Rouge' : 
@@ -218,25 +219,21 @@ export const WineCard: React.FC<WineCardProps> = ({
               </Text>
             </View>
             
-            {/* Région + Pays avec drapeau */}
+            {/* 4. Région et Pays sur la même ligne */}
             {(safeWine.region || safeWine.country) && (
-              <View style={styles.regionRow}>
-                {safeWine.region && (
-                  <Text style={styles.region} numberOfLines={1}>
-                    {safeWine.region}
-                  </Text>
-                )}
-                {safeWine.country && (
-                  <Text style={styles.countryFlag}>
-                    {getCountryFlag(safeWine.country)} {safeWine.country}
-                  </Text>
-                )}
-              </View>
+              <Text style={styles.regionCountryText} numberOfLines={1}>
+                {safeWine.region && safeWine.country ? 
+                  `${safeWine.region}, ${getCountryFlag(safeWine.country)} ${safeWine.country}` :
+                  safeWine.region ? 
+                    safeWine.region :
+                    `${getCountryFlag(safeWine.country)} ${safeWine.country}`
+                }
+              </Text>
             )}
             
-            {/* Cépages */}
+            {/* 6. Cépages */}
             {safeWine.grapes.length > 0 && (
-              <Text style={styles.grapes} numberOfLines={1}>
+              <Text style={styles.grapesText} numberOfLines={1}>
                 {safeWine.grapes.slice(0, 3).join(', ')}
                 {safeWine.grapes.length > 3 && '...'}
               </Text>
@@ -500,13 +497,13 @@ const styles = StyleSheet.create({
   vintageText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    fontWeight: '400',
+    marginBottom: 10,
   },
   infoCol: {
     flex: 1,
     padding: 6,
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   headerRow: {
     flexDirection: 'row',
@@ -521,26 +518,30 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   domaine: {
-    color: '#CCC',
+    color: '#FFFFFF',
     fontSize: 16,
-    marginBottom: 4,
+    fontWeight: 'bold',
+    marginBottom: 12,
   },
-  region: {
-    color: '#999',
-    fontSize: 14,
-    marginBottom: 2,
+  regionCountryText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '400',
+    marginBottom: 6,
   },
-  grapes: {
-    color: '#999',
-    fontSize: 14,
-    fontStyle: 'italic',
-    marginBottom: 4,
+  grapesText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '400',
+    marginTop: 6,
+    marginBottom: 6,
   },
   priceRange: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#FFD700',
     fontWeight: 'bold',
-    marginTop: 4,
+    marginTop: 6,
+    marginBottom: 6,
   },
   ratingContainer: {
     flexDirection: 'row',
@@ -557,7 +558,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
   },
   stockText: {
     color: '#FFFFFF',
@@ -572,19 +572,23 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   bottomSection: {
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-start',
   },
   // Nouveaux styles pour les informations ajoutées
   wineTypeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 10,
+  },
+  wineTypeIcon: {
+    marginTop: -2, // Ajustement pour aligner l'icône avec le texte
   },
   wineTypeText: {
-    color: '#999',
-    fontSize: 14,
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '400',
     marginLeft: 4,
-    textTransform: 'capitalize',
+    marginBottom: 6,
   },
   regionRow: {
     flexDirection: 'row',

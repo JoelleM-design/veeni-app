@@ -43,59 +43,90 @@ export const ActiveFiltersBar: React.FC<ActiveFiltersBarProps> = ({
 
   return (
     <View style={styles.container}>
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {selectedFilters.map((filterKey) => {
-          const color = getFilterColor(filterKey);
-          const icon = getFilterIcon(filterKey);
-          
-          return (
-            <TouchableOpacity
-              key={filterKey}
-              style={styles.filterChip}
-              onPress={() => onRemoveFilter(filterKey)}
-            >
-              <View style={styles.filterChipContent}>
-                {color && (
-                  <View style={[
-                    styles.colorIndicator,
-                    { backgroundColor: color }
-                  ]} />
-                )}
-                {icon && (
+      {selectedFilters.length === 1 ? (
+        // Un seul filtre : pas de scroll, aligné à gauche
+        <View style={styles.singleFilterContainer}>
+          {selectedFilters.map((filterKey) => {
+            const color = getFilterColor(filterKey);
+            const icon = getFilterIcon(filterKey);
+            
+            return (
+              <TouchableOpacity
+                key={filterKey}
+                style={styles.filterChip}
+                onPress={() => onRemoveFilter(filterKey)}
+              >
+                <View style={styles.filterChipContent}>
+                  {icon && (
+                    <Ionicons 
+                      name={icon as any} 
+                      size={12} 
+                      color={color || "#FFF"} 
+                      style={styles.filterIcon}
+                    />
+                  )}
+                  <Text style={styles.filterChipText}>
+                    {getFilterLabel(filterKey)}
+                  </Text>
                   <Ionicons 
-                    name={icon as any} 
-                    size={12} 
+                    name="close-circle" 
+                    size={16} 
                     color="#FFF" 
-                    style={styles.filterIcon}
+                    style={styles.removeIcon}
                   />
-                )}
-                <Text style={styles.filterChipText}>
-                  {getFilterLabel(filterKey)}
-                </Text>
-                <Ionicons 
-                  name="close-circle" 
-                  size={16} 
-                  color="#FFF" 
-                  style={styles.removeIcon}
-                />
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-        
-        {selectedFilters.length > 1 && (
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : (
+        // Plusieurs filtres : scroll horizontal
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {selectedFilters.map((filterKey) => {
+            const color = getFilterColor(filterKey);
+            const icon = getFilterIcon(filterKey);
+            
+            return (
+              <TouchableOpacity
+                key={filterKey}
+                style={styles.filterChip}
+                onPress={() => onRemoveFilter(filterKey)}
+              >
+                <View style={styles.filterChipContent}>
+                  {icon && (
+                    <Ionicons 
+                      name={icon as any} 
+                      size={12} 
+                      color={color || "#FFF"} 
+                      style={styles.filterIcon}
+                    />
+                  )}
+                  <Text style={styles.filterChipText}>
+                    {getFilterLabel(filterKey)}
+                  </Text>
+                  <Ionicons 
+                    name="close-circle" 
+                    size={16} 
+                    color="#FFF" 
+                    style={styles.removeIcon}
+                  />
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+          
           <TouchableOpacity
             style={styles.clearAllButton}
             onPress={onClearAll}
           >
             <Text style={styles.clearAllText}>Tout effacer</Text>
           </TouchableOpacity>
-        )}
-      </ScrollView>
+        </ScrollView>
+      )}
     </View>
   );
 };
@@ -103,27 +134,28 @@ export const ActiveFiltersBar: React.FC<ActiveFiltersBarProps> = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#222',
-    paddingHorizontal: 16,
+    paddingHorizontal: 16, // Aligné avec SearchFilterBar
     paddingVertical: 8,
   },
+  singleFilterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   scrollContent: {
-    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 0,
   },
   filterChip: {
     backgroundColor: '#393C40', borderWidth: 0,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
+    marginRight: 8, // Espacement entre les filtres
   },
   filterChipContent: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  colorIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 6,
   },
   filterIcon: {
     marginRight: 4,

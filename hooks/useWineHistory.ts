@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useActiveCave } from './useActiveCave';
 import { useUser } from './useUser';
 
 export interface WineHistoryEntry {
@@ -34,21 +35,30 @@ export interface TastedWine {
 
 export function useWineHistory() {
   const { user } = useUser();
+  const { caveId, caveMode, isShared } = useActiveCave();
   const [history, setHistory] = useState<WineHistoryEntry[]>([]);
   const [tastedWines, setTastedWines] = useState<TastedWine[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Récupérer l'historique des dégustations
   const fetchHistory = async () => {
-    if (!user?.id) return;
+    if (!user?.id || !caveId) return;
     
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('wine_history')
         .select('*')
-        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
+
+      // Filtrer selon le mode actif
+      if (caveMode === 'user') {
+        query = query.eq('user_id', caveId);
+      } else {
+        query = query.eq('household_id', caveId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setHistory(data || []);
@@ -61,14 +71,14 @@ export function useWineHistory() {
 
   // Récupérer les vins dégustés (groupés par vin)
   const fetchTastedWines = async () => {
-    if (!user?.id) return;
+    if (!user?.id || !caveId) return;
     
     setLoading(true);
     try {
-      console.log('🔍 fetchTastedWines: Début de la récupération pour user:', user.id);
+      console.log('🔍 fetchTastedWines: Début de la récupération pour cave:', { caveId, caveMode });
       
       // Requête pour récupérer les vins dégustés
-      const { data: historyData, error: historyError } = await supabase
+      let query = supabase
         .from('wine_history')
         .select(`
           id,
@@ -77,9 +87,17 @@ export function useWineHistory() {
           rating,
           notes
         `)
-        .eq('user_id', user.id)
         .eq('event_type', 'tasted')
         .order('event_date', { ascending: false });
+
+      // Filtrer selon le mode actif
+      if (caveMode === 'user') {
+        query = query.eq('user_id', caveId);
+      } else {
+        query = query.eq('household_id', caveId);
+      }
+
+      const { data: historyData, error: historyError } = await query;
 
       console.log('📊 fetchTastedWines: Données récupérées:', {
         count: historyData?.length || 0,
@@ -123,11 +141,19 @@ export function useWineHistory() {
       }
 
       // Récupérer les favoris depuis user_wine
-      const { data: userWinesData, error: userWinesError } = await supabase
+      let userWinesQuery = supabase
         .from('user_wine')
         .select('wine_id, favorite')
-        .eq('user_id', user.id)
         .in('wine_id', wineIds);
+
+      // Filtrer selon le mode actif
+      if (caveMode === 'user') {
+        userWinesQuery = userWinesQuery.eq('user_id', caveId);
+      } else {
+        userWinesQuery = userWinesQuery.eq('household_id', caveId);
+      }
+
+      const { data: userWinesData, error: userWinesError } = await userWinesQuery;
 
       if (userWinesError) {
         console.warn('Erreur lors de la récupération des favoris:', userWinesError);
@@ -217,31 +243,46 @@ export function useWineHistory() {
 
   // Ajouter une dégustation
   const addTasting = async (wineId: string, note?: string) => {
-    if (!user?.id) return;
+    if (!user?.id || !caveId) return;
     
     try {
       // 1. Ajouter l'entrée dans wine_history
+      const historyData: any = {
+        wine_id: wineId,
+        event_type: 'tasted',
+        event_date: new Date().toISOString(),
+        notes: note || null
+      };
+
+      // Utiliser le bon champ selon le mode
+      if (caveMode === 'user') {
+        historyData.user_id = caveId;
+      } else {
+        historyData.household_id = caveId;
+      }
+
       const { data: historyEntry, error: historyError } = await supabase
         .from('wine_history')
-        .insert({
-          user_id: user.id,
-          wine_id: wineId,
-          event_type: 'tasted',
-          event_date: new Date().toISOString(),
-          notes: note || null
-        })
+        .insert(historyData)
         .select()
         .single();
 
       if (historyError) throw historyError;
 
       // 2. Décrémenter le stock dans user_wine
-      const { data: wineData, error: wineError } = await supabase
+      let wineQuery = supabase
         .from('user_wine')
         .select('amount')
-        .eq('user_id', user.id)
-        .eq('wine_id', wineId)
-        .single();
+        .eq('wine_id', wineId);
+
+      // Filtrer selon le mode actif
+      if (caveMode === 'user') {
+        wineQuery = wineQuery.eq('user_id', caveId);
+      } else {
+        wineQuery = wineQuery.eq('household_id', caveId);
+      }
+
+      const { data: wineData, error: wineError } = await wineQuery.single();
 
       if (wineError) throw wineError;
 
@@ -249,20 +290,36 @@ export function useWineHistory() {
 
       if (newAmount === 0) {
         // Si stock = 0, supprimer de user_wine
-        const { error: deleteError } = await supabase
+        let deleteQuery = supabase
           .from('user_wine')
           .delete()
-          .eq('user_id', user.id)
           .eq('wine_id', wineId);
+
+        // Filtrer selon le mode actif
+        if (caveMode === 'user') {
+          deleteQuery = deleteQuery.eq('user_id', caveId);
+        } else {
+          deleteQuery = deleteQuery.eq('household_id', caveId);
+        }
+
+        const { error: deleteError } = await deleteQuery;
 
         if (deleteError) throw deleteError;
       } else {
         // Sinon, mettre à jour le stock
-        const { error: updateError } = await supabase
+        let updateQuery = supabase
           .from('user_wine')
           .update({ amount: newAmount })
-          .eq('user_id', user.id)
           .eq('wine_id', wineId);
+
+        // Filtrer selon le mode actif
+        if (caveMode === 'user') {
+          updateQuery = updateQuery.eq('user_id', caveId);
+        } else {
+          updateQuery = updateQuery.eq('household_id', caveId);
+        }
+
+        const { error: updateError } = await updateQuery;
 
         if (updateError) throw updateError;
       }
@@ -280,36 +337,59 @@ export function useWineHistory() {
 
   // Réajouter un vin à la cave
   const reAddToCellar = async (wineId: string) => {
-    if (!user?.id) return;
+    if (!user?.id || !caveId) return;
     
     try {
       // Vérifier si le vin existe déjà dans la cave
-      const { data: existingWine } = await supabase
+      let existingQuery = supabase
         .from('user_wine')
         .select('amount')
-        .eq('user_id', user.id)
-        .eq('wine_id', wineId)
-        .single();
+        .eq('wine_id', wineId);
+
+      // Filtrer selon le mode actif
+      if (caveMode === 'user') {
+        existingQuery = existingQuery.eq('user_id', caveId);
+      } else {
+        existingQuery = existingQuery.eq('household_id', caveId);
+      }
+
+      const { data: existingWine } = await existingQuery.single();
 
       if (existingWine) {
         // Incrémenter le stock existant
-        const { error } = await supabase
+        let updateQuery = supabase
           .from('user_wine')
           .update({ amount: existingWine.amount + 1 })
-          .eq('user_id', user.id)
           .eq('wine_id', wineId);
+
+        // Filtrer selon le mode actif
+        if (caveMode === 'user') {
+          updateQuery = updateQuery.eq('user_id', caveId);
+        } else {
+          updateQuery = updateQuery.eq('household_id', caveId);
+        }
+
+        const { error } = await updateQuery;
 
         if (error) throw error;
       } else {
         // Créer une nouvelle entrée
+        const wineData: any = {
+          wine_id: wineId,
+          amount: 1,
+          origin: 'cellar'
+        };
+
+        // Utiliser le bon champ selon le mode
+        if (caveMode === 'user') {
+          wineData.user_id = caveId;
+        } else {
+          wineData.household_id = caveId;
+        }
+
         const { error } = await supabase
           .from('user_wine')
-          .insert({
-            user_id: user.id,
-            wine_id: wineId,
-            amount: 1,
-            origin: 'cellar'
-          });
+          .insert(wineData);
 
         if (error) throw error;
       }
@@ -344,11 +424,11 @@ export function useWineHistory() {
   };
 
   useEffect(() => {
-    if (user?.id) {
+    if (user?.id && caveId) {
       fetchHistory();
       fetchTastedWines();
     }
-  }, [user?.id]);
+  }, [user?.id, caveId, caveMode]);
 
   return {
     history,

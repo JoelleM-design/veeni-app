@@ -11,16 +11,16 @@ import { WineCard } from '../../components/WineCard';
 import { useStats } from '../../hooks/useStats';
 import { useWineHistory } from '../../hooks/useWineHistory';
 import { useWineList } from '../../hooks/useWineList';
-import { useWines } from '../../hooks/useWines';
+import { useWinesCorrected } from '../../hooks/useWinesCorrected';
 
 type WineListTab = 'cellar' | 'wishlist' | 'tasted';
 
 const FILTER_OPTIONS = [
-  { key: 'all', label: 'Tous', icon: 'list' },
-  { key: 'red', label: 'Rouges', icon: 'wine' },
-  { key: 'white', label: 'Blancs', icon: 'wine' },
-  { key: 'rose', label: 'Rosés', icon: 'wine' },
-  { key: 'sparkling', label: 'Effervescents', icon: 'wine' },
+  { key: 'all', label: 'Tous', icon: 'list', color: '#FFFFFF' },
+  { key: 'red', label: 'Rouge', icon: 'wine', color: '#FF4F8B' },
+  { key: 'white', label: 'Blanc', icon: 'wine', color: '#FFF8DC' },
+  { key: 'rose', label: 'Rosé', icon: 'wine', color: '#FFB6C1' },
+  { key: 'sparkling', label: 'Effervescent', icon: 'wine', color: '#FFD700' },
 ];
 
 const TABS = [
@@ -43,7 +43,7 @@ const WineCardWithSocial = ({
   onOpenTastingModal: (wine: any) => void;
   setRefreshKey: (value: React.SetStateAction<number>) => void;
 }) => {
-  const { wines, updateWine } = useWines();
+  const { wines, updateWine } = useWinesCorrected();
   const { refreshStats } = useStats(); // Nouveau hook SWR
   const freshWine = wines.find(w => w?.id === wine.id);
   const wineToDisplay = freshWine || wine;
@@ -120,7 +120,7 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
   const [selectedTastedWine, setSelectedTastedWine] = useState<any>(null);
 
   const wines = useWineList(tab);
-  const { wines: allWines, updateWine, cleanupDuplicates } = useWines();
+  const { wines: allWines, updateWine, cleanupDuplicates } = useWinesCorrected();
   const { addTasting, reAddToCellar, tastedWines } = useWineHistory();
   const { stats, isLoading: statsLoading, error: statsError, refreshStats } = useStats(); // Utilise simplement useStats
   
@@ -306,25 +306,26 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
 
   return (
     <SafeAreaView style={styles.safeContainer}>
+      {/* Barre de navigation fixe */}
+      <View style={styles.fixedHeader}>
+        <View style={styles.tabRow}>
+          {TABS.map(t => (
+            <TouchableOpacity
+              key={t.key}
+              style={[styles.tabBtn, tab === t.key && styles.tabBtnActive]}
+              onPress={() => setTab(t.key as WineListTab)}
+            >
+              <Text style={[styles.tabLabel, tab === t.key && styles.tabLabelActive]}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+      
       <ScrollView 
         style={styles.scrollContainer}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Barre de navigation fixe */}
-        <View style={styles.fixedHeader}>
-          <View style={styles.tabRow}>
-            {TABS.map(t => (
-              <TouchableOpacity
-                key={t.key}
-                style={[styles.tabBtn, tab === t.key && styles.tabBtnActive]}
-                onPress={() => setTab(t.key as WineListTab)}
-              >
-                <Text style={[styles.tabLabel, tab === t.key && styles.tabLabelActive]}>{t.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
             {(() => {
               // Utiliser les stats SWR pour "Ma cave" et "Mes envies", localStats pour "Dégustés"
               const statsToUse = tab === 'tasted' ? localStats : {
@@ -460,6 +461,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 16,
     zIndex: 10,
+    position: 'relative',
   },
   tabRow: {
     flexDirection: 'row',
