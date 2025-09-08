@@ -36,6 +36,26 @@ export default function OcrResultsScreen() {
     }
   }, [params.wines]);
 
+  // Écouter les retours depuis l'écran de détails
+  useEffect(() => {
+    const unsubscribe = router.addListener('focus', () => {
+      // Vérifier s'il y a des données mises à jour à recevoir
+      if (params.updatedWineData) {
+        try {
+          const updatedWine = JSON.parse(params.updatedWineData as string);
+          setDetectedWines(prev => prev.map(wine => 
+            wine.id === updatedWine.id ? updatedWine : wine
+          ));
+          console.log('🍷 Vin OCR mis à jour:', updatedWine);
+        } catch (e) {
+          console.error('Erreur parsing vin mis à jour:', e);
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [router, params.updatedWineData]);
+
   // Fonction pour nettoyer les fichiers locaux
   const cleanupLocalFiles = async (wine: Wine) => {
     if (wine.imageUri && wine.imageUri.startsWith('file://')) {
@@ -104,37 +124,18 @@ export default function OcrResultsScreen() {
     }
   };
 
-  const handleEditWine = async (wine: Wine) => {
-    if (isProcessing) return;
-    
-    try {
-      setIsProcessing(true);
-      console.log('Ajout temporaire pour édition:', wine);
-      
-      // Ajouter temporairement à la cave pour pouvoir l'éditer
-      const addedWine = await addWineToCellar({ ...wine, origin: 'cellar' as const, stock: 0 });
-      
-      // Nettoyer les fichiers locaux après ajout réussi
-      await cleanupLocalFiles(wine);
-      
-      // Retirer de la liste des vins détectés
-      setDetectedWines(prev => prev.filter(w => w.id !== wine.id));
-      
-      // Naviguer vers l'écran de détails du vin
-      router.push({
-        pathname: '/screens/EditableWineDetailsScreen',
-        params: { 
-          wineId: addedWine.id,
-          isFromOcr: true
-        }
-      });
-    } catch (error) {
-      console.error('Erreur ajout temporaire:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Impossible d\'ajouter le vin pour l\'édition';
-      Alert.alert('Attention', errorMessage);
-    } finally {
-      setIsProcessing(false);
-    }
+  const handleEditWine = (wine: Wine) => {
+    // Naviguer directement vers l'écran de détails du vin OCR
+    // Le vin n'est pas encore ajouté à la cave, c'est juste pour vérifier/modifier les infos
+    router.push({
+      pathname: '/screens/EditableWineDetailsScreen',
+      params: { 
+        wineId: wine.id, // Utiliser l'ID OCR temporaire
+        isFromOcr: true,
+        returnToOcr: true, // Indiquer qu'on doit revenir à l'écran OCR
+        wineData: JSON.stringify(wine) // Passer les données du vin OCR
+      }
+    });
   };
 
   if (detectedWines.length === 0) {

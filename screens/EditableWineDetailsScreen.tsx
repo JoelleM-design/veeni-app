@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Dimensions, FlatList, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, FlatList, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TastingNoteModal } from '../components/TastingNoteModal';
 import { VeeniColors } from '../constants/Colors';
@@ -14,7 +14,7 @@ import { supabase } from '../lib/supabase';
 const { width, height } = Dimensions.get('window');
 
 // Fonction utilitaire pour calculer la hauteur optimale des modales
-const getModalHeight = (itemCount: number, hasSearch: boolean, hasAddSection: boolean) => {
+const getModalHeight = (itemCount: number, hasSearch: boolean, hasAddSection: boolean, keyboardHeight: number = 0) => {
   const screenHeight = height;
   const baseHeight = 80; // Titre + header
   const searchHeight = hasSearch ? 60 : 0;
@@ -23,11 +23,14 @@ const getModalHeight = (itemCount: number, hasSearch: boolean, hasAddSection: bo
   const padding = 60; // Marges et padding augmentés
   
   const contentHeight = baseHeight + searchHeight + addSectionHeight + (itemCount * itemHeight) + padding;
-  const maxHeight = screenHeight * 0.8; // 80% de l'écran
+  
+  // Ajuster la hauteur maximale si le clavier est ouvert
+  const availableHeight = screenHeight - keyboardHeight - 100; // 100px de marge
+  const maxHeight = Math.min(screenHeight * 0.8, availableHeight);
   const minHeight = 300; // Augmenté pour s'assurer que le bouton n'est pas coupé
   
   const finalHeight = Math.min(Math.max(contentHeight, minHeight), maxHeight);
-  console.log(`📏 Modal height calculation: items=${itemCount}, search=${hasSearch}, add=${hasAddSection}, height=${finalHeight}`);
+  console.log(`📏 Modal height calculation: items=${itemCount}, search=${hasSearch}, add=${hasAddSection}, keyboard=${keyboardHeight}, height=${finalHeight}`);
   
   return finalHeight;
 };
@@ -79,6 +82,9 @@ export default function EditableWineDetailsScreen({
   const [isEditing, setIsEditing] = useState(isFromOcr);
   const [editedWine, setEditedWine] = useState<any>(null);
   
+  // Données du vin OCR passées via les paramètres
+  const [ocrWineData, setOcrWineData] = useState<any>(null);
+  
   // États pour les sélecteurs
   const [showVintagePicker, setShowVintagePicker] = useState(false);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
@@ -118,6 +124,7 @@ export default function EditableWineDetailsScreen({
   
   // États pour le clavier
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   
   // Options fixes
   const priceRanges = ['€', '€€', '€€€', '€€€€'];
@@ -154,14 +161,15 @@ export default function EditableWineDetailsScreen({
   }
 
   // Trouver le vin dans la liste combinée ou utiliser les données passées
-  const wine = wineDataFromParams || allWines.find(w => w?.id === wineId);
+  const wine = wineDataFromParams || ocrWineData || allWines.find(w => w?.id === wineId);
   console.log('[EditableWineDetailsScreen] Diagnostic:', { 
     wineId, 
     wineFound: !!wine, 
     allWinesCount: allWines.length,
     winesCount: wines.length,
     tastedWinesCount: tastedWines.length,
-    wineDataFromParams: !!wineDataFromParams
+    wineDataFromParams: !!wineDataFromParams,
+    ocrWineData: !!ocrWineData
   });
   const safeWine = wine || null;
 
@@ -225,6 +233,37 @@ export default function EditableWineDetailsScreen({
   // Charger les données de référence
   useEffect(() => {
     loadReferenceData();
+  }, []);
+
+  // Charger les données du vin OCR depuis les paramètres
+  useEffect(() => {
+    if (isFromOcr && params.wineData) {
+      try {
+        const wineData = JSON.parse(params.wineData as string);
+        setOcrWineData(wineData);
+        console.log('🍷 Données vin OCR chargées:', wineData);
+      } catch (error) {
+        console.error('Erreur parsing données vin OCR:', error);
+      }
+    }
+  }, [isFromOcr, params.wineData]);
+
+  // Gestion du clavier
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+      setKeyboardVisible(true);
+    });
+    
+    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
   }, []);
 
   // Charger les régions quand le pays change
@@ -409,7 +448,24 @@ export default function EditableWineDetailsScreen({
     if (!editedWine || !safeWine) return;
     
     try {
-      // Mettre à jour le vin avec les nouvelles données
+      // Si on vient de l'OCR avec des données temporaires, on ne sauvegarde pas en DB
+      // On met juste à jour les données locales et on retourne à l'écran OCR
+      if (isFromOcr && ocrWineData) {
+        console.log('🍷 Mise à jour des données OCR:', editedWine);
+        // Mettre à jour les données OCR locales
+        setOcrWineData(editedWine);
+        setIsEditing(false);
+        
+        // Retourner à l'écran OCR avec les données mises à jour
+        router.back();
+        // Passer les données mises à jour via les paramètres de navigation
+        setTimeout(() => {
+          router.setParams({ updatedWineData: JSON.stringify(editedWine) });
+        }, 100);
+        return;
+      }
+      
+      // Mettre à jour le vin avec les nouvelles données (cas normal)
       await updateWine(wineId, {
         name: editedWine.name,
         domaine: editedWine.domaine,
@@ -1179,7 +1235,7 @@ export default function EditableWineDetailsScreen({
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               style={[
                 styles.pickerModal,
-                { height: getModalHeight(4, false, false) }
+                { height: getModalHeight(4, false, false, keyboardHeight) }
               ]}
             >
             <View style={styles.modalHeader}>
@@ -1304,7 +1360,7 @@ export default function EditableWineDetailsScreen({
           >
             <View style={[
               styles.pickerModal,
-              { height: getModalHeight(Math.max(vintageYears.length, 1), false, false) }
+              { height: getModalHeight(Math.max(vintageYears.length, 1), false, false, keyboardHeight) }
             ]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.pickerTitle}>Sélectionner le millésime</Text>
@@ -1357,10 +1413,13 @@ export default function EditableWineDetailsScreen({
             activeOpacity={1}
             onPress={(e) => e.stopPropagation()}
           >
-            <View style={[
-              styles.pickerModal,
-              { height: getModalHeight(Math.max(regions.length, 1), regions.length > 5, true) }
-            ]}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={[
+                styles.pickerModal,
+                { height: getModalHeight(Math.max(regions.length, 1), regions.length > 5, true, keyboardHeight) }
+              ]}
+            >
               <View style={styles.modalHeader}>
                 <Text style={styles.pickerTitle}>Sélectionner la région</Text>
                 <TouchableOpacity onPress={() => setShowRegionPicker(false)} style={styles.closeButton}>
@@ -1491,7 +1550,7 @@ export default function EditableWineDetailsScreen({
                   </TouchableOpacity>
                 </View>
               </View>
-            </View>
+            </KeyboardAvoidingView>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -1512,10 +1571,13 @@ export default function EditableWineDetailsScreen({
             activeOpacity={1}
             onPress={(e) => e.stopPropagation()}
           >
-            <View style={[
-              styles.pickerModal,
-              { height: getModalHeight(Math.max(appellations.length, 1), appellations.length > 5, true) }
-            ]}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={[
+                styles.pickerModal,
+                { height: getModalHeight(Math.max(appellations.length, 1), appellations.length > 5, true, keyboardHeight) }
+              ]}
+            >
               <View style={styles.modalHeader}>
                 <Text style={styles.pickerTitle}>Sélectionner l'appellation</Text>
                 <TouchableOpacity onPress={() => setShowAppellationPicker(false)} style={styles.closeButton}>
@@ -1646,7 +1708,7 @@ export default function EditableWineDetailsScreen({
                 </TouchableOpacity>
                 </View>
               </View>
-            </View>
+            </KeyboardAvoidingView>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -1667,10 +1729,13 @@ export default function EditableWineDetailsScreen({
             activeOpacity={1}
             onPress={(e) => e.stopPropagation()}
           >
-            <View style={[
-              styles.pickerModal,
-              { height: getModalHeight(Math.max(grapes.length, 1), grapes.length > 5, true) }
-            ]}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={[
+                styles.pickerModal,
+                { height: getModalHeight(Math.max(grapes.length, 1), grapes.length > 5, true, keyboardHeight) }
+              ]}
+            >
               <View style={styles.modalHeader}>
                 <Text style={styles.pickerTitle}>Sélectionner les cépages</Text>
                 <TouchableOpacity onPress={() => setShowGrapesPicker(false)} style={styles.closeButton}>
@@ -1804,7 +1869,7 @@ export default function EditableWineDetailsScreen({
                 </TouchableOpacity>
                 </View>
               </View>
-            </View>
+            </KeyboardAvoidingView>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -1837,7 +1902,7 @@ export default function EditableWineDetailsScreen({
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               style={[
                 styles.pickerModal,
-                { height: getModalHeight(Math.max(countries.length, 1), countries.length > 5, false) }
+                { height: getModalHeight(Math.max(countries.length, 1), countries.length > 5, false, keyboardHeight) }
               ]}
             >
             <View style={styles.modalHeader}>
@@ -1937,7 +2002,7 @@ export default function EditableWineDetailsScreen({
           >
             <View style={[
               styles.pickerModal,
-              { height: getModalHeight(Math.max(priceRanges.length, 1), false, false) }
+              { height: getModalHeight(Math.max(priceRanges.length, 1), false, false, keyboardHeight) }
             ]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.pickerTitle}>Sélectionner la gamme de prix</Text>
