@@ -9,14 +9,6 @@ import type { Wine } from '../types/wine';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-function getMissingFields(wine: Wine) {
-  const missing: string[] = [];
-  if (!wine.name) missing.push('name');
-  if (!wine.vintage) missing.push('vintage');
-  if (!wine.region) missing.push('region');
-  if (!wine.grapes || wine.grapes.length === 0) missing.push('grapes');
-  return missing;
-}
 
 export default function OcrResultsScreen() {
   const router = useRouter();
@@ -112,20 +104,37 @@ export default function OcrResultsScreen() {
     }
   };
 
-  const handleEditWine = (wine: Wine) => {
-    // Pour les vins OCR, on ne peut pas les éditer directement car ils n'existent pas encore en DB
-    // On va plutôt les ajouter à la cave avec stock 0 et naviguer vers l'édition
-    Alert.alert(
-      'Modifier le vin',
-      'Pour modifier les informations du vin, ajoutez-le d\'abord à votre cave, puis vous pourrez l\'éditer.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { 
-          text: 'Ajouter à ma cave', 
-          onPress: () => handleAddToCellar({ ...wine, stock: 0 })
+  const handleEditWine = async (wine: Wine) => {
+    if (isProcessing) return;
+    
+    try {
+      setIsProcessing(true);
+      console.log('Ajout temporaire pour édition:', wine);
+      
+      // Ajouter temporairement à la cave pour pouvoir l'éditer
+      const addedWine = await addWineToCellar({ ...wine, origin: 'cellar' as const, stock: 0 });
+      
+      // Nettoyer les fichiers locaux après ajout réussi
+      await cleanupLocalFiles(wine);
+      
+      // Retirer de la liste des vins détectés
+      setDetectedWines(prev => prev.filter(w => w.id !== wine.id));
+      
+      // Naviguer vers l'écran de détails du vin
+      router.push({
+        pathname: '/screens/EditableWineDetailsScreen',
+        params: { 
+          wineId: addedWine.id,
+          isFromOcr: true
         }
-      ]
-    );
+      });
+    } catch (error) {
+      console.error('Erreur ajout temporaire:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Impossible d\'ajouter le vin pour l\'édition';
+      Alert.alert('Attention', errorMessage);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (detectedWines.length === 0) {
@@ -133,7 +142,7 @@ export default function OcrResultsScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color={VeeniColors.text.primary} />
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.title}>Vins détectés</Text>
           <View style={{ width: 24 }} />
@@ -152,7 +161,7 @@ export default function OcrResultsScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={VeeniColors.text.primary} />
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.title}>Vins détectés</Text>
         <Text style={styles.counter}>{detectedWines.length}</Text>
@@ -165,14 +174,10 @@ export default function OcrResultsScreen() {
             : `${detectedWines.length} vins détectés`
           }
         </Text>
-        <Text style={styles.instructions}>
-          Ajoutez directement le vin à votre cave ou vos envies. Vous pourrez modifier les informations après l'ajout.
-        </Text>
       </View>
       
       <ScrollView style={styles.winesList} showsVerticalScrollIndicator={false}>
         {detectedWines.map((wine) => {
-          const missingFields = getMissingFields(wine);
           return (
             <View key={wine.id} style={styles.wineCardContainer}>
               <WineCard 
@@ -181,15 +186,6 @@ export default function OcrResultsScreen() {
                 showStockButtons={false}
                 readOnly={true}
               />
-              
-              {missingFields.length > 0 && (
-                <View style={styles.missingFieldsWarning}>
-                  <Ionicons name="warning-outline" size={16} color="#FFFFFF" />
-                  <Text style={styles.missingFieldsText}>
-                    Informations manquantes : {missingFields.join(', ')}
-                  </Text>
-                </View>
-              )}
               
               <View style={styles.actionButtons}>
                 <TouchableOpacity 
@@ -201,7 +197,7 @@ export default function OcrResultsScreen() {
                   onPress={() => handleAddToCellar(wine)}
                   disabled={isProcessing}
                 >
-                  <Ionicons name="wine" size={20} color={VeeniColors.background} />
+                  <Ionicons name="wine" size={20} color="#000000" />
                   <Text style={styles.actionButtonText}>
                     {isProcessing ? 'Ajout...' : 'Ma cave'}
                   </Text>
@@ -215,7 +211,7 @@ export default function OcrResultsScreen() {
                   onPress={() => handleAddToWishlist(wine)}
                   disabled={isProcessing}
                 >
-                  <Ionicons name="heart" size={20} color={VeeniColors.background} />
+                  <Ionicons name="heart" size={20} color="#000000" />
                   <Text style={styles.actionButtonText}>
                     {isProcessing ? 'Ajout...' : 'Mes envies'}
                   </Text>
@@ -232,7 +228,7 @@ export default function OcrResultsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: VeeniColors.background,
+    backgroundColor: '#222',
   },
   header: {
     flexDirection: 'row',
@@ -248,11 +244,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: VeeniColors.text,
+    color: '#FFFFFF',
   },
   counter: {
     fontSize: 16,
-    color: VeeniColors.textSecondary,
+    color: '#CCCCCC',
     fontWeight: '500',
   },
   winesList: {
@@ -278,16 +274,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cellarButton: {
-    backgroundColor: VeeniColors.accent.primary,
+    backgroundColor: '#FFFFFF',
   },
   wishlistButton: {
-    backgroundColor: VeeniColors.accent.secondary,
+    backgroundColor: '#FFFFFF',
   },
   disabledButton: {
     opacity: 0.6,
   },
   actionButtonText: {
-    color: VeeniColors.background,
+    color: '#000000',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -299,7 +295,7 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 18,
-    color: VeeniColors.textSecondary,
+    color: '#CCCCCC',
     textAlign: 'center',
     marginBottom: 30,
   },
@@ -320,27 +316,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: VeeniColors.textSecondary,
+    color: '#CCCCCC',
     marginBottom: 10,
-  },
-  instructions: {
-    fontSize: 14,
-    color: VeeniColors.textSecondary,
-    lineHeight: 20,
-  },
-  missingFieldsWarning: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF3E0', // Light orange background
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginTop: 15,
-    marginBottom: 15,
-  },
-  missingFieldsText: {
-    fontSize: 13,
-    color: '#FFFFFF', // Orange text
-    marginLeft: 8,
   },
 }); 
