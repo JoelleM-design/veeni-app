@@ -108,6 +108,7 @@ async function callGoogleVisionAPI(images: string[], apiKey: string): Promise<Go
 
 // Fonction de parsing local intelligent améliorée
 function parseWineOcrLocal(rawText: string): ParsedWine {
+  console.log('🔍 TEXTE OCR BRUT COMPLET:', rawText);
   console.log('Parsing local du texte OCR:', rawText.substring(0, 200) + '...');
   
   let text = rawText;
@@ -210,6 +211,20 @@ function parseWineOcrLocal(rawText: string): ParsedWine {
       pays = data.country;
       console.log(`🍷 Appellation française détectée: ${appellationName} → ${région}, ${pays}`);
       break;
+    }
+  }
+  
+  // NOUVELLE LOGIQUE : Si l'IA a détecté une région qui est en fait une appellation
+  if (!appellation && région) {
+    const upperRegion = région.toUpperCase();
+    for (const [appellationName, data] of Object.entries(appellationsFrancaises)) {
+      if (upperRegion.includes(appellationName) || appellationName.includes(upperRegion)) {
+        appellation = appellationName;
+        région = data.region;
+        pays = data.country;
+        console.log(`🍷 Région convertie en appellation: ${région} → ${appellationName} (${data.region}, ${data.country})`);
+        break;
+      }
     }
   }
   
