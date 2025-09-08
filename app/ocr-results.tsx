@@ -125,12 +125,12 @@ export default function OcrResultsScreen() {
   const handleEditWine = (wine: Wine) => {
     // Naviguer directement vers l'écran de détails du vin OCR
     // Le vin n'est pas encore ajouté à la cave, c'est juste pour vérifier/modifier les infos
+    console.log('🍷 Navigation vers fiche détaillée:', wine);
     router.push({
-      pathname: '/screens/EditableWineDetailsScreen',
+      pathname: `/wine/${wine.id}`,
       params: { 
-        wineId: wine.id, // Utiliser l'ID OCR temporaire
-        isFromOcr: true,
-        returnToOcr: true, // Indiquer qu'on doit revenir à l'écran OCR
+        isFromOcr: 'true',
+        returnToOcr: 'true', // Indiquer qu'on doit revenir à l'écran OCR
         wineData: JSON.stringify(wine) // Passer les données du vin OCR
       }
     });
