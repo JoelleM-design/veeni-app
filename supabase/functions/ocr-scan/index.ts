@@ -22,6 +22,8 @@ interface ParsedWine {
   cépages: string[];
   type: 'Rouge' | 'Blanc' | 'Rosé' | 'Effervescent' | '';
   région: string;
+  appellation: string;
+  pays: string;
   source: 'local' | 'ai';
   confiance: number;
 }
@@ -104,7 +106,7 @@ async function callGoogleVisionAPI(images: string[], apiKey: string): Promise<Go
   }
 }
 
-// Fonction de parsing local intelligent
+// Fonction de parsing local intelligent améliorée
 function parseWineOcrLocal(rawText: string): ParsedWine {
   console.log('Parsing local du texte OCR:', rawText.substring(0, 200) + '...');
   
@@ -144,12 +146,80 @@ function parseWineOcrLocal(rawText: string): ParsedWine {
     text.toUpperCase().includes(grape.toUpperCase())
   );
 
-  // 7. Extraction région/appellation
+  // 7. NOUVELLE LOGIQUE : Détection intelligente des appellations françaises
   let région = '';
-  for (const reg of knownRegions) {
-    if (text.toUpperCase().includes(reg.toUpperCase())) {
-      région = reg;
+  let appellation = '';
+  let pays = '';
+  
+  // Détecter les appellations françaises connues
+  const appellationsFrancaises = {
+    'SAINT-JOSEPH': { region: 'RHÔNE', country: 'France' },
+    'CÔTE-RÔTIE': { region: 'RHÔNE', country: 'France' },
+    'HERMITAGE': { region: 'RHÔNE', country: 'France' },
+    'CROZES-HERMITAGE': { region: 'RHÔNE', country: 'France' },
+    'CONDRIEU': { region: 'RHÔNE', country: 'France' },
+    'CHÂTEAUNEUF-DU-PAPE': { region: 'RHÔNE', country: 'France' },
+    'GIGONDAS': { region: 'RHÔNE', country: 'France' },
+    'VACQUEYRAS': { region: 'RHÔNE', country: 'France' },
+    'CÔTES DU RHÔNE': { region: 'RHÔNE', country: 'France' },
+    'CHABLIS': { region: 'BOURGOGNE', country: 'France' },
+    'CÔTE DE NUITS': { region: 'BOURGOGNE', country: 'France' },
+    'CÔTE DE BEAUNE': { region: 'BOURGOGNE', country: 'France' },
+    'MÉDOC': { region: 'BORDEAUX', country: 'France' },
+    'SAINT-ÉMILION': { region: 'BORDEAUX', country: 'France' },
+    'POMEROL': { region: 'BORDEAUX', country: 'France' },
+    'GRAVES': { region: 'BORDEAUX', country: 'France' },
+    'SAUTERNES': { region: 'BORDEAUX', country: 'France' },
+    'PESSAC-LÉOGNAN': { region: 'BORDEAUX', country: 'France' },
+    'MARGAUX': { region: 'BORDEAUX', country: 'France' },
+    'PAUILLAC': { region: 'BORDEAUX', country: 'France' },
+    'SAINT-JULIEN': { region: 'BORDEAUX', country: 'France' },
+    'SAVENNIÈRES': { region: 'LOIRE', country: 'France' },
+    'ANJOU': { region: 'LOIRE', country: 'France' },
+    'SAUMUR': { region: 'LOIRE', country: 'France' },
+    'CHINON': { region: 'LOIRE', country: 'France' },
+    'BOURGUEIL': { region: 'LOIRE', country: 'France' },
+    'VOUVRAY': { region: 'LOIRE', country: 'France' },
+    'MONTLOUIS': { region: 'LOIRE', country: 'France' },
+    'SANCERRE': { region: 'LOIRE', country: 'France' },
+    'POUILLY-FUMÉ': { region: 'LOIRE', country: 'France' },
+    'MUSCADET': { region: 'LOIRE', country: 'France' },
+    'ALSACE': { region: 'ALSACE', country: 'France' },
+    'ALSACE GRAND CRU': { region: 'ALSACE', country: 'France' },
+    'CRÉMANT D\'ALSACE': { region: 'ALSACE', country: 'France' },
+    'CHAMPAGNE': { region: 'CHAMPAGNE', country: 'France' },
+    'CRÉMANT': { region: 'CHAMPAGNE', country: 'France' },
+    'CORBIÈRES': { region: 'LANGUEDOC', country: 'France' },
+    'MINERVOIS': { region: 'LANGUEDOC', country: 'France' },
+    'FITOU': { region: 'LANGUEDOC', country: 'France' },
+    'CÔTES DE PROVENCE': { region: 'PROVENCE', country: 'France' },
+    'BANDOL': { region: 'PROVENCE', country: 'France' },
+    'CASSIS': { region: 'PROVENCE', country: 'France' },
+    'CAHORS': { region: 'SUD-OUEST', country: 'France' },
+    'MADIRAN': { region: 'SUD-OUEST', country: 'France' },
+    'JURANÇON': { region: 'SUD-OUEST', country: 'France' },
+    'GAILLAC': { region: 'SUD-OUEST', country: 'France' }
+  };
+  
+  // Chercher une appellation française
+  const upperText = text.toUpperCase();
+  for (const [appellationName, data] of Object.entries(appellationsFrancaises)) {
+    if (upperText.includes(appellationName)) {
+      appellation = appellationName;
+      région = data.region;
+      pays = data.country;
+      console.log(`🍷 Appellation française détectée: ${appellationName} → ${région}, ${pays}`);
       break;
+    }
+  }
+  
+  // Si pas d'appellation détectée, utiliser l'ancienne logique
+  if (!région) {
+    for (const reg of knownRegions) {
+      if (text.toUpperCase().includes(reg.toUpperCase())) {
+        région = reg;
+        break;
+      }
     }
   }
 
@@ -210,7 +280,7 @@ function parseWineOcrLocal(rawText: string): ParsedWine {
   }
 
   console.log('Parsing local résultat:', { 
-    nom, producteur, année, cépages, type, région, confiance,
+    nom, producteur, année, cépages, type, région, appellation, pays, confiance,
     validation: { isNomOk, isProducteurOk, isAnnéeOk }
   });
   
@@ -221,6 +291,8 @@ function parseWineOcrLocal(rawText: string): ParsedWine {
     cépages,
     type,
     région,
+    appellation: appellation || '',
+    pays: pays || '',
     source: 'local',
     confiance
   };
