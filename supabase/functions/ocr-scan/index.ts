@@ -433,14 +433,14 @@ function parseWineOcrLocal(rawText: string): ParsedWine {
   });
   
   return {
-    nom: nom || 'Vin non identifié',
-    producteur,
+    nom: normalizeCase(nom) || 'Vin non identifié',
+    producteur: normalizeCase(producteur),
     année,
-    cépages,
-    type,
-    région,
-    appellation: appellation || '',
-    pays: pays || '',
+    cépages: cépages.map(grape => normalizeCase(grape)),
+    type: normalizeCase(type),
+    région: normalizeCase(région),
+    appellation: normalizeCase(appellation) || '',
+    pays: normalizeCase(pays) || '',
     source: 'local',
     confiance
   };
@@ -527,14 +527,14 @@ Retourne UNIQUEMENT un JSON valide avec cette structure:
     console.log('Parsing IA résultat:', parsed);
     
     return {
-      nom: parsed.nom || 'Vin non identifié',
-      producteur: parsed.producteur || 'Domaine inconnu',
+      nom: normalizeCase(parsed.nom) || 'Vin non identifié',
+      producteur: normalizeCase(parsed.producteur) || 'Domaine inconnu',
       année: parsed.année || '',
-      cépages: Array.isArray(parsed.cépages) ? parsed.cépages : [],
-      type: parsed.type || '',
-      région: parsed.région || '',
-      appellation: parsed.appellation || '',
-      pays: parsed.pays || '',
+      cépages: Array.isArray(parsed.cépages) ? parsed.cépages.map(grape => normalizeCase(grape)) : [],
+      type: normalizeCase(parsed.type) || '',
+      région: normalizeCase(parsed.région) || '',
+      appellation: normalizeCase(parsed.appellation) || '',
+      pays: normalizeCase(parsed.pays) || '',
       source: 'ai',
       confiance: 85 // Confiance élevée pour l'IA
     };
