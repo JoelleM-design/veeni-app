@@ -228,6 +228,20 @@ function parseWineOcrLocal(rawText: string): ParsedWine {
     }
   }
   
+  // LOGIQUE ADDITIONNELLE : Vérifier aussi dans le texte OCR brut
+  if (!appellation && !pays) {
+    const upperText = text.toUpperCase();
+    for (const [appellationName, data] of Object.entries(appellationsFrancaises)) {
+      if (upperText.includes(appellationName)) {
+        appellation = appellationName;
+        région = data.region;
+        pays = data.country;
+        console.log(`🍷 Appellation détectée dans le texte OCR: ${appellationName} → ${data.region}, ${data.country}`);
+        break;
+      }
+    }
+  }
+  
   // Si pas d'appellation détectée, utiliser l'ancienne logique
   if (!région) {
     for (const reg of knownRegions) {
