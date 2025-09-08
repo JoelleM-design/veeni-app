@@ -457,11 +457,13 @@ export default function EditableWineDetailsScreen({
         setIsEditing(false);
         
         // Retourner à l'écran OCR avec les données mises à jour
-        router.back();
-        // Passer les données mises à jour via les paramètres de navigation
-        setTimeout(() => {
-          router.setParams({ updatedWineData: JSON.stringify(editedWine) });
-        }, 100);
+        router.replace({
+          pathname: '/ocr-results',
+          params: { 
+            wines: JSON.stringify([editedWine]), // Passer le vin modifié
+            updatedWineId: editedWine.id
+          }
+        });
         return;
       }
       

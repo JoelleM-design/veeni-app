@@ -36,25 +36,23 @@ export default function OcrResultsScreen() {
     }
   }, [params.wines]);
 
-  // Écouter les retours depuis l'écran de détails
+  // Gérer les retours depuis l'écran de détails avec vin modifié
   useEffect(() => {
-    const unsubscribe = router.addListener('focus', () => {
-      // Vérifier s'il y a des données mises à jour à recevoir
-      if (params.updatedWineData) {
-        try {
-          const updatedWine = JSON.parse(params.updatedWineData as string);
+    if (params.updatedWineId && params.wines) {
+      try {
+        const updatedWines = JSON.parse(params.wines as string);
+        const updatedWine = updatedWines[0]; // Le vin modifié
+        if (updatedWine) {
           setDetectedWines(prev => prev.map(wine => 
             wine.id === updatedWine.id ? updatedWine : wine
           ));
           console.log('🍷 Vin OCR mis à jour:', updatedWine);
-        } catch (e) {
-          console.error('Erreur parsing vin mis à jour:', e);
         }
+      } catch (e) {
+        console.error('Erreur parsing vin mis à jour:', e);
       }
-    });
-
-    return unsubscribe;
-  }, [router, params.updatedWineData]);
+    }
+  }, [params.updatedWineId, params.wines]);
 
   // Fonction pour nettoyer les fichiers locaux
   const cleanupLocalFiles = async (wine: Wine) => {
