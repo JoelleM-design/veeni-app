@@ -160,12 +160,23 @@ export function useWineEnrichment() {
   const enrichWine = useCallback((ocrData: any): WineData => {
     console.log('Données OCR brutes:', ocrData);
     
-    // Nettoyage et extraction
-    let name = cleanOcrText(removeAllCaps(ocrData.name || ''));
-    let vintage = extractVintage(ocrData.name || '');
-    let domaine = extractDomain(ocrData.name || '');
-    let region = extractRegion(ocrData.name || '');
-    let grapes = extractGrapes(ocrData.name || '');
+    // NOUVELLE LOGIQUE : Utiliser les données de l'OCR amélioré si disponibles
+    let name = ocrData.nom || cleanOcrText(removeAllCaps(ocrData.name || ''));
+    let vintage = ocrData.année ? parseInt(ocrData.année) : extractVintage(ocrData.name || '');
+    let domaine = ocrData.producteur || extractDomain(ocrData.name || '');
+    let grapes = ocrData.cépages || extractGrapes(ocrData.name || '');
+    
+    // Utiliser les données OCR améliorées pour pays/région/appellation
+    let country = ocrData.pays || undefined;
+    let region = ocrData.région || undefined;
+    let appellation = ocrData.appellation || undefined;
+    
+    // Si pas de données OCR améliorées, utiliser l'ancienne logique
+    if (!country && !region && !appellation) {
+      region = extractRegion(ocrData.name || '');
+      country = region || undefined;
+      appellation = region || undefined;
+    }
     
     // Si le nom est trop court ou non pertinent, essayer d'extraire du domaine
     if (name.length < 5 || IGNORED_WORDS.some(word => name.toUpperCase().includes(word))) {
@@ -191,15 +202,15 @@ export function useWineEnrichment() {
       name: name || 'Vin sans nom',
       vintage: vintage,
       type: type,
-      country: region || undefined,
-      region: region || undefined,
-      appellation: region || undefined,
+      country: country,
+      region: region,
+      appellation: appellation,
       grapes: grapes,
       producer: domaine !== 'Domaine inconnu' ? domaine : undefined,
       photo: ocrData.photo || ''
     };
     
-    console.log('Vin enrichi:', enrichedWine);
+    console.log('Vin enrichi avec OCR amélioré:', enrichedWine);
     return enrichedWine;
   }, []);
 
