@@ -120,11 +120,13 @@ export default function AddScreen() {
             throw new Error(`Aucune réponse de ocr-scan pour la photo ${i + 1}`);
           }
           console.log('✅ Réponse ocr-scan reçue:', result);
+          console.log('🔍 Détails de la réponse OCR:', JSON.stringify(result, null, 2));
 
           // 3. Traiter la réponse de l'Edge Function
           let wine;
           if (result.success && (result.wine || (result.wines && result.wines[0]))) {
             wine = result.wine || result.wines[0];
+            console.log('🍷 Vin extrait de la réponse:', wine);
             
             // Vérifier si le vin est valide - être très souple
             const hasValidData = wine.nom && wine.nom !== 'Nom non identifié' && wine.nom !== 'Vin non identifié';
@@ -154,6 +156,7 @@ export default function AddScreen() {
             };
             detectedWines.push(detectedWine);
             console.log('🍷 Vin détecté avec succès:', wine);
+            console.log('🍷 DetectedWine créé:', detectedWine);
           } else {
             console.log('❌ Aucun vin valide détecté dans la réponse ocr-scan');
             setError('Aucun vin reconnu. Veuillez réessayer.');
