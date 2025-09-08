@@ -183,7 +183,7 @@ export default function OcrResultsScreen() {
                 wine={wine} 
                 onPress={() => handleEditWine(wine)}
                 showStockButtons={false}
-                readOnly={true}
+                readOnly={false}
               />
               
               <View style={styles.actionButtons}>
