@@ -607,6 +607,16 @@ async function processWineImages(images: string[]): Promise<ParsedWine[]> {
       parsedWines.push(localParsed);
     }
   }
+
+  // 4. NOUVELLE ÉTAPE : Appliquer la logique de conversion région → appellation pour Google Vision
+  console.log('🔧 Application logique de conversion région → appellation pour Google Vision...');
+  for (let i = 0; i < parsedWines.length; i++) {
+    const convertedWine = applyRegionToAppellationConversion(parsedWines[i]);
+    if (convertedWine !== parsedWines[i]) {
+      console.log(`✅ Conversion Google Vision appliquée pour vin ${i}:`, JSON.stringify(convertedWine, null, 2));
+      parsedWines[i] = convertedWine;
+    }
+  }
   
   console.log(`${parsedWines.length} vins traités avec succès`);
   return parsedWines;
