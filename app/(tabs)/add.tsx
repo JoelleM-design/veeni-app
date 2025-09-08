@@ -328,7 +328,12 @@ export default function AddScreen() {
             styles.analyzeHeaderButton,
             (photos.length === 0 || isAnalyzing) && styles.analyzeHeaderButtonDisabled
           ]}
-          onPress={analyzePhotosWithOCR}
+          onPress={() => {
+            console.log('🔥 BOUTON SUIVANT CLIQUÉ !');
+            console.log('🔥 Photos disponibles:', photos.length);
+            console.log('🔥 isAnalyzing:', isAnalyzing);
+            analyzePhotosWithOCR();
+          }}
           disabled={photos.length === 0 || isAnalyzing}
         >
           {isAnalyzing ? (
