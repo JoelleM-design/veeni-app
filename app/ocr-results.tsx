@@ -19,16 +19,37 @@ export default function OcrResultsScreen() {
   const [detectedWines, setDetectedWines] = useState<Wine[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Fonction de conversion DetectedWine -> Wine
+  const convertDetectedWineToWine = (detectedWine: any): Wine => {
+    return {
+      id: detectedWine.id,
+      name: detectedWine.name,
+      domaine: detectedWine.domaine,
+      vintage: detectedWine.vintage,
+      region: detectedWine.region,
+      appellation: detectedWine.appellation,
+      country: detectedWine.country,
+      grapes: detectedWine.grapes || [],
+      imageUri: detectedWine.imageUri,
+      color: detectedWine.color || 'red',
+      stock: 0,
+      origin: 'cellar' as const,
+      note: null,
+      personalComment: null,
+      favorite: false,
+    };
+  };
+
   useEffect(() => {
     if (params.wines) {
       try {
-        const wines = JSON.parse(params.wines as string) as Wine[];
-        // S'assurer que les vins OCR ont des IDs temporaires
-        const processedWines = wines.map(wine => ({
-          ...wine,
-          id: wine.id.startsWith('ocr-') ? wine.id : `ocr-${wine.id}`
-        }));
+        const detectedWinesData = JSON.parse(params.wines as string);
+        // Convertir les DetectedWine en Wine
+        const processedWines = detectedWinesData.map((detectedWine: any) => 
+          convertDetectedWineToWine(detectedWine)
+        );
         setDetectedWines(processedWines);
+        console.log('🍷 Vins OCR convertis:', processedWines);
       } catch (e) {
         console.error('Erreur parsing vins OCR:', e);
         setDetectedWines([]);

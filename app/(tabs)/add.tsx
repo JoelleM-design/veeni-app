@@ -33,6 +33,7 @@ interface DetectedWine {
   vintage?: number;
   region?: string;
   appellation?: string;
+  country?: string; // ✅ Ajouter le pays
   grapes?: string[];
   imageUri: string;
   color?: 'red' | 'white' | 'rose' | 'sparkling';
@@ -141,7 +142,8 @@ export default function AddScreen() {
               domaine: wine.producteur,
               vintage: wine.année ? parseInt(wine.année) : undefined,
               region: wine.région,
-              appellation: wine.région,
+              appellation: wine.appellation, // ✅ Utiliser la vraie appellation
+              country: wine.pays, // ✅ Ajouter le pays
               grapes: wine.cépages || [],
               imageUri: photoUri, // Garder l'URI locale pour l'instant, upload dans useWines
               color: wine.type === 'Rouge' ? 'red' : 
