@@ -447,7 +447,6 @@ const styles = StyleSheet.create({
   },
   winesGrid: {
     flexDirection: 'column',
-    paddingHorizontal: 16,
   },
   wineCardContainer: {
     marginBottom: 12,
