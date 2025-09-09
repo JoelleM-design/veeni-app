@@ -278,13 +278,15 @@ export default function FriendDetailScreen() {
           ) : friendWineCards.length > 0 ? (
             <View style={styles.winesGrid}>
               {friendWineCards.map((wine) => (
-                <WineCard
-                  key={wine.id}
-                  wine={wine}
-                  readOnly={true}
-                  showStock={true}
-                  onPress={() => router.push(`/wine/${wine.id}?readOnly=true&friendId=${friend?.id}`)}
-                />
+                <View key={wine.id} style={styles.wineCardContainer}>
+                  <WineCard
+                    wine={wine}
+                    readOnly={true}
+                    showStock={true}
+                    compact={true}
+                    onPress={() => router.push(`/wine/${wine.id}?readOnly=true&friendId=${friend?.id}`)}
+                  />
+                </View>
               ))}
             </View>
           ) : (
@@ -446,9 +448,10 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   winesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     paddingHorizontal: 16,
+  },
+  wineCardContainer: {
+    marginBottom: 12,
   },
 }); 

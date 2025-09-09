@@ -43,6 +43,7 @@ export interface WineCardProps {
   isSharedCave?: boolean;
   sharedWith?: string;
   readOnly?: boolean;
+  compact?: boolean; // Nouvelle prop pour l'affichage compact
   // Nouvelles props pour les informations sociales
   friendsWithWine?: Array<{
     id: string;
@@ -65,6 +66,7 @@ export const WineCard: React.FC<WineCardProps> = ({
   isSharedCave = false,
   sharedWith,
   readOnly = false,
+  compact = false,
   friendsWithWine = [],
 }) => {
   // Fonction de nettoyage pour s'assurer que tous les champs sont des primitifs
@@ -148,9 +150,9 @@ export const WineCard: React.FC<WineCardProps> = ({
       disabled={readOnly}
     >
       {/* Layout principal en row */}
-      <View style={styles.rowContainer}>
+      <View style={[styles.rowContainer, compact && styles.compactRowContainer]}>
         {/* Image du vin à gauche */}
-        <View style={styles.imageCol}>
+        <View style={[styles.imageCol, compact && styles.compactImageCol]}>
           <View style={styles.imageWrapper}>
             {safeWine.imageUri ? (
               <>
@@ -638,5 +640,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  // Styles compacts pour l'affichage dans les listes
+  compactRowContainer: {
+    height: 120, // Hauteur réduite
+  },
+  compactImageCol: {
+    width: 80, // Largeur réduite
+    height: 120, // Hauteur réduite
   },
 }); 
