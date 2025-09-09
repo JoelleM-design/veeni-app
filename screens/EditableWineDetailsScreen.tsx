@@ -55,6 +55,10 @@ export default function EditableWineDetailsScreen({
   const router = useRouter();
   const params = useLocalSearchParams();
   const { wines, updateWine, addWineToWishlist, addWineToCellar, fetchWines } = useWines();
+  
+  // Mode lecture pour les profils visités (priorité aux paramètres de la fonction)
+  const isReadOnlyMode = params.readOnly === 'true' || isReadOnly;
+  const friendId = params.friendId as string;
   const { tastedWines, refreshTastings, addTasting } = useWineHistory();
   const { user } = useUser();
   const friendsWithWine: any[] = [];
@@ -70,6 +74,19 @@ export default function EditableWineDetailsScreen({
     } else {
       // Pour les vins normaux, on utilise la fonction updateWine
       return await updateWine(wineId, updates);
+    }
+  };
+
+  // Fonction pour ajouter le vin à la liste d'envie (mode lecture)
+  const handleAddToWishlist = async () => {
+    if (!wine || !user) return;
+    
+    try {
+      await addWineToWishlist(wine.id);
+      Alert.alert('Succès', 'Vin ajouté à votre liste d\'envie !');
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout à la liste d\'envie:', error);
+      Alert.alert('Erreur', 'Impossible d\'ajouter le vin à votre liste d\'envie');
     }
   };
   
@@ -930,18 +947,28 @@ export default function EditableWineDetailsScreen({
         </View>
         
         <View style={styles.headerRight}>
-          {/* Bouton favori */}
-          <TouchableOpacity onPress={handleToggleFavorite} style={styles.favoriteButton}>
-            <Ionicons 
-              name={safeWine.favorite ? 'heart' : 'heart-outline'} 
-              size={24} 
-              color={safeWine.favorite ? VeeniColors.wine.red : '#FFFFFF'} 
-            />
-          </TouchableOpacity>
+          {!isReadOnlyMode && (
+            <>
+              {/* Bouton favori */}
+              <TouchableOpacity onPress={handleToggleFavorite} style={styles.favoriteButton}>
+                <Ionicons 
+                  name={safeWine.favorite ? 'heart' : 'heart-outline'} 
+                  size={24} 
+                  color={safeWine.favorite ? VeeniColors.wine.red : '#FFFFFF'} 
+                />
+              </TouchableOpacity>
+              
+              <TouchableOpacity onPress={() => setShowActionsModal(true)} style={styles.moreButton}>
+                <Ionicons name="ellipsis-vertical" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </>
+          )}
           
-          <TouchableOpacity onPress={() => setShowActionsModal(true)} style={styles.moreButton}>
-            <Ionicons name="ellipsis-vertical" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
+          {isReadOnlyMode && (
+            <TouchableOpacity onPress={handleAddToWishlist} style={styles.addToWishlistButton}>
+              <Ionicons name="add-circle-outline" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -2113,6 +2140,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   moreButton: {
+    padding: 8,
+  },
+  addToWishlistButton: {
     padding: 8,
   },
   keyboardAvoidingView: {

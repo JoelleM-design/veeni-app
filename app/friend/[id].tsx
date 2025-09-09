@@ -2,9 +2,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { WineCard } from '../../components/WineCard';
 import { useUser } from '../../hooks/useUser';
 import { useUserStats } from '../../hooks/useUserStats';
 import { supabase } from '../../lib/supabase';
+import { Wine } from '../../types/wine';
+
+const colorIcons = {
+  red: <Ionicons name="wine" size={16} color="#8B0000" />,
+  white: <Ionicons name="wine" size={16} color="#FFD700" />,
+  rose: <Ionicons name="wine" size={16} color="#FFB6C1" />,
+  sparkling: <Ionicons name="sparkles" size={16} color="#C0C0C0" />,
+};
 
 interface Friend {
   id: string;
@@ -25,9 +34,10 @@ export default function FriendDetailScreen() {
   // Récupérer les stats de l'ami
   const { stats: friendStats, isLoading: statsLoading } = useUserStats(friend?.id || null);
   
-  // Récupérer les vins de l'ami pour calculer sa préférence
+  // Récupérer les vins de l'ami pour calculer sa préférence et les afficher
   const [friendWines, setFriendWines] = useState<any[]>([]);
   const [winesLoading, setWinesLoading] = useState(false);
+  const [friendWineCards, setFriendWineCards] = useState<Wine[]>([]);
 
   useEffect(() => {
     const fetchFriend = async () => {
@@ -74,10 +84,18 @@ export default function FriendDetailScreen() {
           .from('user_wine')
           .select(`
             id,
+            amount,
+            favorite,
             wine_id,
             wine (
               id,
-              wine_type
+              name,
+              producer_id,
+              year,
+              wine_type,
+              country_id,
+              region,
+              image_uri
             )
           `)
           .eq('user_id', friend.id)
@@ -87,6 +105,29 @@ export default function FriendDetailScreen() {
           console.error('Erreur récupération vins ami:', error);
         } else {
           setFriendWines(data || []);
+          
+          // Convertir les données pour les cartes de vin
+          const wineCards: Wine[] = (data || []).map((item: any) => ({
+            id: item.wine.id,
+            name: item.wine.name,
+            vintage: item.wine.year ? parseInt(item.wine.year) : null,
+            color: item.wine.wine_type as 'red' | 'white' | 'rose' | 'sparkling',
+            domaine: item.wine.producer_id || 'Domaine inconnu',
+            region: item.wine.region || '',
+            country: item.wine.country_id || '',
+            grapes: [], // Pas de données de cépages dans la table wine
+            imageUri: item.wine.image_uri,
+            stock: item.amount || 0,
+            origin: 'cellar' as const,
+            note: null,
+            personalComment: null,
+            favorite: item.favorite || false,
+            // Données spécifiques à l'ami
+            amount: item.amount,
+            user_wine_id: item.id
+          }));
+          
+          setFriendWineCards(wineCards);
         }
       } catch (err) {
         console.error('Erreur inattendue vins ami:', err);
@@ -116,14 +157,6 @@ export default function FriendDetailScreen() {
 
     return mostCommonColor;
   }, [friendWines]);
-
-  // Icônes pour les couleurs
-  const colorIcons = {
-    red: <Ionicons name="wine" size={20} color="#8B0000" />,
-    white: <Ionicons name="wine" size={20} color="#F5F5DC" />,
-    rose: <Ionicons name="wine" size={20} color="#FFB6C1" />,
-    sparkling: <Ionicons name="wine" size={20} color="#FFD700" />,
-  };
 
   if (loading) {
     return (
@@ -226,22 +259,27 @@ export default function FriendDetailScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Vins favoris</Text>
-          {statsLoading ? (
+          <Text style={styles.sectionTitle}>Ses vins</Text>
+          {winesLoading ? (
             <View style={styles.emptySection}>
               <Text style={styles.emptyText}>Chargement...</Text>
             </View>
-          ) : (friendStats?.favorite_wines_count || 0) > 0 ? (
-            <View style={styles.emptySection}>
-              <Ionicons name="heart" size={48} color="#ff6b6b" />
-              <Text style={styles.emptyText}>
-                {friendStats?.favorite_wines_count} vin{friendStats?.favorite_wines_count > 1 ? 's' : ''} marqué{friendStats?.favorite_wines_count > 1 ? 's' : ''} comme favori{friendStats?.favorite_wines_count > 1 ? 's' : ''}
-              </Text>
+          ) : friendWineCards.length > 0 ? (
+            <View style={styles.winesGrid}>
+              {friendWineCards.map((wine) => (
+                <WineCard
+                  key={wine.id}
+                  wine={wine}
+                  readOnly={true}
+                  showStock={true}
+                  onPress={() => router.push(`/wine/${wine.id}?readOnly=true&friendId=${friend?.id}`)}
+                />
+              ))}
             </View>
           ) : (
             <View style={styles.emptySection}>
-              <Ionicons name="heart-outline" size={48} color="#666" />
-              <Text style={styles.emptyText}>Aucun vin favori pour le moment</Text>
+              <Ionicons name="wine-outline" size={48} color="#666" />
+              <Text style={styles.emptyText}>Aucun vin dans sa cave</Text>
             </View>
           )}
         </View>
@@ -395,5 +433,11 @@ const styles = StyleSheet.create({
   },
   preferenceIcon: {
     marginLeft: 4,
+  },
+  winesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
   },
 }); 

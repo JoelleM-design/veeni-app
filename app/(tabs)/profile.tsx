@@ -3,14 +3,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
-  Image,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    Image,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ProfileStatsBar from '../../components/ProfileStatsBar';
@@ -523,6 +523,17 @@ export default function ProfileScreen() {
           <ProfileStatsBar />
         </View>
 
+        {/* BOUTON INVITER DES AMIS */}
+        <View style={styles.inviteButtonContainer}>
+          <TouchableOpacity 
+            style={styles.inviteButton}
+            onPress={handleShareApp}
+          >
+            <Ionicons name="add" size={20} color="#222" />
+            <Text style={styles.inviteButtonText}>Inviter des amis</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Section Demandes d'amis */}
         {pendingRequests.length > 0 && (
           <View style={[styles.section, styles.sectionWithSpacing]}>
@@ -672,16 +683,6 @@ export default function ProfileScreen() {
             )}
           </View>
         )}
-        {/* BOUTON INVITER DES AMIS EN BAS */}
-        <View style={styles.inviteButtonContainerBottom}>
-          <TouchableOpacity 
-            style={styles.inviteButton}
-            onPress={handleShareApp}
-          >
-            <Ionicons name="add" size={20} color="#222" />
-            <Text style={styles.inviteButtonText}>Inviter des amis</Text>
-          </TouchableOpacity>
-        </View>
         {/* Section historique - Chargement différé */}
 
 
@@ -776,7 +777,7 @@ const styles = StyleSheet.create({
   },
   statsBar: {
     marginTop: Spacing.sm,
-    marginBottom: Spacing.base,
+    marginBottom: 8,
     width: '100%',
   },
   searchContainer: {
@@ -1020,8 +1021,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   inviteButtonContainer: {
-    marginTop: 32,
-    marginBottom: 32,
+    marginTop: 8,
+    marginBottom: 16,
     alignItems: 'center',
   },
   inviteButton: {

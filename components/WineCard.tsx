@@ -32,6 +32,7 @@ export interface WineCardProps {
     favorite?: boolean;
   };
   showStockButtons?: boolean;
+  showStock?: boolean;
   showActions?: boolean;
   onPress?: () => void;
   onAddBottle?: () => void;
@@ -53,6 +54,7 @@ export interface WineCardProps {
 export const WineCard: React.FC<WineCardProps> = ({
   wine,
   showStockButtons = true,
+  showStock = false,
   showActions = true,
   onPress,
   onAddBottle,
@@ -268,6 +270,13 @@ export const WineCard: React.FC<WineCardProps> = ({
           
           {/* Section inférieure : actions et footer */}
           <View style={styles.bottomSection}>
+            {/* Affichage du stock en mode lecture */}
+            {showStock && readOnly && (
+              <View style={styles.stockDisplay}>
+                <Text style={styles.stockText}>Stock : {safeWine.stock || 0}</Text>
+              </View>
+            )}
+            
             {/* Boutons stock (seulement sur Ma cave) */}
             {showStockButtons && !readOnly && (
               <View style={styles.stockRow}>
@@ -553,6 +562,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginLeft: 4,
+  },
+  stockDisplay: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
   },
   stockRow: {
     flexDirection: 'row',
