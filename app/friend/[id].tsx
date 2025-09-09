@@ -56,6 +56,8 @@ export default function FriendDetailScreen() {
   
   // Récupérer les vins de l'ami pour calculer sa préférence et les afficher
   const [friendWines, setFriendWines] = useState<any[]>([]);
+  const [friendWishlistWines, setFriendWishlistWines] = useState<any[]>([]);
+  const [friendTastedWines, setFriendTastedWines] = useState<any[]>([]);
   const [winesLoading, setWinesLoading] = useState(false);
   const [friendWineCards, setFriendWineCards] = useState<Wine[]>([]);
   
@@ -106,7 +108,8 @@ export default function FriendDetailScreen() {
 
       setWinesLoading(true);
       try {
-        const { data, error } = await supabase
+        // Récupérer les vins de cave
+        const { data: cellarData, error: cellarError } = await supabase
           .from('user_wine')
           .select(`
             id,
@@ -133,38 +136,82 @@ export default function FriendDetailScreen() {
           .eq('user_id', friend.id)
           .eq('origin', 'cellar');
 
-        if (error) {
-          console.error('Erreur récupération vins ami:', error);
+        // Récupérer les vins de wishlist
+        const { data: wishlistData, error: wishlistError } = await supabase
+          .from('user_wine')
+          .select(`
+            id,
+            amount,
+            favorite,
+            wine_id,
+            wine (
+              id,
+              name,
+              producer_id,
+              year,
+              wine_type,
+              country_id,
+              region,
+              image_uri,
+              producer (
+                name
+              ),
+              country (
+                name
+              )
+            )
+          `)
+          .eq('user_id', friend.id)
+          .eq('origin', 'wishlist');
+
+        // Récupérer les vins dégustés
+        const { data: tastedData, error: tastedError } = await supabase
+          .from('wine_history')
+          .select(`
+            id,
+            wine_id,
+            note,
+            tasted_at,
+            wine (
+              id,
+              name,
+              producer_id,
+              year,
+              wine_type,
+              country_id,
+              region,
+              image_uri,
+              producer (
+                name
+              ),
+              country (
+                name
+              )
+            )
+          `)
+          .eq('user_id', friend.id)
+          .eq('action', 'tasted')
+          .order('tasted_at', { ascending: false });
+
+        if (cellarError) {
+          console.error('Erreur récupération vins cave ami:', cellarError);
         } else {
-          console.log('🍷 Données vins ami récupérées:', data);
-          setFriendWines(data || []);
-          
-          // Convertir les données pour les cartes de vin
-          const wineCards: Wine[] = (data || []).map((item: any) => {
-            console.log('🍷 Mapping vin:', item.wine?.name, 'producer:', item.wine?.producer?.name, 'country:', item.wine?.country?.name);
-            return {
-            id: item.wine.id,
-            name: item.wine.name,
-            vintage: item.wine.year ? parseInt(item.wine.year) : null,
-            color: item.wine.wine_type as 'red' | 'white' | 'rose' | 'sparkling',
-            domaine: item.wine.producer?.name || 'Domaine inconnu',
-            region: item.wine.region || '',
-            country: item.wine.country?.name || '',
-            grapes: [], // Pas de données de cépages dans la table wine
-            imageUri: item.wine.image_uri,
-            stock: item.amount || 0,
-            origin: 'cellar' as const,
-            note: null,
-            personalComment: null,
-            favorite: item.favorite || false,
-            // Données spécifiques à l'ami
-            amount: item.amount,
-            user_wine_id: item.id
-            };
-          });
-          
-          console.log('🍷 Cartes de vin finales:', wineCards);
-          setFriendWineCards(wineCards);
+          console.log('🍷 Données vins cave ami récupérées:', cellarData);
+          setFriendWines(cellarData || []);
+        }
+
+        if (wishlistError) {
+          console.error('Erreur récupération vins wishlist ami:', wishlistError);
+        } else {
+          console.log('🍷 Données vins wishlist ami récupérées:', wishlistData);
+          setFriendWishlistWines(wishlistData || []);
+        }
+
+        if (tastedError) {
+          console.error('Erreur récupération vins dégustés ami:', tastedError);
+        } else {
+          console.log('🍷 Données vins dégustés ami récupérées:', tastedData);
+          setFriendTastedWines(tastedData || []);
         }
       } catch (err) {
         console.error('Erreur inattendue vins ami:', err);
@@ -175,6 +222,56 @@ export default function FriendDetailScreen() {
 
     fetchFriendWines();
   }, [friend?.id]);
+
+  // Mettre à jour les cartes de vin selon l'onglet actif
+  useEffect(() => {
+    const updateWineCards = () => {
+      let sourceData: any[] = [];
+      
+      if (tab === 'cellar') {
+        sourceData = friendWines;
+      } else if (tab === 'wishlist') {
+        sourceData = friendWishlistWines;
+      } else if (tab === 'tasted') {
+        sourceData = friendTastedWines;
+      }
+
+      const wineCards: Wine[] = sourceData.map((item: any) => {
+        const wineData = item.wine || item; // Pour les dégustés, les données sont directement dans item
+        console.log('🍷 Mapping vin pour onglet', tab, ':', wineData?.name);
+        
+        return {
+          id: wineData.id,
+          name: wineData.name,
+          vintage: wineData.year ? parseInt(wineData.year) : null,
+          color: wineData.wine_type as 'red' | 'white' | 'rose' | 'sparkling',
+          domaine: wineData.producer?.name || 'Domaine inconnu',
+          region: wineData.region || '',
+          country: wineData.country?.name || '',
+          grapes: [], // Pas de données de cépages dans la table wine
+          imageUri: wineData.image_uri,
+          stock: tab === 'tasted' ? 0 : (item.amount || 0), // Les dégustés n'ont pas de stock
+          origin: tab as 'cellar' | 'wishlist' | 'tasted',
+          note: tab === 'tasted' ? item.note : null,
+          personalComment: null,
+          favorite: tab === 'tasted' ? false : (item.favorite || false), // Les dégustés n'ont pas de favori
+          // Données spécifiques
+          amount: tab === 'tasted' ? 0 : (item.amount || 0),
+          user_wine_id: item.id,
+          // Données spécifiques aux dégustés
+          ...(tab === 'tasted' && {
+            tasted_at: item.tasted_at,
+            tastingCount: 1, // Chaque entrée = 1 dégustation
+          })
+        };
+      });
+      
+      console.log('🍷 Cartes de vin finales pour onglet', tab, ':', wineCards);
+      setFriendWineCards(wineCards);
+    };
+
+    updateWineCards();
+  }, [tab, friendWines, friendWishlistWines, friendTastedWines]);
 
   // Calculer la préférence de l'ami
   const friendPreference = useMemo(() => {
@@ -199,43 +296,41 @@ export default function FriendDetailScreen() {
   const localStats = useMemo(() => {
     if (tab === 'cellar') {
       // Sa cave : somme des stocks
-      const cellarWines = friendWineCards.filter(w => w.origin === 'cellar');
-      const total = cellarWines.reduce((sum, wine) => sum + (wine.stock || 0), 0);
-      const red = cellarWines
-        .filter(w => w.color === 'red')
-        .reduce((sum, wine) => sum + (wine.stock || 0), 0);
-      const white = cellarWines
-        .filter(w => w.color === 'white')
-        .reduce((sum, wine) => sum + (wine.stock || 0), 0);
-      const rose = cellarWines
-        .filter(w => w.color === 'rose')
-        .reduce((sum, wine) => sum + (wine.stock || 0), 0);
-      const sparkling = cellarWines
-        .filter(w => w.color === 'sparkling')
-        .reduce((sum, wine) => sum + (wine.stock || 0), 0);
+      const total = friendWines.reduce((sum, wine) => sum + (wine.amount || 0), 0);
+      const red = friendWines
+        .filter(w => w.wine?.wine_type === 'red')
+        .reduce((sum, wine) => sum + (wine.amount || 0), 0);
+      const white = friendWines
+        .filter(w => w.wine?.wine_type === 'white')
+        .reduce((sum, wine) => sum + (wine.amount || 0), 0);
+      const rose = friendWines
+        .filter(w => w.wine?.wine_type === 'rose')
+        .reduce((sum, wine) => sum + (wine.amount || 0), 0);
+      const sparkling = friendWines
+        .filter(w => w.wine?.wine_type === 'sparkling')
+        .reduce((sum, wine) => sum + (wine.amount || 0), 0);
       
       return { total, red, white, rose, sparkling };
     } else if (tab === 'wishlist') {
       // Ses envies : nombre de vins uniques
-      const wishlistWines = friendWineCards.filter(w => w.origin === 'wishlist');
-      const total = wishlistWines.length;
-      const red = wishlistWines.filter(w => w.color === 'red').length;
-      const white = wishlistWines.filter(w => w.color === 'white').length;
-      const rose = wishlistWines.filter(w => w.color === 'rose').length;
-      const sparkling = wishlistWines.filter(w => w.color === 'sparkling').length;
+      const total = friendWishlistWines.length;
+      const red = friendWishlistWines.filter(w => w.wine?.wine_type === 'red').length;
+      const white = friendWishlistWines.filter(w => w.wine?.wine_type === 'white').length;
+      const rose = friendWishlistWines.filter(w => w.wine?.wine_type === 'rose').length;
+      const sparkling = friendWishlistWines.filter(w => w.wine?.wine_type === 'sparkling').length;
       
       return { total, red, white, rose, sparkling };
     } else {
-      // Dégustés : utiliser les stats de l'ami
-      return {
-        total: friendStats?.total_tasted_wines || 0,
-        red: 0, // Pas de détail par couleur pour les dégustés
-        white: 0,
-        rose: 0,
-        sparkling: 0,
-      };
+      // Dégustés : nombre total de dégustations
+      const total = friendTastedWines.length;
+      const red = friendTastedWines.filter(w => w.wine?.wine_type === 'red').length;
+      const white = friendTastedWines.filter(w => w.wine?.wine_type === 'white').length;
+      const rose = friendTastedWines.filter(w => w.wine?.wine_type === 'rose').length;
+      const sparkling = friendTastedWines.filter(w => w.wine?.wine_type === 'sparkling').length;
+      
+      return { total, red, white, rose, sparkling };
     }
-  }, [friendWineCards, tab, friendStats]);
+  }, [friendWines, friendWishlistWines, friendTastedWines, tab]);
 
   // Filtrage des vins
   const filteredWines = friendWineCards.filter(wine => {
