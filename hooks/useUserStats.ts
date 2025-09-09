@@ -46,7 +46,7 @@ export function useUserStats(userId: string | null) {
             wine_id,
             wine (
               id,
-              color
+              wine_type
             )
           `)
           .eq('user_id', userId);
@@ -75,10 +75,10 @@ export function useUserStats(userId: string | null) {
         const wishlistWines = wines.filter(w => w.origin === 'wishlist');
         const favoriteWines = wines.filter(w => w.favorite === true);
         
-        const redWines = cellarWines.filter(w => w.wine?.color === 'red');
-        const whiteWines = cellarWines.filter(w => w.wine?.color === 'white');
-        const roseWines = cellarWines.filter(w => w.wine?.color === 'rose');
-        const sparklingWines = cellarWines.filter(w => w.wine?.color === 'sparkling');
+        const redWines = cellarWines.filter(w => w.wine?.wine_type === 'red');
+        const whiteWines = cellarWines.filter(w => w.wine?.wine_type === 'white');
+        const roseWines = cellarWines.filter(w => w.wine?.wine_type === 'rose');
+        const sparklingWines = cellarWines.filter(w => w.wine?.wine_type === 'sparkling');
 
         const totalBottles = cellarWines.reduce((sum, w) => sum + (w.stock || 0), 0);
         const redBottles = redWines.reduce((sum, w) => sum + (w.stock || 0), 0);
