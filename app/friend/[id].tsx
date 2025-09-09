@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { WineCard } from '../../components/WineCard';
+import { WineCardCompact } from '../../components/WineCardCompact';
 import { useUser } from '../../hooks/useUser';
 import { useUserStats } from '../../hooks/useUserStats';
 import { supabase } from '../../lib/supabase';
@@ -279,11 +279,9 @@ export default function FriendDetailScreen() {
             <View style={styles.winesGrid}>
               {friendWineCards.map((wine) => (
                 <View key={wine.id} style={styles.wineCardContainer}>
-                  <WineCard
+                  <WineCardCompact
                     wine={wine}
                     readOnly={true}
-                    showStock={true}
-                    compact={true}
                     onPress={() => router.push(`/wine/${wine.id}?readOnly=true&friendId=${friend?.id}`)}
                   />
                 </View>
