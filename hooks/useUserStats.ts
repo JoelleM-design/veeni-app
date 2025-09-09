@@ -42,7 +42,7 @@ export function useUserStats(userId: string | null) {
             id,
             origin,
             favorite,
-            stock,
+            amount,
             wine_id,
             wine (
               id,
@@ -80,11 +80,11 @@ export function useUserStats(userId: string | null) {
         const roseWines = cellarWines.filter(w => w.wine?.wine_type === 'rose');
         const sparklingWines = cellarWines.filter(w => w.wine?.wine_type === 'sparkling');
 
-        const totalBottles = cellarWines.reduce((sum, w) => sum + (w.stock || 0), 0);
-        const redBottles = redWines.reduce((sum, w) => sum + (w.stock || 0), 0);
-        const whiteBottles = whiteWines.reduce((sum, w) => sum + (w.stock || 0), 0);
-        const roseBottles = roseWines.reduce((sum, w) => sum + (w.stock || 0), 0);
-        const sparklingBottles = sparklingWines.reduce((sum, w) => sum + (w.stock || 0), 0);
+        const totalBottles = cellarWines.reduce((sum, w) => sum + (w.amount || 0), 0);
+        const redBottles = redWines.reduce((sum, w) => sum + (w.amount || 0), 0);
+        const whiteBottles = whiteWines.reduce((sum, w) => sum + (w.amount || 0), 0);
+        const roseBottles = roseWines.reduce((sum, w) => sum + (w.amount || 0), 0);
+        const sparklingBottles = sparklingWines.reduce((sum, w) => sum + (w.amount || 0), 0);
 
         const uniqueTastedWines = new Set(tastedWines?.map(t => t.wine_id) || []).size;
 
