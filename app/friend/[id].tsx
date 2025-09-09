@@ -3,6 +3,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useUser } from '../../hooks/useUser';
+import { useUserStats } from '../../hooks/useUserStats';
+import { useSharedWines } from '../../hooks/useSharedWines';
 import { supabase } from '../../lib/supabase';
 
 interface Friend {
@@ -13,6 +15,22 @@ interface Friend {
   created_at: string;
 }
 
+// Fonction utilitaire pour obtenir la couleur du vin
+function getWineColor(color: string): string {
+  switch (color) {
+    case 'red':
+      return '#8B0000';
+    case 'white':
+      return '#F5F5DC';
+    case 'rose':
+      return '#FFB6C1';
+    case 'sparkling':
+      return '#FFF8DC';
+    default:
+      return '#8B0000';
+  }
+}
+
 export default function FriendDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
@@ -20,6 +38,12 @@ export default function FriendDetailScreen() {
   const [friend, setFriend] = useState<Friend | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Récupérer les stats de l'ami
+  const { stats: friendStats, isLoading: statsLoading } = useUserStats(friend?.id || null);
+  
+  // Récupérer les vins en commun
+  const { sharedWines, isLoading: sharedWinesLoading } = useSharedWines(friend?.id || null);
 
   useEffect(() => {
     const fetchFriend = async () => {
@@ -123,26 +147,55 @@ export default function FriendDetailScreen() {
           <Text style={styles.sectionTitle}>Statistiques</Text>
           <View style={styles.stats}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>0</Text>
+              <Text style={styles.statValue}>
+                {statsLoading ? '...' : (friendStats?.total_wines || 0)}
+              </Text>
               <Text style={styles.statLabel}>Vins</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>0</Text>
+              <Text style={styles.statValue}>
+                {statsLoading ? '...' : (friendStats?.total_tasted_wines || 0)}
+              </Text>
               <Text style={styles.statLabel}>Dégustations</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>0</Text>
-              <Text style={styles.statLabel}>Amis</Text>
+              <Text style={styles.statValue}>
+                {sharedWinesLoading ? '...' : sharedWines.length}
+              </Text>
+              <Text style={styles.statLabel}>En commun</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Vins en commun</Text>
-          <View style={styles.emptySection}>
-            <Ionicons name="wine" size={48} color="#666" />
-            <Text style={styles.emptyText}>Aucun vin en commun pour le moment</Text>
-          </View>
+          {sharedWinesLoading ? (
+            <View style={styles.emptySection}>
+              <Text style={styles.emptyText}>Chargement...</Text>
+            </View>
+          ) : sharedWines.length > 0 ? (
+            <View style={styles.winesList}>
+              {sharedWines.map((wine) => (
+                <View key={wine.id} style={styles.wineItem}>
+                  <View style={styles.wineInfo}>
+                    <Text style={styles.wineName}>{wine.name}</Text>
+                    {wine.domaine && (
+                      <Text style={styles.wineDomaine}>{wine.domaine}</Text>
+                    )}
+                    {wine.vintage && (
+                      <Text style={styles.wineVintage}>{wine.vintage}</Text>
+                    )}
+                  </View>
+                  <View style={[styles.wineColor, { backgroundColor: getWineColor(wine.color) }]} />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptySection}>
+              <Ionicons name="wine" size={48} color="#666" />
+              <Text style={styles.emptyText}>Aucun vin en commun pour le moment</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -279,5 +332,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginTop: 16,
+  },
+  winesList: {
+    gap: 12,
+  },
+  wineItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#333',
+    borderRadius: 12,
+    padding: 16,
+    justifyContent: 'space-between',
+  },
+  wineInfo: {
+    flex: 1,
+  },
+  wineName: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  wineDomaine: {
+    color: '#999',
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  wineVintage: {
+    color: '#666',
+    fontSize: 12,
+  },
+  wineColor: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginLeft: 12,
   },
 }); 
