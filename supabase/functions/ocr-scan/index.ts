@@ -214,9 +214,9 @@ function applyRegionToAppellationConversion(wine: ParsedWine): ParsedWine {
         console.log(`🍷 Conversion: ${normalizedWine.région} → ${appellationName} (${data.region}, ${data.country})`);
         return {
           ...normalizedWine,
-          appellation: appellationName,
-          région: data.region,
-          pays: data.country
+          appellation: normalizeCase(appellationName),
+          région: normalizeCase(data.region),
+          pays: normalizeCase(data.country)
         };
       }
     }
