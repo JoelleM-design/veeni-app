@@ -125,21 +125,27 @@ export default function FriendDetailScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Statistiques</Text>
-          <View style={styles.stats}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>
+          <View style={styles.statsContainer}>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>
                 {statsLoading ? '...' : (friendStats?.total_wines || 0)}
               </Text>
               <Text style={styles.statLabel}>Vins</Text>
             </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>
+                {statsLoading ? '...' : (friendStats?.wishlist_count || 0)}
+              </Text>
+              <Text style={styles.statLabel}>Envies</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>
                 {statsLoading ? '...' : (friendStats?.total_tasted_wines || 0)}
               </Text>
-              <Text style={styles.statLabel}>Dégustations</Text>
+              <Text style={styles.statLabel}>Dégustés</Text>
             </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>
                 {statsLoading ? '...' : (friendStats?.favorite_wines_count || 0)}
               </Text>
               <Text style={styles.statLabel}>Favoris</Text>
@@ -273,25 +279,31 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginBottom: 16,
   },
-  stats: {
+  statsContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    gap: 12,
+  },
+  statCard: {
     backgroundColor: '#333',
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
-  },
-  statItem: {
-    flex: 1,
     alignItems: 'center',
+    flex: 1,
+    minWidth: '45%',
+    marginBottom: 8,
   },
-  statValue: {
+  statNumber: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#fff',
+    marginBottom: 4,
   },
   statLabel: {
     fontSize: 14,
-    color: '#666',
-    marginTop: 4,
+    color: '#999',
   },
   emptySection: {
     alignItems: 'center',

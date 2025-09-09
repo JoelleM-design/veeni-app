@@ -1,5 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useStats } from '../hooks/useStats';
+import { useWineHistory } from '../hooks/useWineHistory';
 
 interface StatsBarProps {
   values: { red: number; white: number; rose: number; sparkling: number; total: number };
@@ -10,41 +12,33 @@ interface StatsBarProps {
 
 export const StatsBar: React.FC<StatsBarProps> = ({ values, labels, totalLabel = 'vins', style }) => {
   console.log('🔄 StatsBar: Re-rendu avec valeurs:', values); // Debug log
-  const defaultLabels = {
-    red: 'rouges',
-    white: 'blancs',
-    rose: 'rosés',
-    sparkling: 'pétillants',
-  };
-  const l = labels || defaultLabels;
+  
+  // Récupérer les stats globales
+  const { stats } = useStats();
+  const { tastedWines } = useWineHistory();
+  
+  // Calculer le total des dégustations
+  const totalTastings = tastedWines.reduce((sum, entry) => sum + (entry.tastingCount || 0), 0);
+  
   return (
     <View style={[styles.container, style]}>
-      <View style={[styles.statsOutlineBox, style]}>
-        <View style={styles.statsRowOutline}>
-          <View style={styles.statItemOutline}>
-            <Text style={styles.statValueOutline}>{values.red}</Text>
-            <Text style={styles.statLabelOutline}>{l.red}</Text>
-          </View>
-          <View style={styles.separator} />
-          <View style={styles.statItemOutline}>
-            <Text style={styles.statValueOutline}>{values.white}</Text>
-            <Text style={styles.statLabelOutline}>{l.white}</Text>
-          </View>
-          <View style={styles.separator} />
-          <View style={styles.statItemOutline}>
-            <Text style={styles.statValueOutline}>{values.rose}</Text>
-            <Text style={styles.statLabelOutline}>{l.rose}</Text>
-          </View>
-          <View style={styles.separator} />
-          <View style={styles.statItemOutline}>
-            <Text style={styles.statValueOutline}>{values.sparkling}</Text>
-            <Text style={styles.statLabelOutline}>{l.sparkling}</Text>
-          </View>
+      <View style={styles.statsContainer}>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{stats?.total_wines || 0}</Text>
+          <Text style={styles.statLabel}>Vins</Text>
         </View>
-      </View>
-      <View style={styles.totalRowOutline}>
-        <Text style={styles.totalValueOutline}>{values.total}</Text>
-        <Text style={styles.totalLabelOutline}> {totalLabel}</Text>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{stats?.wishlist_count || 0}</Text>
+          <Text style={styles.statLabel}>Envies</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{totalTastings}</Text>
+          <Text style={styles.statLabel}>Dégustés</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{stats?.favorite_wines_count || 0}</Text>
+          <Text style={styles.statLabel}>Favoris</Text>
+        </View>
       </View>
     </View>
   );
@@ -54,76 +48,32 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'column',
     alignItems: 'stretch',
-  },
-  statsOutlineBox: {
-    marginTop: 18,
-    marginBottom: 8,
-    marginHorizontal: 20,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: '#555',
-    backgroundColor: 'transparent',
-    paddingVertical: 6,
-    paddingHorizontal: 0,
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    alignSelf: 'center',
-    width: 350,
-  },
-  statsRowOutline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    width: '100%',
-    minHeight: 40,
-    paddingHorizontal: 8,
-  },
-  statItemOutline: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
-  },
-  statValueOutline: {
-    color: '#FFF',
-    fontSize: 20,
-    fontWeight: 'bold',
-    fontFamily: 'System',
-    marginBottom: 2,
-  },
-  statLabelOutline: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: '400',
-    fontFamily: 'System',
-    marginBottom: 0,
-    marginTop: 0,
-    letterSpacing: 0.1,
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  totalRowOutline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 16,
     marginBottom: 16,
   },
-  totalValueOutline: {
+  statsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  statCard: {
+    backgroundColor: '#333',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    flex: 1,
+    minWidth: '45%',
+    marginBottom: 8,
+  },
+  statNumber: {
+    fontSize: 24,
     fontWeight: 'bold',
-    fontSize: 18,
-    fontFamily: 'System',
-    color: '#FFF',
+    color: '#fff',
+    marginBottom: 4,
   },
-  totalLabelOutline: {
-    color: '#FFF',
-    fontSize: 15,
-    fontWeight: '400',
-    fontFamily: 'System',
-  },
-  separator: {
-    width: 1,
-    height: '100%',
-    backgroundColor: '#555',
-    marginHorizontal: 10,
+  statLabel: {
+    fontSize: 14,
+    color: '#999',
   },
 }); 

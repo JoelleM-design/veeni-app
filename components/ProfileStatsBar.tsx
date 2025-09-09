@@ -41,31 +41,22 @@ export default function ProfileStatsBar({ style }: ProfileStatsBarProps) {
 
   return (
     <View style={[styles.container, style]}>
-      <View style={styles.statsOutlineBox}>
-        <View style={styles.statsRowOutline}>
-          {/* Dégustés */}
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{totalTastings}</Text>
-            <Text style={styles.statLabel}> dégustés</Text>
-          </View>
-          <View style={styles.separator} />
-          {/* Favoris */}
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{stats.favorite_wines_count}</Text>
-            <Text style={styles.statLabel}> favoris</Text>
-          </View>
-          <View style={styles.separator} />
-          {/* Partagés */}
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{stats.shared_wines_count}</Text>
-            <Text style={styles.statLabel}> partagés</Text>
-          </View>
-          <View style={styles.separator} />
-          {/* Commun */}
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{stats.shared_wines_with_friends}</Text>
-            <Text style={styles.statLabel}> commun</Text>
-          </View>
+      <View style={styles.statsContainer}>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{stats.total_wines}</Text>
+          <Text style={styles.statLabel}>Vins</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{stats.wishlist_count}</Text>
+          <Text style={styles.statLabel}>Envies</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{totalTastings}</Text>
+          <Text style={styles.statLabel}>Dégustés</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{stats.favorite_wines_count}</Text>
+          <Text style={styles.statLabel}>Favoris</Text>
         </View>
       </View>
     </View>
@@ -76,73 +67,38 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'column',
     alignItems: 'stretch',
+    paddingHorizontal: 16,
+    marginBottom: 16,
   },
-  statItem: {
-    flex: 1,
+  statsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  statCard: {
+    backgroundColor: '#333',
+    borderRadius: 12,
+    padding: 16,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
+    flex: 1,
+    minWidth: '45%',
+    marginBottom: 8,
   },
-  statValue: {
-    color: '#FFF',
-    fontSize: 20,
+  statNumber: {
+    fontSize: 24,
     fontWeight: 'bold',
-    fontFamily: 'System',
-    marginBottom: 2,
+    color: '#fff',
+    marginBottom: 4,
   },
   statLabel: {
-    color: '#FFF',
     fontSize: 14,
-    fontWeight: '400',
-    fontFamily: 'System',
-    textAlign: 'center',
-    lineHeight: 16,
-    marginBottom: 0,
-    marginTop: 0,
-    letterSpacing: 0.1,
-  },
-  separator: {
-    width: 1,
-    height: '100%',
-    backgroundColor: '#555',
-    marginHorizontal: 10,
+    color: '#999',
   },
   loadingText: {
     color: '#FFF',
     fontSize: 18,
     fontWeight: 'bold',
     fontFamily: 'System',
-  },
-  statsContainer: {
-    backgroundColor: '#333',
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#555',
-  },
-  statsOutlineBox: {
-    marginTop: 18,
-    marginBottom: 8,
-    marginHorizontal: 20,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: '#555',
-    backgroundColor: 'transparent',
-    paddingVertical: 6,
-    paddingHorizontal: 0,
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    alignSelf: 'center',
-    width: 350,
-  },
-  statsRowOutline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    width: '100%',
-    minHeight: 40,
-    paddingHorizontal: 8,
   },
 }); 
