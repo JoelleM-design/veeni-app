@@ -43,7 +43,7 @@ export default function ProfileStatsBar({ style }: ProfileStatsBarProps) {
     <View style={[styles.container, style]}>
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{stats.total_wines}</Text>
+          <Text style={styles.statNumber}>{stats.total_bottles_in_cellar}</Text>
           <Text style={styles.statLabel}>Vins</Text>
         </View>
         <View style={styles.statCard}>

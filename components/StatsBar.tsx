@@ -24,7 +24,7 @@ export const StatsBar: React.FC<StatsBarProps> = ({ values, labels, totalLabel =
     <View style={[styles.container, style]}>
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{stats?.total_wines || 0}</Text>
+          <Text style={styles.statNumber}>{stats?.total_bottles_in_cellar || 0}</Text>
           <Text style={styles.statLabel}>Vins</Text>
         </View>
         <View style={styles.statCard}>

@@ -128,7 +128,7 @@ export default function FriendDetailScreen() {
           <View style={styles.statsContainer}>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>
-                {statsLoading ? '...' : (friendStats?.total_wines || 0)}
+                {statsLoading ? '...' : (friendStats?.total_bottles_in_cellar || 0)}
               </Text>
               <Text style={styles.statLabel}>Vins</Text>
             </View>
