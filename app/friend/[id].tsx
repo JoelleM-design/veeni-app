@@ -183,9 +183,6 @@ export default function FriendDetailScreen() {
             )}
           </View>
           <Text style={styles.name}>{friend.first_name || 'Utilisateur'}</Text>
-          <Text style={styles.memberSince}>
-            Membre depuis {new Date(friend.created_at).toLocaleDateString('fr-FR')}
-          </Text>
           {!winesLoading && friendWines && friendWines.length > 0 && friendPreference ? (
             <View style={styles.preferenceContainer}>
               <Text style={styles.userPreference}>
@@ -340,10 +337,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
     marginBottom: 8,
-  },
-  memberSince: {
-    fontSize: 14,
-    color: '#666',
   },
   section: {
     padding: 16,
