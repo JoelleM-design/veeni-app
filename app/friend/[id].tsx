@@ -95,7 +95,13 @@ export default function FriendDetailScreen() {
               wine_type,
               country_id,
               region,
-              image_uri
+              image_uri,
+              producer (
+                name
+              ),
+              country (
+                name
+              )
             )
           `)
           .eq('user_id', friend.id)
@@ -104,17 +110,20 @@ export default function FriendDetailScreen() {
         if (error) {
           console.error('Erreur récupération vins ami:', error);
         } else {
+          console.log('🍷 Données vins ami récupérées:', data);
           setFriendWines(data || []);
           
           // Convertir les données pour les cartes de vin
-          const wineCards: Wine[] = (data || []).map((item: any) => ({
+          const wineCards: Wine[] = (data || []).map((item: any) => {
+            console.log('🍷 Mapping vin:', item.wine?.name, 'producer:', item.wine?.producer?.name, 'country:', item.wine?.country?.name);
+            return {
             id: item.wine.id,
             name: item.wine.name,
             vintage: item.wine.year ? parseInt(item.wine.year) : null,
             color: item.wine.wine_type as 'red' | 'white' | 'rose' | 'sparkling',
-            domaine: item.wine.producer_id || 'Domaine inconnu',
+            domaine: item.wine.producer?.name || 'Domaine inconnu',
             region: item.wine.region || '',
-            country: item.wine.country_id || '',
+            country: item.wine.country?.name || '',
             grapes: [], // Pas de données de cépages dans la table wine
             imageUri: item.wine.image_uri,
             stock: item.amount || 0,
@@ -125,8 +134,10 @@ export default function FriendDetailScreen() {
             // Données spécifiques à l'ami
             amount: item.amount,
             user_wine_id: item.id
-          }));
+            };
+          });
           
+          console.log('🍷 Cartes de vin finales:', wineCards);
           setFriendWineCards(wineCards);
         }
       } catch (err) {
