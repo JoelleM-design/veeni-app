@@ -2,7 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StatsBar } from '../../components/StatsBar';
 import { WineCardCompact } from '../../components/WineCardCompact';
+import { ActiveFiltersBar } from '../../components/ui/ActiveFiltersBar';
+import { FilterModal } from '../../components/ui/FilterModal';
+import { SearchFilterBar } from '../../components/ui/SearchFilterBar';
 import { useUser } from '../../hooks/useUser';
 import { useUserStats } from '../../hooks/useUserStats';
 import { supabase } from '../../lib/supabase';
@@ -14,6 +18,22 @@ const colorIcons = {
   rose: <Ionicons name="wine" size={16} color="#FFB6C1" />,
   sparkling: <Ionicons name="sparkles" size={16} color="#C0C0C0" />,
 };
+
+const FILTER_OPTIONS = [
+  { key: 'all', label: 'Tous', icon: 'list', color: '#FFFFFF' },
+  { key: 'red', label: 'Rouge', icon: 'wine', color: '#FF4F8B' },
+  { key: 'white', label: 'Blanc', icon: 'wine', color: '#FFF8DC' },
+  { key: 'rose', label: 'Rosé', icon: 'wine', color: '#FFB6C1' },
+  { key: 'sparkling', label: 'Effervescent', icon: 'wine', color: '#FFD700' },
+];
+
+const TABS = [
+  { key: 'cellar', label: 'Sa cave' },
+  { key: 'wishlist', label: 'Ses envies' },
+  { key: 'tasted', label: 'Dégustés' },
+];
+
+type WineListTab = 'cellar' | 'wishlist' | 'tasted';
 
 interface Friend {
   id: string;
@@ -38,6 +58,12 @@ export default function FriendDetailScreen() {
   const [friendWines, setFriendWines] = useState<any[]>([]);
   const [winesLoading, setWinesLoading] = useState(false);
   const [friendWineCards, setFriendWineCards] = useState<Wine[]>([]);
+  
+  // États pour la navigation et la recherche
+  const [tab, setTab] = useState<WineListTab>('cellar');
+  const [search, setSearch] = useState('');
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchFriend = async () => {
@@ -169,6 +195,75 @@ export default function FriendDetailScreen() {
     return mostCommonColor;
   }, [friendWines]);
 
+  // Stats calculées selon l'onglet actif
+  const localStats = useMemo(() => {
+    if (tab === 'cellar') {
+      // Sa cave : somme des stocks
+      const cellarWines = friendWineCards.filter(w => w.origin === 'cellar');
+      const total = cellarWines.reduce((sum, wine) => sum + (wine.stock || 0), 0);
+      const red = cellarWines
+        .filter(w => w.color === 'red')
+        .reduce((sum, wine) => sum + (wine.stock || 0), 0);
+      const white = cellarWines
+        .filter(w => w.color === 'white')
+        .reduce((sum, wine) => sum + (wine.stock || 0), 0);
+      const rose = cellarWines
+        .filter(w => w.color === 'rose')
+        .reduce((sum, wine) => sum + (wine.stock || 0), 0);
+      const sparkling = cellarWines
+        .filter(w => w.color === 'sparkling')
+        .reduce((sum, wine) => sum + (wine.stock || 0), 0);
+      
+      return { total, red, white, rose, sparkling };
+    } else if (tab === 'wishlist') {
+      // Ses envies : nombre de vins uniques
+      const wishlistWines = friendWineCards.filter(w => w.origin === 'wishlist');
+      const total = wishlistWines.length;
+      const red = wishlistWines.filter(w => w.color === 'red').length;
+      const white = wishlistWines.filter(w => w.color === 'white').length;
+      const rose = wishlistWines.filter(w => w.color === 'rose').length;
+      const sparkling = wishlistWines.filter(w => w.color === 'sparkling').length;
+      
+      return { total, red, white, rose, sparkling };
+    } else {
+      // Dégustés : utiliser les stats de l'ami
+      return {
+        total: friendStats?.total_tasted_wines || 0,
+        red: 0, // Pas de détail par couleur pour les dégustés
+        white: 0,
+        rose: 0,
+        sparkling: 0,
+      };
+    }
+  }, [friendWineCards, tab, friendStats]);
+
+  // Filtrage des vins
+  const filteredWines = friendWineCards.filter(wine => {
+    const matchesSearch = wine.name.toLowerCase().includes(search.toLowerCase()) ||
+      (wine.domaine && wine.domaine.toLowerCase().includes(search.toLowerCase())) ||
+      (wine.region && wine.region.toLowerCase().includes(search.toLowerCase()));
+    
+    const matchesFilters = activeFilters.length === 0 ||
+      activeFilters.some(filter => {
+        switch (filter) {
+          case 'all':
+            return true;
+          case 'red':
+            return wine.color === 'red';
+          case 'white':
+            return wine.color === 'white';
+          case 'rose':
+            return wine.color === 'rose';
+          case 'sparkling':
+            return wine.color === 'sparkling';
+          default:
+            return false;
+        }
+      });
+    
+    return matchesSearch && matchesFilters;
+  });
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -271,13 +366,56 @@ export default function FriendDetailScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Ses vins</Text>
+          
+          {/* Barre de navigation */}
+          <View style={styles.tabRow}>
+            {TABS.map(t => (
+              <TouchableOpacity
+                key={t.key}
+                style={[styles.tabBtn, tab === t.key && styles.tabBtnActive]}
+                onPress={() => setTab(t.key as WineListTab)}
+              >
+                <Text style={[styles.tabLabel, tab === t.key && styles.tabLabelActive]}>{t.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Stats bar */}
+          <StatsBar 
+            values={localStats} 
+            totalLabel={tab === 'cellar' ? 'bouteilles' : tab === 'tasted' ? 'dégustations' : 'vins'}
+          />
+
+          {/* Barre de recherche et filtres */}
+          <SearchFilterBar
+            value={search}
+            onChange={setSearch}
+            onFilterPress={() => setFilterModalVisible(true)}
+            placeholder={
+              tab === 'cellar' ? 'Cherchez un vin dans sa cave ...' :
+              tab === 'wishlist' ? 'Cherchez un vin dans ses envies ...' :
+              'Cherchez un vin dans ses dégustations ...'
+            }
+            filterActive={activeFilters.length > 0}
+          >
+            <ActiveFiltersBar
+              selectedFilters={activeFilters}
+              options={FILTER_OPTIONS}
+              onRemoveFilter={(filterKey) => {
+                setActiveFilters(prev => prev.filter(f => f !== filterKey));
+              }}
+              onClearAll={() => setActiveFilters([])}
+            />
+          </SearchFilterBar>
+
+          {/* Liste des vins */}
           {winesLoading ? (
             <View style={styles.emptySection}>
               <Text style={styles.emptyText}>Chargement...</Text>
             </View>
-          ) : friendWineCards.length > 0 ? (
+          ) : filteredWines.length > 0 ? (
             <View style={styles.winesGrid}>
-              {friendWineCards.map((wine) => (
+              {filteredWines.map((wine) => (
                 <View key={wine.id} style={styles.wineCardContainer}>
                   <WineCardCompact
                     wine={wine}
@@ -290,11 +428,25 @@ export default function FriendDetailScreen() {
           ) : (
             <View style={styles.emptySection}>
               <Ionicons name="wine-outline" size={48} color="#666" />
-              <Text style={styles.emptyText}>Aucun vin dans sa cave</Text>
+              <Text style={styles.emptyText}>
+                {tab === 'cellar' ? 'Aucun vin dans sa cave.' :
+                 tab === 'wishlist' ? 'Aucun vin dans ses envies.' :
+                 'Aucune dégustation trouvée.'}
+              </Text>
             </View>
           )}
         </View>
       </ScrollView>
+      
+      {/* Modal de filtres */}
+      <FilterModal
+        visible={filterModalVisible}
+        onClose={() => setFilterModalVisible(false)}
+        options={FILTER_OPTIONS}
+        selectedFilters={activeFilters}
+        onFilterChange={setActiveFilters}
+        title="Filtres"
+      />
     </View>
   );
 }
@@ -447,8 +599,40 @@ const styles = StyleSheet.create({
   },
   winesGrid: {
     flexDirection: 'column',
+    marginTop: 8,
   },
   wineCardContainer: {
     marginBottom: 12,
+  },
+  tabRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#2A2A2A',
+    borderRadius: 16,
+    padding: 4,
+    marginBottom: 16,
+  },
+  tabBtn: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginHorizontal: 2,
+    alignItems: 'center',
+  },
+  tabBtnActive: {
+    backgroundColor: '#393C40',
+    borderWidth: 0,
+  },
+  tabLabel: {
+    color: '#999',
+    fontWeight: '500',
+    fontSize: 14,
+  },
+  tabLabelActive: {
+    color: '#FFF',
+    fontWeight: '600',
   },
 }); 
