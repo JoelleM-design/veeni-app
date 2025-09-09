@@ -130,13 +130,13 @@ export default function FriendDetailScreen() {
               <Text style={styles.statNumber}>
                 {statsLoading ? '...' : (friendStats?.total_bottles_in_cellar || 0)}
               </Text>
-              <Text style={styles.statLabel}>Vins</Text>
+              <Text style={styles.statLabel}>En cave</Text>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>
                 {statsLoading ? '...' : (friendStats?.wishlist_count || 0)}
               </Text>
-              <Text style={styles.statLabel}>Envies</Text>
+              <Text style={styles.statLabel}>À acheter</Text>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>

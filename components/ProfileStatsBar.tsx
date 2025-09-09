@@ -44,11 +44,11 @@ export default function ProfileStatsBar({ style }: ProfileStatsBarProps) {
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>{stats.total_bottles_in_cellar}</Text>
-          <Text style={styles.statLabel}>Vins</Text>
+          <Text style={styles.statLabel}>En cave</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>{stats.wishlist_count}</Text>
-          <Text style={styles.statLabel}>Envies</Text>
+          <Text style={styles.statLabel}>À acheter</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>{totalTastings}</Text>
