@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useUser } from '../../hooks/useUser';
 import { useUserStats } from '../../hooks/useUserStats';
-import { useSharedWines } from '../../hooks/useSharedWines';
 import { supabase } from '../../lib/supabase';
 
 interface Friend {
@@ -13,22 +12,6 @@ interface Friend {
   email: string;
   avatar?: string;
   created_at: string;
-}
-
-// Fonction utilitaire pour obtenir la couleur du vin
-function getWineColor(color: string): string {
-  switch (color) {
-    case 'red':
-      return '#8B0000';
-    case 'white':
-      return '#F5F5DC';
-    case 'rose':
-      return '#FFB6C1';
-    case 'sparkling':
-      return '#FFF8DC';
-    default:
-      return '#8B0000';
-  }
 }
 
 export default function FriendDetailScreen() {
@@ -41,9 +24,6 @@ export default function FriendDetailScreen() {
 
   // Récupérer les stats de l'ami
   const { stats: friendStats, isLoading: statsLoading } = useUserStats(friend?.id || null);
-  
-  // Récupérer les vins en commun
-  const { sharedWines, isLoading: sharedWinesLoading } = useSharedWines(friend?.id || null);
 
   useEffect(() => {
     const fetchFriend = async () => {
@@ -160,40 +140,30 @@ export default function FriendDetailScreen() {
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>
-                {sharedWinesLoading ? '...' : sharedWines.length}
+                {statsLoading ? '...' : (friendStats?.favorite_wines_count || 0)}
               </Text>
-              <Text style={styles.statLabel}>En commun</Text>
+              <Text style={styles.statLabel}>Favoris</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Vins en commun</Text>
-          {sharedWinesLoading ? (
+          <Text style={styles.sectionTitle}>Vins favoris</Text>
+          {statsLoading ? (
             <View style={styles.emptySection}>
               <Text style={styles.emptyText}>Chargement...</Text>
             </View>
-          ) : sharedWines.length > 0 ? (
-            <View style={styles.winesList}>
-              {sharedWines.map((wine) => (
-                <View key={wine.id} style={styles.wineItem}>
-                  <View style={styles.wineInfo}>
-                    <Text style={styles.wineName}>{wine.name}</Text>
-                    {wine.domaine && (
-                      <Text style={styles.wineDomaine}>{wine.domaine}</Text>
-                    )}
-                    {wine.vintage && (
-                      <Text style={styles.wineVintage}>{wine.vintage}</Text>
-                    )}
-                  </View>
-                  <View style={[styles.wineColor, { backgroundColor: getWineColor(wine.color) }]} />
-                </View>
-              ))}
+          ) : (friendStats?.favorite_wines_count || 0) > 0 ? (
+            <View style={styles.emptySection}>
+              <Ionicons name="heart" size={48} color="#ff6b6b" />
+              <Text style={styles.emptyText}>
+                {friendStats?.favorite_wines_count} vin{friendStats?.favorite_wines_count > 1 ? 's' : ''} marqué{friendStats?.favorite_wines_count > 1 ? 's' : ''} comme favori{friendStats?.favorite_wines_count > 1 ? 's' : ''}
+              </Text>
             </View>
           ) : (
             <View style={styles.emptySection}>
-              <Ionicons name="wine" size={48} color="#666" />
-              <Text style={styles.emptyText}>Aucun vin en commun pour le moment</Text>
+              <Ionicons name="heart-outline" size={48} color="#666" />
+              <Text style={styles.emptyText}>Aucun vin favori pour le moment</Text>
             </View>
           )}
         </View>
@@ -332,40 +302,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginTop: 16,
-  },
-  winesList: {
-    gap: 12,
-  },
-  wineItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#333',
-    borderRadius: 12,
-    padding: 16,
-    justifyContent: 'space-between',
-  },
-  wineInfo: {
-    flex: 1,
-  },
-  wineName: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  wineDomaine: {
-    color: '#999',
-    fontSize: 14,
-    marginBottom: 2,
-  },
-  wineVintage: {
-    color: '#666',
-    fontSize: 12,
-  },
-  wineColor: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    marginLeft: 12,
   },
 }); 
