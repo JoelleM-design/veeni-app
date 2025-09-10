@@ -54,6 +54,8 @@ const WineCardWithSocial = ({
     console.log('🔄 handleToggleFavorite appelé sur carte:', { wineId, currentFavorite: wineToDisplay.favorite, newFavorite: !wineToDisplay.favorite });
     try {
       await updateWine(wineId, { favorite: !wineToDisplay.favorite });
+      // Forcer un léger refresh visuel sans fetch
+      setRefreshKey(prev => prev + 1);
       await refreshStats(); // Refresh stats after favorite toggle
       console.log('✅ handleToggleFavorite terminé avec succès sur carte');
     } catch (error) {
@@ -119,8 +121,8 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
   const [tastingHistoryModalVisible, setTastingHistoryModalVisible] = useState(false);
   const [selectedTastedWine, setSelectedTastedWine] = useState<any>(null);
 
-  const wines = useWineList(tab);
-  const { wines: allWines, updateWine, cleanupDuplicates } = useWines();
+  const { wines: allWines, updateWine, cleanupDuplicates, subscribeToUpdates } = useWines();
+  const wines = useWineList(tab, allWines);
   const { addTasting, reAddToCellar, tastedWines } = useWineHistory();
   const { stats, isLoading: statsLoading, error: statsError, refreshStats } = useStats(); // Utilise simplement useStats
   
@@ -136,6 +138,16 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
   useEffect(() => {
     setRefreshKey(prev => prev + 1);
   }, []);
+
+  // S'abonner aux mises à jour globales du hook pour rafraîchir instantanément
+  useEffect(() => {
+    const unsubscribe = subscribeToUpdates?.(() => {
+      setRefreshKey(prev => prev + 1);
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [subscribeToUpdates]);
 
   // Fonction pour gérer la dégustation d'un vin
   const handleTasteWine = (wine: any) => {

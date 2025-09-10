@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { uploadWineImage } from '../lib/uploadWineImage';
 import { checkWineDuplicate, getDuplicateErrorMessage, getSimilarWineMessage } from '../lib/wineDuplicateDetection';
 import { Wine } from '../types/wine';
+import { getWinesStore, setWinesStore, subscribeWines } from '../lib/winesStore';
 
 // Génère un UUID v4 vraiment aléatoire
 function generateId(): string {
@@ -20,7 +21,7 @@ function generateId(): string {
 }
 
 export function useWines() {
-  const [wines, setWines] = useState<Wine[]>([]);
+  const [wines, setWines] = useState<Wine[]>(getWinesStore());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [updateCallbacks, setUpdateCallbacks] = useState<(() => void)[]>([]);
@@ -38,6 +39,14 @@ export function useWines() {
     console.log('🔔 Notifying', updateCallbacks.length, 'subscribers of wine updates');
     updateCallbacks.forEach(callback => callback());
   }, [updateCallbacks]);
+
+  // Sync local state with global store
+  useEffect(() => {
+    const unsub = subscribeWines((next) => {
+      setWines(next);
+    });
+    return () => { unsub(); };
+  }, []);
 
   // Subscription pour les changements en temps réel
   useEffect(() => {
@@ -289,7 +298,7 @@ export function useWines() {
       }
 
       console.log('Vins transformés:', transformedWines.length, 'vins');
-      setWines(transformedWines);
+      setWinesStore(transformedWines);
     } catch (err) {
       console.error('Erreur complète lors de la récupération des vins:', err);
       setError(err instanceof Error ? err : new Error('Erreur inconnue'));
@@ -427,7 +436,8 @@ export function useWines() {
 
       // Mettre à jour l'état local immédiatement avec les nouvelles données
       setWines(prevWines => {
-        const updatedWines = prevWines.map(wine => 
+        const base = prevWines.length ? prevWines : getWinesStore();
+        const updatedWines = base.map(wine => 
           wine.id === wineId 
             ? { 
                 ...wine, 
@@ -456,6 +466,7 @@ export function useWines() {
         if (updates.favorite !== undefined) {
           console.log('❤️ Mise à jour favorite:', { wineId, newFavorite: updates.favorite });
         }
+        setWinesStore(updatedWines);
         return updatedWines;
       });
       

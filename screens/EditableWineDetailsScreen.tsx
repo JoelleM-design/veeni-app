@@ -54,7 +54,7 @@ export default function EditableWineDetailsScreen({
 }: EditableWineDetailsScreenProps) {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { wines, updateWine, addWineToWishlist, addWineToCellar, fetchWines } = useWines();
+  const { wines, updateWine, addWineToWishlist, addWineToCellar, fetchWines, notifyUpdate } = useWines();
   
   // Mode lecture pour les profils visités (priorité aux paramètres de la fonction)
   const isReadOnlyMode = params.readOnly === 'true' || isReadOnly;
@@ -556,7 +556,9 @@ export default function EditableWineDetailsScreen({
   const handleToggleFavorite = () => {
     console.log("[Like] EditableWineDetailsScreen - wineId:", safeWine?.id, "newFavoriteValue:", !safeWine?.favorite);
     if (safeWine) {
-      updateWineSafe(wineId, { favorite: !safeWine.favorite });
+      updateWineSafe(wineId, { favorite: !safeWine.favorite }).then(() => {
+        notifyUpdate?.();
+      });
     }
   };
 
@@ -1317,6 +1319,8 @@ export default function EditableWineDetailsScreen({
                         try {
                           console.log('🍷 Sauvegarde type:', item.key, 'pour vin:', wineId);
                           await updateWineSafe(wineId, { color: item.key });
+                          // Notifier la liste immédiatement
+                          notifyUpdate?.();
                           console.log('✅ Type sauvegardé');
                         } catch (error) {
                           console.error('❌ Erreur sauvegarde type:', error);
