@@ -14,7 +14,8 @@ export function useWineList(tab: WineListTab): Wine[] {
       tab, 
       totalWines: wines?.length || 0,
       totalTastedWines: tastedWines?.length || 0,
-      wineOrigins: wines?.map(w => w.origin) || []
+      wineOrigins: wines?.map(w => w.origin) || [],
+      winesUpdated: wines?.map(w => ({ id: w.id, name: w.name, stock: w.stock, favorite: w.favorite })) || []
     });
 
     if (tab === 'tasted') {
