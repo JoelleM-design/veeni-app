@@ -43,10 +43,9 @@ const WineCardWithSocial = ({
   onOpenTastingModal: (wine: any) => void;
   setRefreshKey: (value: React.SetStateAction<number>) => void;
 }) => {
-  const { wines, updateWine } = useWines();
+  const { updateWine } = useWines();
   const { refreshStats } = useStats(); // Nouveau hook SWR
-  const freshWine = wines.find(w => w?.id === wine.id);
-  const wineToDisplay = freshWine || wine;
+  const wineToDisplay = wine; // Utiliser directement les données passées en props
   const wineId = wineToDisplay?.id;
   if (!wineId) return null;
 
