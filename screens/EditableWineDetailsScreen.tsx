@@ -190,9 +190,75 @@ export default function EditableWineDetailsScreen({
     }
   }
 
+  // Fallback: vin distant (profil ami)
+  const [remoteWine, setRemoteWine] = useState<any | null>(null);
+
+  useEffect(() => {
+    const loadRemoteWineIfNeeded = async () => {
+      if (remoteWine || !wineId) return;
+      // Ne charger à distance que si on est en lecture et qu'on n'a pas trouvé dans la liste locale
+      const alreadyInLocal = allWines.find(w => w?.id === wineId);
+      if (alreadyInLocal) return;
+      try {
+        // Récupérer le vin
+        const { data: wineData, error: wineError } = await supabase
+          .from('wine')
+          .select(`
+            id, name, year, wine_type, region, image_uri,
+            producer ( name ),
+            country ( name )
+          `)
+          .eq('id', wineId)
+          .single();
+        if (wineError) throw wineError;
+
+        // Récupérer le contexte user_wine pour le friend (stock/favorite/origin)
+        let amount = 0; let favorite = false; let origin: 'cellar' | 'wishlist' = 'cellar';
+        if (friendId) {
+          const { data: uw } = await supabase
+            .from('user_wine')
+            .select('amount, favorite, origin')
+            .eq('user_id', friendId)
+            .eq('wine_id', wineId)
+            .single();
+          if (uw) { amount = uw.amount || 0; favorite = !!uw.favorite; origin = (uw.origin || 'cellar'); }
+        }
+
+        const mapped = {
+          id: String(wineData.id),
+          name: String(wineData.name || ''),
+          vintage: wineData.year ? parseInt(wineData.year) : 0,
+          domaine: wineData.producer?.name || 'Domaine inconnu',
+          color: (wineData.wine_type || 'red'),
+          region: wineData.region || '',
+          country: wineData.country?.name || '',
+          priceRange: '',
+          appellation: '',
+          grapes: [],
+          power: 0, tannin: 0, acidity: 0, sweetness: 0,
+          description: '',
+          imageUri: wineData.image_uri || undefined,
+          note: 0,
+          origin,
+          stock: origin === 'wishlist' ? 0 : amount,
+          personalComment: '',
+          tastingProfile: { power: 0, tannin: 0, acidity: 0, sweetness: 0 },
+          history: [],
+          favorite,
+          createdAt: undefined,
+          updatedAt: undefined,
+        };
+        setRemoteWine(mapped);
+      } catch (e) {
+        console.error('❌ Erreur chargement vin distant:', e);
+      }
+    };
+    if (isReadOnlyMode) loadRemoteWineIfNeeded();
+  }, [isReadOnlyMode, wineId, friendId, allWines, remoteWine]);
+
   // Trouver le vin dans la liste combinée ou utiliser les données passées
   // Pour les vins OCR, prioriser les données mises à jour (ocrWineData) sur les données originales
-  const wine = (isFromOcr && ocrWineData) ? ocrWineData : (wineDataFromParams || allWines.find(w => w?.id === wineId));
+  const wine = (isFromOcr && ocrWineData) ? ocrWineData : (wineDataFromParams || allWines.find(w => w?.id === wineId) || remoteWine);
   console.log('[EditableWineDetailsScreen] Diagnostic:', { 
     wineId, 
     wineFound: !!wine, 
@@ -206,11 +272,11 @@ export default function EditableWineDetailsScreen({
 
   // Si le vin n'existe plus, rediriger vers la liste
   useEffect(() => {
-    if (allWines.length > 0 && !wine) {
+    if (!isReadOnlyMode && allWines.length > 0 && !wine) {
       console.log('Vin non trouvé, redirection vers la liste');
       router.back();
     }
-  }, [allWines, wine, router]);
+  }, [allWines, wine, router, isReadOnlyMode]);
 
   // Historique du vin
   const wineHistory = wine?.history || [];
