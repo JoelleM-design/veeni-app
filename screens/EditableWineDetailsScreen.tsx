@@ -778,13 +778,12 @@ export default function EditableWineDetailsScreen({
         console.log('🔄 handleFieldUpdate:', { field, value, wineId });
         await updateWineSafe(wineId, { [field]: value });
         console.log('✅ handleFieldUpdate: Sauvegarde réussie');
-        // Rafraîchir les données après la sauvegarde
-        await fetchWines();
+        // Pas besoin de fetchWines() ici car updateWineSafe() le fait déjà
       } catch (error) {
         console.error('❌ Erreur mise à jour champ:', error);
       }
     }
-  }, [safeWine, wineId, updateWineSafe, fetchWines]);
+  }, [safeWine, wineId, updateWineSafe]);
 
   // Fonction pour gérer le changement de texte (sans sauvegarde immédiate)
   const handleFieldChange = (field: string, value: string) => {
