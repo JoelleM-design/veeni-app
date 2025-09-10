@@ -775,12 +775,16 @@ export default function EditableWineDetailsScreen({
   const handleFieldUpdate = useCallback(async (field: string, value: string | number) => {
     if (safeWine) {
       try {
+        console.log('🔄 handleFieldUpdate:', { field, value, wineId });
         await updateWineSafe(wineId, { [field]: value });
+        console.log('✅ handleFieldUpdate: Sauvegarde réussie');
+        // Rafraîchir les données après la sauvegarde
+        await fetchWines();
       } catch (error) {
-        console.error('Erreur mise à jour champ:', error);
+        console.error('❌ Erreur mise à jour champ:', error);
       }
     }
-  }, [safeWine, wineId, updateWineSafe]);
+  }, [safeWine, wineId, updateWineSafe, fetchWines]);
 
   // Fonction pour gérer le changement de texte (sans sauvegarde immédiate)
   const handleFieldChange = (field: string, value: string) => {
@@ -790,13 +794,17 @@ export default function EditableWineDetailsScreen({
   // Fonction pour sauvegarder un champ quand on quitte le focus
   const handleFieldBlur = (field: string) => {
     const value = editingFields[field];
+    console.log('🔄 handleFieldBlur:', { field, value, hasValue: value !== undefined, safeWine: !!safeWine });
     if (value !== undefined && safeWine) {
+      console.log('✅ handleFieldBlur: Appel de handleFieldUpdate');
       handleFieldUpdate(field, value);
       setEditingFields(prev => {
         const newFields = { ...prev };
         delete newFields[field];
         return newFields;
       });
+    } else {
+      console.log('❌ handleFieldBlur: Pas de sauvegarde - value:', value, 'safeWine:', !!safeWine);
     }
   };
 

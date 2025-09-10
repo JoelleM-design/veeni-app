@@ -371,9 +371,9 @@ export function useWines() {
       if (updates.color !== undefined) wineUpdates.wine_type = updates.color;
       // Le pays est géré via country_id, pas directement
       if (updates.country !== undefined) {
-        // Trouver l'ID du pays dans la table country
+        // Trouver l'ID du pays dans la table wine_countries
         const { data: countryData } = await supabase
-          .from('country')
+          .from('wine_countries')
           .select('id')
           .eq('name', updates.country)
           .single();
@@ -555,19 +555,19 @@ export function useWines() {
       
       // Créer le pays s'il n'existe pas
       let countryId = null;
-      if (wine.region) {
+      if (wine.country) {
         const { data: existingCountry } = await supabase
-          .from('country')
+          .from('wine_countries')
           .select('id')
-          .eq('name', wine.region)
+          .eq('name', wine.country)
           .single();
         
         if (existingCountry) {
           countryId = existingCountry.id;
         } else {
           const { data: newCountry } = await supabase
-            .from('country')
-            .insert({ name: wine.region, flag_emoji: '🏳️' })
+            .from('wine_countries')
+            .insert({ name: wine.country, flag_emoji: '🏳️' })
             .select('id')
             .single();
           countryId = newCountry?.id;
@@ -724,19 +724,19 @@ export function useWines() {
         
         // Créer le pays s'il n'existe pas
         let countryId = null;
-        if (wine.region) {
+        if (wine.country) {
           const { data: existingCountry } = await supabase
-            .from('country')
+            .from('wine_countries')
             .select('id')
-            .eq('name', wine.region)
+            .eq('name', wine.country)
             .single();
           
           if (existingCountry) {
             countryId = existingCountry.id;
           } else {
             const { data: newCountry } = await supabase
-              .from('country')
-              .insert({ name: wine.region, flag_emoji: '🏳️' })
+              .from('wine_countries')
+              .insert({ name: wine.country, flag_emoji: '🏳️' })
               .select('id')
               .single();
             countryId = newCountry?.id;
