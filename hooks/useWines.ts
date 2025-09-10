@@ -425,19 +425,39 @@ export function useWines() {
         }
       }
 
-      // Mise à jour locale immédiate pour l'UI
+      // Mettre à jour l'état local immédiatement avec les nouvelles données
       setWines(prevWines => {
         const updatedWines = prevWines.map(wine => 
           wine.id === wineId 
-            ? { ...wine, ...updates }
+            ? { 
+                ...wine, 
+                ...updates,
+                // Mettre à jour les champs spécifiques
+                stock: updates.stock !== undefined ? updates.stock : wine.stock,
+                note: updates.note !== undefined ? updates.note : wine.note,
+                origin: updates.origin !== undefined ? updates.origin : wine.origin,
+                personalComment: updates.personalComment !== undefined ? updates.personalComment : wine.personalComment,
+                tastingProfile: updates.tastingProfile !== undefined ? updates.tastingProfile : wine.tastingProfile,
+                favorite: updates.favorite !== undefined ? updates.favorite : wine.favorite,
+                description: updates.description !== undefined ? updates.description : wine.description,
+                name: updates.name !== undefined ? updates.name : wine.name,
+                domaine: updates.domaine !== undefined ? updates.domaine : wine.domaine,
+                vintage: updates.vintage !== undefined ? updates.vintage : wine.vintage,
+                region: updates.region !== undefined ? updates.region : wine.region,
+                country: updates.country !== undefined ? updates.country : wine.country,
+                color: updates.color !== undefined ? updates.color : wine.color,
+                priceRange: updates.priceRange !== undefined ? updates.priceRange : wine.priceRange,
+                grapes: updates.grapes !== undefined ? updates.grapes : wine.grapes
+              }
             : wine
         );
+        
+        console.log('🍷 Vins mis à jour localement:', updatedWines.length, 'vins');
+        if (updates.favorite !== undefined) {
+          console.log('❤️ Mise à jour favorite:', { wineId, newFavorite: updates.favorite });
+        }
         return updatedWines;
       });
-
-      // Recharger les données depuis Supabase pour s'assurer que tout est synchronisé
-      console.log('🔄 Rechargement des données depuis Supabase après mise à jour');
-      await fetchWines();
       
       // Notifier tous les abonnés de la mise à jour
       notifyUpdate();
