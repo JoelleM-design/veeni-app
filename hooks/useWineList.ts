@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import { Wine } from '../types/wine';
 import { useWineHistory } from './useWineHistory';
-import { useWinesCorrected } from './useWinesCorrected';
+import { useWines } from './useWines';
 
 export type WineListTab = 'cellar' | 'wishlist' | 'tasted';
 
 export function useWineList(tab: WineListTab): Wine[] {
-  const { wines } = useWinesCorrected();
+  const { wines } = useWines();
   const { tastedWines } = useWineHistory();
 
   return useMemo(() => {
