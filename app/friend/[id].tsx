@@ -170,8 +170,10 @@ export default function FriendDetailScreen() {
           .select(`
             id,
             wine_id,
-            note,
-            tasted_at,
+            rating,
+            notes,
+            event_date,
+            event_type,
             wine (
               id,
               name,
@@ -190,8 +192,8 @@ export default function FriendDetailScreen() {
             )
           `)
           .eq('user_id', friend.id)
-          .eq('action', 'tasted')
-          .order('tasted_at', { ascending: false });
+          .eq('event_type', 'tasted')
+          .order('event_date', { ascending: false });
 
         if (cellarError) {
           console.error('Erreur récupération vins cave ami:', cellarError);
@@ -252,7 +254,7 @@ export default function FriendDetailScreen() {
           imageUri: wineData.image_uri,
           stock: tab === 'tasted' ? 0 : (item.amount || 0), // Les dégustés n'ont pas de stock
           origin: tab as 'cellar' | 'wishlist' | 'tasted',
-          note: tab === 'tasted' ? item.note : null,
+          note: tab === 'tasted' ? (item.rating ?? null) : null,
           personalComment: null,
           favorite: tab === 'tasted' ? false : (item.favorite || false), // Les dégustés n'ont pas de favori
           // Données spécifiques
@@ -260,7 +262,7 @@ export default function FriendDetailScreen() {
           user_wine_id: item.id,
           // Données spécifiques aux dégustés
           ...(tab === 'tasted' && {
-            tasted_at: item.tasted_at,
+            tasted_at: item.event_date,
             tastingCount: 1, // Chaque entrée = 1 dégustation
           })
         };

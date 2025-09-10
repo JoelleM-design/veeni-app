@@ -118,7 +118,6 @@ export const WineCardCompact: React.FC<WineCardCompactProps> = ({
       style={styles.container}
       onPress={onPress}
       activeOpacity={0.8}
-      disabled={readOnly}
     >
       {/* Layout principal en row */}
       <View style={styles.rowContainer}>
