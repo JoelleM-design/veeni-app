@@ -11,7 +11,7 @@ import { WineCard } from '../../components/WineCard';
 import { useStats } from '../../hooks/useStats';
 import { useWineHistory } from '../../hooks/useWineHistory';
 import { useWineList } from '../../hooks/useWineList';
-import { useWinesCorrected } from '../../hooks/useWinesCorrected';
+import { useWines } from '../../hooks/useWines';
 
 type WineListTab = 'cellar' | 'wishlist' | 'tasted';
 
@@ -43,7 +43,7 @@ const WineCardWithSocial = ({
   onOpenTastingModal: (wine: any) => void;
   setRefreshKey: (value: React.SetStateAction<number>) => void;
 }) => {
-  const { wines, updateWine } = useWinesCorrected();
+  const { wines, updateWine } = useWines();
   const { refreshStats } = useStats(); // Nouveau hook SWR
   const freshWine = wines.find(w => w?.id === wine.id);
   const wineToDisplay = freshWine || wine;
@@ -120,7 +120,7 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
   const [selectedTastedWine, setSelectedTastedWine] = useState<any>(null);
 
   const wines = useWineList(tab);
-  const { wines: allWines, updateWine, cleanupDuplicates } = useWinesCorrected();
+  const { wines: allWines, updateWine, cleanupDuplicates } = useWines();
   const { addTasting, reAddToCellar, tastedWines } = useWineHistory();
   const { stats, isLoading: statsLoading, error: statsError, refreshStats } = useStats(); // Utilise simplement useStats
   
