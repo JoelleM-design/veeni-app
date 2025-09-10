@@ -403,9 +403,9 @@ export function useWines() {
       const currentWine = wines.find(w => w.id === wineId);
       if (currentWine) {
         // Ajouter un événement pour le changement de stock
-        if (updates.stock !== undefined && updates.stock !== currentWine.stock) {
+        if (updates.stock !== undefined && updates.stock !== (currentWine.stock || 0)) {
           await addHistoryEvent(wineId, 'stock_change', {
-            previous_amount: currentWine.stock,
+            previous_amount: currentWine.stock || 0,
             new_amount: updates.stock
           });
         }
