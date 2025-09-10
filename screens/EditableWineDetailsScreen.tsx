@@ -80,10 +80,9 @@ export default function EditableWineDetailsScreen({
 
   // Fonction pour ajouter le vin à la liste d'envie (mode lecture)
   const handleAddToWishlist = async () => {
-    if (!wine || !user) return;
-    
+    if (!safeWine || !user) return;
     try {
-      await addWineToWishlist(wine.id);
+      await addWineToWishlist(safeWine);
       Alert.alert('Succès', 'Vin ajouté à votre liste d\'envie !');
     } catch (error) {
       console.error('Erreur lors de l\'ajout à la liste d\'envie:', error);
@@ -1040,11 +1039,7 @@ export default function EditableWineDetailsScreen({
             </>
           )}
           
-          {isReadOnlyMode && (
-            <TouchableOpacity onPress={handleAddToWishlist} style={styles.addToWishlistButton}>
-              <Ionicons name="add-circle-outline" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          )}
+          {/* Bouton + en lecture retiré: remplacé par le gros bouton fixe bas */}
         </View>
       </View>
 
@@ -1116,7 +1111,7 @@ export default function EditableWineDetailsScreen({
         {/* Informations détaillées avec structure titre/valeur */}
         <View style={styles.detailsSection}>
           {/* Millésime */}
-          {(!isVisitedReadOnly || safeWine.vintage) && (
+          {(!isVisitedReadOnly || !!safeWine.vintage) && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Millésime</Text>
             <TouchableOpacity 
@@ -1126,13 +1121,13 @@ export default function EditableWineDetailsScreen({
               <Text style={styles.detailValueText}>
                 {safeWine.vintage || 'Sélectionner'}
               </Text>
-              <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
+              {!isVisitedReadOnly && <Ionicons name="chevron-down" size={16} color="#CCCCCC" />}
             </TouchableOpacity>
           </View>
           )}
 
           {/* Type de vin */}
-          {(!isVisitedReadOnly || safeWine.color) && (
+          {(!isVisitedReadOnly || !!safeWine.color) && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Type</Text>
             <TouchableOpacity 
@@ -1152,14 +1147,16 @@ export default function EditableWineDetailsScreen({
                    safeWine.color === 'rose' ? 'Rosé' : 
                    safeWine.color === 'sparkling' ? 'Effervescent' : 'Vin'}
                 </Text>
-                <Ionicons name="chevron-down" size={16} color="#CCCCCC" style={styles.chevronIcon} />
+                {!isVisitedReadOnly && (
+                  <Ionicons name="chevron-down" size={16} color="#CCCCCC" style={styles.chevronIcon} />
+                )}
               </View>
             </TouchableOpacity>
           </View>
           )}
 
           {/* Pays */}
-          {(!isVisitedReadOnly || safeWine.country) && (
+          {(!isVisitedReadOnly || !!safeWine.country) && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Pays</Text>
             <TouchableOpacity 
@@ -1172,13 +1169,13 @@ export default function EditableWineDetailsScreen({
                   'Sélectionner'
                 }
               </Text>
-              <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
+              {!isVisitedReadOnly && <Ionicons name="chevron-down" size={16} color="#CCCCCC" />}
             </TouchableOpacity>
           </View>
           )}
 
           {/* Valeur */}
-          {(!isVisitedReadOnly || safeWine.priceRange) && (
+          {(!isVisitedReadOnly || !!safeWine.priceRange) && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Valeur</Text>
             <TouchableOpacity 
@@ -1188,13 +1185,13 @@ export default function EditableWineDetailsScreen({
               <Text style={styles.detailValueText}>
                 {safeWine.priceRange || 'Sélectionner'}
               </Text>
-              <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
+              {!isVisitedReadOnly && <Ionicons name="chevron-down" size={16} color="#CCCCCC" />}
             </TouchableOpacity>
           </View>
           )}
 
           {/* Région */}
-          {(!isVisitedReadOnly || safeWine.region) && (
+          {(!isVisitedReadOnly || !!safeWine.region) && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Région</Text>
             <TouchableOpacity 
@@ -1204,13 +1201,13 @@ export default function EditableWineDetailsScreen({
               <Text style={styles.detailValueText}>
                 {safeWine.region || 'Sélectionner'}
               </Text>
-              <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
+              {!isVisitedReadOnly && <Ionicons name="chevron-down" size={16} color="#CCCCCC" />}
             </TouchableOpacity>
           </View>
           )}
 
           {/* Appellation */}
-          {(!isVisitedReadOnly || safeWine.appellation) && (
+          {(!isVisitedReadOnly || !!safeWine.appellation) && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Appellation</Text>
             <TouchableOpacity 
@@ -1220,7 +1217,7 @@ export default function EditableWineDetailsScreen({
               <Text style={styles.detailValueText}>
                 {safeWine.appellation || 'Sélectionner'}
               </Text>
-              <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
+              {!isVisitedReadOnly && <Ionicons name="chevron-down" size={16} color="#CCCCCC" />}
             </TouchableOpacity>
           </View>
           )}
@@ -1270,7 +1267,7 @@ export default function EditableWineDetailsScreen({
         )}
 
         {/* Profil de dégustation */}
-        {(!isVisitedReadOnly || (tastingProfile.power || tastingProfile.tannin || tastingProfile.acidity || tastingProfile.sweetness)) && (
+        {(!isVisitedReadOnly || (tastingProfile.power + tastingProfile.tannin + tastingProfile.acidity + tastingProfile.sweetness > 0)) && (
           <View style={styles.tastingSection}>
             <Text style={styles.sectionTitle}>Profil de dégustation</Text>
             {renderTastingCriteria('Puissance', 'power', tastingProfile.power)}
@@ -1281,7 +1278,7 @@ export default function EditableWineDetailsScreen({
         )}
 
         {/* Descriptif */}
-        {(!isVisitedReadOnly || (description && description.trim().length > 0)) && (
+        {(!isVisitedReadOnly || (description?.trim().length > 0)) && (
           <View style={styles.descriptionSection}>
             <Text style={styles.sectionTitle}>Descriptif</Text>
             {isVisitedReadOnly ? (
@@ -1304,7 +1301,7 @@ export default function EditableWineDetailsScreen({
         )}
 
         {/* Note personnelle */}
-        {(!isVisitedReadOnly || ((lastTastingNote && lastTastingNote.trim().length>0) || (personalComment && personalComment.trim().length>0))) && (
+        {(!isVisitedReadOnly || ((lastTastingNote?.trim()?.length || 0) > 0 || (personalComment?.trim()?.length || 0) > 0)) && (
           <View style={styles.commentSection}>
             <Text style={styles.sectionTitle}>Note personnelle</Text>
             {isVisitedReadOnly ? (
@@ -1380,6 +1377,15 @@ export default function EditableWineDetailsScreen({
         )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Bouton fixe: Ajouter à ma liste (lecture/visite) */}
+      {isVisitedReadOnly && (
+        <View style={styles.fixedBottomBar}>
+          <TouchableOpacity style={styles.fixedAddButton} onPress={handleAddToWishlist}>
+            <Text style={styles.fixedAddButtonText}>+ ajouter à ma liste</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Modal sélection type de vin */}
       <Modal
@@ -2264,7 +2270,28 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 100,
+    paddingBottom: 140,
+  },
+  fixedBottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 64,
+    backgroundColor: 'rgba(26,26,26,0.96)',
+  },
+  fixedAddButton: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  fixedAddButtonText: {
+    color: '#111111',
+    fontSize: 16,
+    fontWeight: '700',
   },
   imageContainer: {
     position: 'relative',

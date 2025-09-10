@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { uploadWineImage } from '../lib/uploadWineImage';
 import { checkWineDuplicate, getDuplicateErrorMessage, getSimilarWineMessage } from '../lib/wineDuplicateDetection';
-import { Wine } from '../types/wine';
 import { getWinesStore, setWinesStore, subscribeWines } from '../lib/winesStore';
+import { Wine } from '../types/wine';
 
 // Génère un UUID v4 vraiment aléatoire
 function generateId(): string {
@@ -378,17 +378,29 @@ export function useWines() {
       if (updates.vintage !== undefined) wineUpdates.year = updates.vintage?.toString();
       if (updates.region !== undefined) wineUpdates.region = updates.region;
       if (updates.color !== undefined) wineUpdates.wine_type = updates.color;
-      // Le pays est géré via country_id, pas directement
+      // Pays: utiliser la table legacy "country" (FK wine.country_id -> country.id)
       if (updates.country !== undefined) {
-        // Trouver l'ID du pays dans la table wine_countries
-        const { data: countryData } = await supabase
-          .from('wine_countries')
+        let countryId: string | null = null;
+        const { data: countryRow } = await supabase
+          .from('country')
           .select('id')
           .eq('name', updates.country)
           .single();
-        
-        if (countryData) {
-          wineUpdates.country_id = countryData.id;
+        if (countryRow?.id) {
+          countryId = countryRow.id as string;
+        } else {
+          // Créer l'entrée si absente (pas de flag ici, la table country n'en a pas)
+          const { data: newCountry, error: insertCountryError } = await supabase
+            .from('country')
+            .insert({ name: updates.country })
+            .select('id')
+            .single();
+          if (!insertCountryError && newCountry?.id) {
+            countryId = newCountry.id as string;
+          }
+        }
+        if (countryId) {
+          wineUpdates.country_id = countryId;
         }
       }
       if (updates.priceRange !== undefined) wineUpdates.price_range = updates.priceRange;
