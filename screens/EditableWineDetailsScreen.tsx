@@ -59,6 +59,7 @@ export default function EditableWineDetailsScreen({
   // Mode lecture pour les profils visités (priorité aux paramètres de la fonction)
   const isReadOnlyMode = params.readOnly === 'true' || isReadOnly;
   const friendId = params.friendId as string;
+  const isVisitedReadOnly = isReadOnlyMode && !!friendId;
   const { tastedWines, refreshTastings, addTasting } = useWineHistory();
   const { user } = useUser();
   const friendsWithWine: any[] = [];
@@ -1071,45 +1072,56 @@ export default function EditableWineDetailsScreen({
           />
         </View>
 
-        {/* Informations principales - Éditables */}
+        {/* Informations principales */}
         <View style={styles.mainInfo}>
-          {/* Nom du vin - Éditable */}
-          <TextInput
-            style={styles.wineName}
-            value={editingFields.name !== undefined ? editingFields.name : (safeWine.name || '')}
-            onChangeText={(text) => handleFieldChange('name', text)}
-            onFocus={() => handleFieldFocus('name', safeWine.name || '', 'Nom inconnu')}
-            onBlur={() => handleFieldBlur('name')}
-            placeholder="Nom du vin"
-            placeholderTextColor="#666"
-            multiline
-            autoCorrect={false}
-            autoCapitalize="words"
-          />
-          
-          {/* Domaine - Éditable */}
-          <TextInput
-            style={styles.wineProducer}
-            value={editingFields.domaine !== undefined ? editingFields.domaine : (safeWine.domaine || '')}
-            onChangeText={(text) => handleFieldChange('domaine', text)}
-            onFocus={() => handleFieldFocus('domaine', safeWine.domaine || '', 'Domaine inconnu')}
-            onBlur={() => handleFieldBlur('domaine')}
-            placeholder="Domaine"
-            placeholderTextColor="#666"
-            multiline
-            autoCorrect={false}
-            autoCapitalize="words"
-          />
+          {isVisitedReadOnly ? (
+            <>
+              {!!safeWine.name && (
+                <Text style={styles.wineName}>{safeWine.name}</Text>
+              )}
+              {!!safeWine.domaine && safeWine.domaine !== 'Domaine inconnu' && (
+                <Text style={styles.wineProducer}>{safeWine.domaine}</Text>
+              )}
+            </>
+          ) : (
+            <>
+              <TextInput
+                style={styles.wineName}
+                value={editingFields.name !== undefined ? editingFields.name : (safeWine.name || '')}
+                onChangeText={(text) => handleFieldChange('name', text)}
+                onFocus={() => handleFieldFocus('name', safeWine.name || '', 'Nom inconnu')}
+                onBlur={() => handleFieldBlur('name')}
+                placeholder="Nom du vin"
+                placeholderTextColor="#666"
+                multiline
+                autoCorrect={false}
+                autoCapitalize="words"
+              />
+              <TextInput
+                style={styles.wineProducer}
+                value={editingFields.domaine !== undefined ? editingFields.domaine : (safeWine.domaine || '')}
+                onChangeText={(text) => handleFieldChange('domaine', text)}
+                onFocus={() => handleFieldFocus('domaine', safeWine.domaine || '', 'Domaine inconnu')}
+                onBlur={() => handleFieldBlur('domaine')}
+                placeholder="Domaine"
+                placeholderTextColor="#666"
+                multiline
+                autoCorrect={false}
+                autoCapitalize="words"
+              />
+            </>
+          )}
         </View>
 
         {/* Informations détaillées avec structure titre/valeur */}
         <View style={styles.detailsSection}>
           {/* Millésime */}
+          {(!isVisitedReadOnly || safeWine.vintage) && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Millésime</Text>
             <TouchableOpacity 
               style={styles.detailValue}
-              onPress={() => setShowVintagePicker(true)}
+              onPress={() => { if (!isVisitedReadOnly) setShowVintagePicker(true); }}
             >
               <Text style={styles.detailValueText}>
                 {safeWine.vintage || 'Sélectionner'}
@@ -1117,13 +1129,15 @@ export default function EditableWineDetailsScreen({
               <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
             </TouchableOpacity>
           </View>
+          )}
 
           {/* Type de vin */}
+          {(!isVisitedReadOnly || safeWine.color) && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Type</Text>
             <TouchableOpacity 
               style={styles.detailValue}
-              onPress={() => setShowColorPicker(true)}
+              onPress={() => { if (!isVisitedReadOnly) setShowColorPicker(true); }}
             >
               <View style={styles.wineTypeContainer}>
                 <Ionicons 
@@ -1142,13 +1156,15 @@ export default function EditableWineDetailsScreen({
               </View>
             </TouchableOpacity>
           </View>
+          )}
 
           {/* Pays */}
+          {(!isVisitedReadOnly || safeWine.country) && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Pays</Text>
             <TouchableOpacity 
               style={styles.detailValue}
-              onPress={openCountryPicker}
+              onPress={() => { if (!isVisitedReadOnly) openCountryPicker(); }}
             >
               <Text style={styles.detailValueText}>
                 {safeWine.country ? 
@@ -1159,13 +1175,15 @@ export default function EditableWineDetailsScreen({
               <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
             </TouchableOpacity>
           </View>
+          )}
 
           {/* Valeur */}
+          {(!isVisitedReadOnly || safeWine.priceRange) && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Valeur</Text>
             <TouchableOpacity 
               style={styles.detailValue}
-              onPress={() => setShowPricePicker(true)}
+              onPress={() => { if (!isVisitedReadOnly) setShowPricePicker(true); }}
             >
               <Text style={styles.detailValueText}>
                 {safeWine.priceRange || 'Sélectionner'}
@@ -1173,13 +1191,15 @@ export default function EditableWineDetailsScreen({
               <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
             </TouchableOpacity>
           </View>
+          )}
 
           {/* Région */}
+          {(!isVisitedReadOnly || safeWine.region) && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Région</Text>
             <TouchableOpacity 
               style={styles.detailValue}
-              onPress={() => setShowRegionPicker(true)}
+              onPress={() => { if (!isVisitedReadOnly) setShowRegionPicker(true); }}
             >
               <Text style={styles.detailValueText}>
                 {safeWine.region || 'Sélectionner'}
@@ -1187,13 +1207,15 @@ export default function EditableWineDetailsScreen({
               <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
             </TouchableOpacity>
           </View>
+          )}
 
           {/* Appellation */}
+          {(!isVisitedReadOnly || safeWine.appellation) && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Appellation</Text>
             <TouchableOpacity 
               style={styles.detailValue}
-              onPress={() => setShowAppellationPicker(true)}
+              onPress={() => { if (!isVisitedReadOnly) setShowAppellationPicker(true); }}
             >
               <Text style={styles.detailValueText}>
                 {safeWine.appellation || 'Sélectionner'}
@@ -1201,13 +1223,15 @@ export default function EditableWineDetailsScreen({
               <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
             </TouchableOpacity>
           </View>
+          )}
 
           {/* Cépages */}
+          {(!isVisitedReadOnly || (Array.isArray(safeWine?.grapes) && safeWine.grapes.length > 0)) && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Cépage</Text>
             <TouchableOpacity 
               style={styles.detailValue}
-              onPress={() => setShowGrapesPicker(true)}
+              onPress={() => { if (!isVisitedReadOnly) setShowGrapesPicker(true); }}
             >
               <Text style={styles.detailValueText}>
                 {Array.isArray(safeWine?.grapes) && safeWine.grapes.length > 0 
@@ -1218,10 +1242,11 @@ export default function EditableWineDetailsScreen({
               <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
             </TouchableOpacity>
           </View>
+          )}
         </View>
 
         {/* Stock */}
-        {safeWine.origin === 'cellar' && (
+        {safeWine.origin === 'cellar' && !isVisitedReadOnly && (
           <View style={styles.stockSection}>
             <Text style={styles.sectionTitle}>Stock</Text>
             <View style={styles.stockControls}>
@@ -1237,51 +1262,72 @@ export default function EditableWineDetailsScreen({
         )}
 
         {/* Note et évaluation */}
-        <View style={styles.ratingSection}>
-          <Text style={styles.sectionTitle}>Ma note</Text>
-          {renderStars(rating, handleSetRating)}
-        </View>
+        {(!isVisitedReadOnly || rating > 0) && (
+          <View style={styles.ratingSection}>
+            <Text style={styles.sectionTitle}>Ma note</Text>
+            {renderStars(rating, isVisitedReadOnly ? undefined : handleSetRating)}
+          </View>
+        )}
 
         {/* Profil de dégustation */}
-        <View style={styles.tastingSection}>
-          <Text style={styles.sectionTitle}>Profil de dégustation</Text>
-          {renderTastingCriteria('Puissance', 'power', tastingProfile.power)}
-          {renderTastingCriteria('Tanin', 'tannin', tastingProfile.tannin)}
-          {renderTastingCriteria('Acidité', 'acidity', tastingProfile.acidity)}
-          {renderTastingCriteria('Sucré', 'sweetness', tastingProfile.sweetness)}
-        </View>
+        {(!isVisitedReadOnly || (tastingProfile.power || tastingProfile.tannin || tastingProfile.acidity || tastingProfile.sweetness)) && (
+          <View style={styles.tastingSection}>
+            <Text style={styles.sectionTitle}>Profil de dégustation</Text>
+            {renderTastingCriteria('Puissance', 'power', tastingProfile.power)}
+            {renderTastingCriteria('Tanin', 'tannin', tastingProfile.tannin)}
+            {renderTastingCriteria('Acidité', 'acidity', tastingProfile.acidity)}
+            {renderTastingCriteria('Sucré', 'sweetness', tastingProfile.sweetness)}
+          </View>
+        )}
 
         {/* Descriptif */}
-        <View style={styles.descriptionSection}>
-          <Text style={styles.sectionTitle}>Descriptif</Text>
-          <TextInput
-            style={styles.textArea}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Ajoutez une description du vin..."
-            placeholderTextColor="#999"
-            multiline
-            numberOfLines={4}
-            onBlur={handleSaveDescription}
-          />
-        </View>
+        {(!isVisitedReadOnly || (description && description.trim().length > 0)) && (
+          <View style={styles.descriptionSection}>
+            <Text style={styles.sectionTitle}>Descriptif</Text>
+            {isVisitedReadOnly ? (
+              <Text style={[styles.textArea, { borderWidth: 0, backgroundColor: 'transparent', padding: 0 }]}>
+                {description || ''}
+              </Text>
+            ) : (
+              <TextInput
+                style={styles.textArea}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="Ajoutez une description du vin..."
+                placeholderTextColor="#999"
+                multiline
+                numberOfLines={4}
+                onBlur={handleSaveDescription}
+              />
+            )}
+          </View>
+        )}
 
         {/* Note personnelle */}
-        <View style={styles.commentSection}>
-          <Text style={styles.sectionTitle}>Note personnelle</Text>
-          <TextInput
-            style={styles.textArea}
-            value={lastTastingNote || personalComment}
-            onChangeText={setPersonalComment}
-            placeholder="Ajoutez vos notes personnelles..."
-            placeholderTextColor="#999"
-            multiline
-            numberOfLines={3}
-            onBlur={handleSaveComment}
-          />
-        </View>
+        {(!isVisitedReadOnly || ((lastTastingNote && lastTastingNote.trim().length>0) || (personalComment && personalComment.trim().length>0))) && (
+          <View style={styles.commentSection}>
+            <Text style={styles.sectionTitle}>Note personnelle</Text>
+            {isVisitedReadOnly ? (
+              <Text style={[styles.textArea, { borderWidth: 0, backgroundColor: 'transparent', padding: 0 }]}>
+                {lastTastingNote || personalComment || ''}
+              </Text>
+            ) : (
+              <TextInput
+                style={styles.textArea}
+                value={lastTastingNote || personalComment}
+                onChangeText={setPersonalComment}
+                placeholder="Ajoutez vos notes personnelles..."
+                placeholderTextColor="#999"
+                multiline
+                numberOfLines={3}
+                onBlur={handleSaveComment}
+              />
+            )}
+          </View>
+        )}
 
         {/* Historique */}
+        {(!isVisitedReadOnly || wineHistory.length > 0) && (
         <View style={styles.historySection}>
           <Text style={styles.sectionTitle}>Historique</Text>
           {wineHistory.length > 0 ? (
@@ -1328,9 +1374,10 @@ export default function EditableWineDetailsScreen({
                 );
               })
           ) : (
-            <Text style={styles.noHistoryText}>Aucun historique disponible</Text>
+            !isVisitedReadOnly && <Text style={styles.noHistoryText}>Aucun historique disponible</Text>
           )}
         </View>
+        )}
         </ScrollView>
       </KeyboardAvoidingView>
 
