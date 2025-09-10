@@ -517,7 +517,13 @@ export default function FriendDetailScreen() {
                   <WineCardCompact
                     wine={wine}
                     readOnly={true}
-                    onPress={() => router.push(`/wine/${wine.id}?readOnly=true&friendId=${friend?.id}`)}
+                    onPress={() => {
+                      console.log('[FriendProfile] Click carte', { wineId: wine.id, friendId: friend?.id });
+                      router.push({
+                        pathname: '/wine/[id]',
+                        params: { id: wine.id, readOnly: 'true', friendId: friend?.id || '' }
+                      });
+                    }}
                   />
                 </View>
               ))}
