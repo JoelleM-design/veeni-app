@@ -425,6 +425,16 @@ export function useWines() {
         }
       }
 
+      // Mise à jour locale immédiate pour l'UI
+      setWines(prevWines => {
+        const updatedWines = prevWines.map(wine => 
+          wine.id === wineId 
+            ? { ...wine, ...updates }
+            : wine
+        );
+        return updatedWines;
+      });
+
       // Recharger les données depuis Supabase pour s'assurer que tout est synchronisé
       console.log('🔄 Rechargement des données depuis Supabase après mise à jour');
       await fetchWines();
