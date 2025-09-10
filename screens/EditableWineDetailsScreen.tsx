@@ -1317,9 +1317,7 @@ export default function EditableWineDetailsScreen({
                         try {
                           console.log('🍷 Sauvegarde type:', item.key, 'pour vin:', wineId);
                           await updateWineSafe(wineId, { color: item.key });
-                          console.log('✅ Type sauvegardé, rechargement...');
-                          await fetchWines();
-                          console.log('✅ Données rechargées');
+                          console.log('✅ Type sauvegardé');
                         } catch (error) {
                           console.error('❌ Erreur sauvegarde type:', error);
                           Alert.alert('Erreur', 'Impossible de sauvegarder le type');
@@ -1429,7 +1427,6 @@ export default function EditableWineDetailsScreen({
                       onPress={async () => {
                         try {
                           await updateWineSafe(wineId, { vintage: item });
-                          await fetchWines();
                           setShowVintagePicker(false);
                         } catch (error) {
                           console.error('Erreur sauvegarde millésime:', error);
@@ -1515,7 +1512,6 @@ export default function EditableWineDetailsScreen({
                       onPress={async () => {
                         try {
                           await updateWineSafe(wineId, { region: item.name });
-                          await fetchWines();
                           setShowRegionPicker(false);
                           // Charger les appellations pour cette région
                           await loadAppellationsByRegion(item.name);
@@ -1585,7 +1581,6 @@ export default function EditableWineDetailsScreen({
                           
                           // Sélectionner la nouvelle région
                           await updateWineSafe(wineId, { region: data.name });
-                          await fetchWines();
                           setShowRegionPicker(false);
                           setNewRegionName('');
                           
@@ -1673,7 +1668,6 @@ export default function EditableWineDetailsScreen({
                       onPress={async () => {
                         try {
                           await updateWineSafe(wineId, { appellation: item.name });
-                          await fetchWines();
                           setShowAppellationPicker(false);
                           // Charger les cépages pour cette appellation
                           await loadGrapesByAppellation(item.name);
@@ -1743,7 +1737,6 @@ export default function EditableWineDetailsScreen({
                         
                         // Sélectionner la nouvelle appellation
                         await updateWineSafe(wineId, { appellation: data.name });
-                        await fetchWines();
                         setShowAppellationPicker(false);
                         setNewAppellationName('');
                         
@@ -1837,7 +1830,6 @@ export default function EditableWineDetailsScreen({
                             : [...currentGrapes, item.name];
                           
                           await updateWineSafe(wineId, { grapes: newGrapes });
-                          await fetchWines();
                           setShowGrapesPicker(false);
                         } catch (error) {
                           console.error('Erreur sauvegarde cépages:', error);
@@ -1904,7 +1896,6 @@ export default function EditableWineDetailsScreen({
                         const newGrapes = [...currentGrapes, data.name];
                         
                         await updateWineSafe(wineId, { grapes: newGrapes });
-                        await fetchWines();
                         setShowGrapesPicker(false);
                         setNewGrapeName('');
                         
@@ -2011,9 +2002,7 @@ export default function EditableWineDetailsScreen({
                           try {
                             console.log('🌍 Sauvegarde pays:', item.name, 'pour vin:', wineId);
                             await updateWineSafe(wineId, { country: item.name });
-                            console.log('✅ Pays sauvegardé, rechargement...');
-                            await fetchWines();
-                            console.log('✅ Données rechargées');
+                            console.log('✅ Pays sauvegardé');
                           } catch (error) {
                             console.error('❌ Erreur sauvegarde pays:', error);
                             Alert.alert('Erreur', 'Impossible de sauvegarder le pays');
@@ -2071,7 +2060,6 @@ export default function EditableWineDetailsScreen({
                       onPress={async () => {
                         try {
                           await updateWineSafe(wineId, { priceRange: item });
-                          await fetchWines();
                           setShowPricePicker(false);
                         } catch (error) {
                           console.error('Erreur sauvegarde prix:', error);
