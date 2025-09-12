@@ -428,8 +428,12 @@ export function useWineHistory() {
 
   useEffect(() => {
     if (user?.id && caveId) {
-      fetchHistory();
-      fetchTastedWines();
+      // Délaisser un micro délai pour laisser retomber les re-render en cascade
+      const t = setTimeout(() => {
+        fetchHistory();
+        fetchTastedWines();
+      }, 100);
+      return () => clearTimeout(t);
     }
   }, [user?.id, caveId, caveMode]);
 

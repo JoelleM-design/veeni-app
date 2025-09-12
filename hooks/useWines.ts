@@ -154,7 +154,7 @@ export function useWines() {
   const fetchWines = async () => {
     const now = Date.now();
     if (isFetchingRef.current) return;
-    if (now - lastFetchRef.current < 1000) return; // throttle 1s
+    if (now - lastFetchRef.current < 3000) return; // throttle 3s pour éviter les boucles
     isFetchingRef.current = true;
     lastFetchRef.current = now;
     try {
@@ -333,8 +333,16 @@ export function useWines() {
         transformedWines.push(transformedWine);
       }
 
-      console.log('Vins transformés:', transformedWines.length, 'vins');
-      setWinesStore(transformedWines);
+      // Ne mettre à jour le store que si un changement réel est détecté
+      const prev = getWinesStore();
+      const prevSig = prev.map(w => `${w.id}:${w.updatedAt || ''}:${w.stock || 0}:${w.favorite ? 1 : 0}`).join('|');
+      const nextSig = transformedWines.map(w => `${w.id}:${w.updatedAt || ''}:${w.stock || 0}:${w.favorite ? 1 : 0}`).join('|');
+      if (prevSig !== nextSig || prev.length !== transformedWines.length) {
+        console.log('Vins transformés:', transformedWines.length, 'vins');
+        setWinesStore(transformedWines);
+      } else {
+        // Pas de changement significatif
+      }
     } catch (err) {
       console.error('Erreur complète lors de la récupération des vins:', err);
       setError(err instanceof Error ? err : new Error('Erreur inconnue'));
