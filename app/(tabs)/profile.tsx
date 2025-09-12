@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ProfileStatsBar from '../../components/ProfileStatsBar';
+import { useSocialStats } from '../../hooks/useSocialStats';
 import { SharedCaveInfo } from '../../components/SharedCaveInfo';
 import { Spacing, Typography, VeeniColors } from '../../constants/Colors';
 
@@ -34,6 +35,7 @@ export default function ProfileScreen() {
   
   // Charger les stats
   const profileStats = useStats();
+  const { stats: socialStats } = useSocialStats(user?.id || null);
   
   // Charger l'historique
   const { history: wineHistory, loading: historyLoading } = useWineHistory();
@@ -521,6 +523,28 @@ export default function ProfileScreen() {
         {/* Barre de statistiques */}
         <View style={styles.statsBar}>
           <ProfileStatsBar />
+        </View>
+
+        {/* Statistiques sociales (4 cartes) */}
+        <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12 }}>
+            <View style={{ width: '48%', backgroundColor: '#2A2A2A', borderRadius: 16, padding: 16 }}>
+              <Text style={{ color: '#FFF', fontSize: 22, fontWeight: '700' }}>{socialStats?.tasted ?? 0}</Text>
+              <Text style={{ color: '#999', marginTop: 4 }}>Dégustés</Text>
+            </View>
+            <View style={{ width: '48%', backgroundColor: '#2A2A2A', borderRadius: 16, padding: 16 }}>
+              <Text style={{ color: '#FFF', fontSize: 22, fontWeight: '700' }}>{socialStats?.favorites ?? 0}</Text>
+              <Text style={{ color: '#999', marginTop: 4 }}>Favoris</Text>
+            </View>
+            <View style={{ width: '48%', backgroundColor: '#2A2A2A', borderRadius: 16, padding: 16 }}>
+              <Text style={{ color: '#FFF', fontSize: 22, fontWeight: '700' }}>{socialStats?.commonWithFriends ?? 0}</Text>
+              <Text style={{ color: '#999', marginTop: 4 }}>Goûts en commun</Text>
+            </View>
+            <View style={{ width: '48%', backgroundColor: '#2A2A2A', borderRadius: 16, padding: 16 }}>
+              <Text style={{ color: '#FFF', fontSize: 22, fontWeight: '700' }}>{socialStats?.inspiredFriends ?? 0}</Text>
+              <Text style={{ color: '#999', marginTop: 4 }}>Inspirés par vous</Text>
+            </View>
+          </View>
         </View>
 
         {/* BOUTON INVITER DES AMIS */}
