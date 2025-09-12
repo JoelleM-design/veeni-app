@@ -35,7 +35,8 @@ export default function ProfileScreen() {
   
   // Charger les stats
   const profileStats = useStats();
-  const { stats: socialStats } = useSocialStats(user?.id || null);
+  const [socialRefreshKey, setSocialRefreshKey] = useState(0);
+  const { stats: socialStats } = useSocialStats(user?.id || null, socialRefreshKey);
   
   // Charger l'historique
   const { history: wineHistory, loading: historyLoading } = useWineHistory();
@@ -521,11 +522,13 @@ export default function ProfileScreen() {
           ) : null}
         </View>
         {/* Barre de statistiques */}
+        {/* Anciennes stats conservées */}
         <View style={styles.statsBar}>
           <ProfileStatsBar />
         </View>
 
         {/* Statistiques sociales (réutiliser le style de ProfileStatsBar) */}
+        {/* Nouvelles stats sociales, présentation 2 par 2 (style existant) */}
         <View style={styles.statsBar}>
           <View style={styles.statsContainerRow}>
             <View style={styles.statCard}> 
@@ -536,7 +539,7 @@ export default function ProfileScreen() {
               <Text style={styles.statNumber}>{socialStats?.favorites ?? 0}</Text>
               <Text style={styles.statLabel}>Favoris</Text>
             </View>
-            <View style={styles.statCard}>
+            <View style={styles.statCard}> 
               <Text style={styles.statNumber}>{socialStats?.commonWithFriends ?? 0}</Text>
               <Text style={styles.statLabel}>Goûts en commun</Text>
             </View>

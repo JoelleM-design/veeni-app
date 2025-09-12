@@ -8,7 +8,7 @@ export interface SocialStats {
   inspiredFriends: number;
 }
 
-export function useSocialStats(userId: string | null) {
+export function useSocialStats(userId: string | null, refreshKey: number = 0) {
   const [stats, setStats] = useState<SocialStats>({ tasted: 0, favorites: 0, commonWithFriends: 0, inspiredFriends: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +119,7 @@ export function useSocialStats(userId: string | null) {
     };
 
     run();
-  }, [userId]);
+  }, [userId, refreshKey]);
 
   return { stats, loading, error };
 }
