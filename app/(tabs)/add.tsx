@@ -323,8 +323,8 @@ export default function AddScreen() {
           <Ionicons name="arrow-back" size={24} color={WHITE} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Ajouter un vin</Text>
-        {/* Espace réservé, bouton Suivant déplacé en bas */}
-        <View style={{ width: 80 }} />
+        {/* Espace réservé, bouton Suivant déplacé en bas (même largeur que backButton pour centrer le titre) */}
+        <View style={{ width: 40 }} />
       </View>
 
       {/* Sous-titre */}
