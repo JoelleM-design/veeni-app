@@ -48,6 +48,18 @@ export interface Wine {
   favorite?: boolean; // Propriété pour les favoris
   lastTastedAt?: string; // Date de la dernière dégustation
   tastingCount?: number; // Nombre de dégustations
+  // Origine sociale (wishlist depuis un ami)
+  sourceUser?: {
+    id: string;
+    first_name?: string;
+    avatar?: string;
+  };
+  // Amis qui possèdent aussi ce vin (détecté par wine_id)
+  commonFriends?: Array<{
+    id: string;
+    firstName: string;
+    avatar?: string;
+  }>;
 }
 
 export type AddWineStatus = 'pending' | 'validated' | 'edited' | 'error';

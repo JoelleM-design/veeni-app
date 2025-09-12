@@ -55,7 +55,9 @@
           "cameraPermission": "Cette application nécessite l'accès à votre caméra pour scanner les étiquettes de vin et ajouter des vins à votre cave."
         }
       ],
-      "expo-mail-composer"
+      "expo-mail-composer",
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

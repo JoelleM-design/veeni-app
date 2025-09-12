@@ -167,8 +167,8 @@ const styles = StyleSheet.create({
   },
   starsContainer: {
     flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
+    gap: 16,
+    marginBottom: Spacing.md,
   },
   starButton: {
     padding: 4,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { uploadWineImage } from '../lib/uploadWineImage';
 import { checkWineDuplicate, getDuplicateErrorMessage, getSimilarWineMessage } from '../lib/wineDuplicateDetection';
@@ -21,10 +21,13 @@ function generateId(): string {
 }
 
 export function useWines() {
+  const DEBUG = false;
   const [wines, setWines] = useState<Wine[]>(getWinesStore());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [updateCallbacks, setUpdateCallbacks] = useState<(() => void)[]>([]);
+  const lastFetchRef = useRef(0);
+  const isFetchingRef = useRef(false);
 
   // Fonction pour s'abonner aux mises à jour
   const subscribeToUpdates = useCallback((callback: () => void) => {
@@ -36,7 +39,7 @@ export function useWines() {
 
   // Fonction pour notifier tous les abonnés
   const notifyUpdate = useCallback(() => {
-    console.log('🔔 Notifying', updateCallbacks.length, 'subscribers of wine updates');
+    if (DEBUG) console.log('🔔 Notifying', updateCallbacks.length, 'subscribers of wine updates');
     updateCallbacks.forEach(callback => callback());
   }, [updateCallbacks]);
 
@@ -66,8 +69,7 @@ export function useWines() {
             filter: `user_id=eq.${user.id}`
           },
           (payload) => {
-            console.log('Changement détecté dans user_wine:', payload);
-            // Rafraîchir les données quand il y a un changement
+            if (DEBUG) console.log('Changement détecté dans user_wine:', payload);
             fetchWines();
           }
         )
@@ -150,6 +152,11 @@ export function useWines() {
   };
 
   const fetchWines = async () => {
+    const now = Date.now();
+    if (isFetchingRef.current) return;
+    if (now - lastFetchRef.current < 1000) return; // throttle 1s
+    isFetchingRef.current = true;
+    lastFetchRef.current = now;
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -191,6 +198,28 @@ export function useWines() {
         } else {
           console.warn('Erreur lors de la récupération de l\'historique:', historyError);
         }
+      }
+
+      // Résoudre les utilisateurs source (amis) sans jointure PostgREST
+      let sourceUserMap: Record<string, { id: string; first_name?: string; avatar?: string }> = {};
+      try {
+        const sourceIds = (userWines || [])
+          .map((uw: any) => uw?.source_user_id)
+          .filter((v: any) => !!v);
+        const uniqueSourceIds = Array.from(new Set(sourceIds));
+        if (uniqueSourceIds.length > 0) {
+          const { data: sourceUsers, error: sourceErr } = await supabase
+            .from('User')
+            .select('id, first_name, avatar')
+            .in('id', uniqueSourceIds as string[]);
+          if (!sourceErr && Array.isArray(sourceUsers)) {
+            sourceUserMap = Object.fromEntries(
+              sourceUsers.map((u: any) => [String(u.id), { id: String(u.id), first_name: u.first_name || undefined, avatar: u.avatar || undefined }])
+            );
+          }
+        }
+      } catch (e) {
+        console.warn('Impossible de résoudre les utilisateurs source:', e);
       }
 
       if (fetchError) {
@@ -290,6 +319,13 @@ export function useWines() {
             created_at: h.created_at
           })).sort((a, b) => new Date(b.event_date || b.created_at).getTime() - new Date(a.event_date || a.created_at).getTime()),
           favorite: userWine.favorite || false,
+          sourceUser: (() => {
+            const sid = (userWine as any).source_user_id;
+            if (sid && sourceUserMap[sid]) {
+              return sourceUserMap[sid];
+            }
+            return undefined;
+          })(),
           createdAt: userWine.created_at,
           updatedAt: userWine.updated_at || userWine.created_at
         };
@@ -305,6 +341,7 @@ export function useWines() {
       setWines([]);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
@@ -352,8 +389,8 @@ export function useWines() {
       if (updates.note !== undefined) userWineUpdates.rating = updates.note;
       if (updates.origin !== undefined) userWineUpdates.origin = updates.origin;
       if (updates.personalComment !== undefined) userWineUpdates.personal_comment = updates.personalComment;
-      // tastingProfile n'est pas stocké dans user_wine, il est géré localement
-      // if (updates.tastingProfile !== undefined) userWineUpdates.tasting_profile = updates.tastingProfile;
+      // Enregistrer le profil de dégustation côté user_wine
+      if (updates.tastingProfile !== undefined) userWineUpdates.tasting_profile = updates.tastingProfile;
       if (updates.favorite !== undefined) userWineUpdates.favorite = updates.favorite;
 
       if (Object.keys(userWineUpdates).length > 0) {
@@ -469,7 +506,9 @@ export function useWines() {
                 country: updates.country !== undefined ? updates.country : wine.country,
                 color: updates.color !== undefined ? updates.color : wine.color,
                 priceRange: updates.priceRange !== undefined ? updates.priceRange : wine.priceRange,
-                grapes: updates.grapes !== undefined ? updates.grapes : wine.grapes
+                grapes: updates.grapes !== undefined ? updates.grapes : wine.grapes,
+                // Propager éventuellement le sourceUser si on déplace/ajoute depuis un ami
+                sourceUser: (updates as any).sourceUser !== undefined ? (updates as any).sourceUser : wine.sourceUser
               }
             : wine
         );
@@ -653,7 +692,7 @@ export function useWines() {
     }
   };
 
-  const addWineToWishlist = async (wine: Wine) => {
+  const addWineToWishlist = async (wine: Wine & { friendId?: string }) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Utilisateur non connecté');
@@ -704,20 +743,62 @@ export function useWines() {
           }
           
           // Passer directement à l'insertion dans user_wine
-          const { error } = await supabase
+          const payload: any = {
+            user_id: user.id,
+            wine_id: wineId,
+            amount: 0,
+            rating: null,
+            origin: 'wishlist'
+          };
+          if (wine.friendId) payload.source_user_id = wine.friendId;
+          let insertErrorPrimary = null as any;
+          let res = await supabase
             .from('user_wine')
-            .insert({
-              user_id: user.id,
-              wine_id: wineId,
-              amount: 0,
-              rating: null,
-              origin: 'wishlist'
-            });
+            .insert(payload);
+          if (res.error) {
+            insertErrorPrimary = res.error;
+            // Fallback: certains environnements n'ont pas encore la colonne source_user_id
+            const msg = String(res.error.message || '');
+            if (msg.includes('source_user_id') || String(res.error.code).includes('PGRST')) {
+              const { source_user_id, ...fallbackPayload } = payload as any;
+              const retry = await supabase.from('user_wine').insert(fallbackPayload);
+              if (retry.error) throw retry.error;
+            } else {
+              throw res.error;
+            }
+          }
 
-          if (error) throw error;
-
-          // Ajouter un événement d'historique pour l'ajout
-          await addHistoryEvent(wineId, 'added');
+          // Ajouter un événement d'historique pour l'ajout (avec origine sociale si ami)
+          try {
+            if (wine.friendId) {
+              // Récupérer prénom/avatar
+              const { data: friendUser } = await supabase
+                .from('User')
+                .select('first_name, avatar')
+                .eq('id', wine.friendId)
+                .single();
+              // Récupérer l'origine chez l'ami
+              const { data: friendUW } = await supabase
+                .from('user_wine')
+                .select('origin')
+                .eq('user_id', wine.friendId)
+                .eq('wine_id', wineId)
+                .single();
+              const originText = friendUW?.origin === 'wishlist' ? "liste d'envie" : 'cave';
+              const friendName = friendUser?.first_name || 'un ami';
+              await supabase.from('wine_history').insert({
+                user_id: user.id,
+                wine_id: wineId,
+                event_type: 'added_to_wishlist',
+                event_date: new Date().toISOString(),
+                notes: `Ajouté depuis la ${originText} de ${friendName}`
+              });
+            } else {
+              await addHistoryEvent(wineId, 'added_to_wishlist');
+            }
+          } catch (e) {
+            console.warn('Impossible d\'ajouter l\'historique social:', e);
+          }
 
           console.log('Vin ajouté à la wishlist avec succès');
           
@@ -795,20 +876,57 @@ export function useWines() {
         console.log('Vin créé avec succès:', wineId);
 
       // 2. Insérer dans user_wine
-      const { error } = await supabase
+      const payload2: any = {
+        user_id: user.id,
+        wine_id: wineId,
+        amount: 0,
+        rating: null,
+        origin: 'wishlist'
+      };
+      if (wine.friendId) payload2.source_user_id = wine.friendId;
+      let res2 = await supabase
         .from('user_wine')
-        .insert({
-          user_id: user.id,
-          wine_id: wineId,
-          amount: 0,
-          rating: null,
-          origin: 'wishlist'
-        });
+        .insert(payload2);
+      if (res2.error) {
+        const msg = String(res2.error.message || '');
+        if (msg.includes('source_user_id') || String(res2.error.code).includes('PGRST')) {
+          const { source_user_id, ...fallbackPayload2 } = payload2 as any;
+          const retry2 = await supabase.from('user_wine').insert(fallbackPayload2);
+          if (retry2.error) throw retry2.error;
+        } else {
+          throw res2.error;
+        }
+      }
 
-      if (error) throw error;
-
-      // Ajouter un événement d'historique pour l'ajout
-      await addHistoryEvent(wineId, 'added');
+      // Ajouter un événement d'historique pour l'ajout (avec origine sociale si ami)
+      try {
+        if (wine.friendId) {
+          const { data: friendUser } = await supabase
+            .from('User')
+            .select('first_name, avatar')
+            .eq('id', wine.friendId)
+            .single();
+          const { data: friendUW } = await supabase
+            .from('user_wine')
+            .select('origin')
+            .eq('user_id', wine.friendId)
+            .eq('wine_id', wineId)
+            .single();
+          const originText = friendUW?.origin === 'wishlist' ? "liste d'envie" : 'cave';
+          const friendName = friendUser?.first_name || 'un ami';
+          await supabase.from('wine_history').insert({
+            user_id: user.id,
+            wine_id: wineId,
+            event_type: 'added_to_wishlist',
+            event_date: new Date().toISOString(),
+            notes: `Ajouté depuis la ${originText} de ${friendName}`
+          });
+        } else {
+          await addHistoryEvent(wineId, 'added_to_wishlist');
+        }
+      } catch (e) {
+        console.warn('Impossible d\'ajouter l\'historique social:', e);
+      }
 
       console.log('Vin ajouté à la wishlist avec succès');
       

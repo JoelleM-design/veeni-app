@@ -1,13 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, Dimensions, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Dimensions, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { VeeniColors } from '../constants/Colors';
 import { useSharedCave } from '../hooks/useSharedCave';
 import { useUser } from '../hooks/useUser';
 import { useWineHistory } from '../hooks/useWineHistory';
 import { useWines } from '../hooks/useWines';
+import { Image as ExpoImage } from 'expo-image';
+import { supabase } from '../lib/supabase';
 
 const { width } = Dimensions.get('window');
 
@@ -28,7 +30,7 @@ export default function WineDetailsScreenV2({
 }: WineDetailsScreenV2Props) {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { wines, updateWine, deleteWine, addWineToWishlist, addWineToCellar } = useWines();
+  const { wines, updateWine, addWineToWishlist, addWineToCellar, removeWineFromCellar, removeWineFromWishlist } = useWines();
   const { tastedWines } = useWineHistory();
   const { user } = useUser();
   // Temporairement désactivé pour éviter l'erreur
@@ -112,6 +114,79 @@ export default function WineDetailsScreenV2({
 
   // Historique du vin
   const wineHistory = wine?.history || [];
+
+  // Détection du contexte d'usage
+  const friendId = (params.friendId as string) || undefined;
+  const context = useMemo(() => {
+    if (friendId) return 'cave_ami' as const;
+    if (wine && (wine.stock || 0) > 0 && wine.origin === 'cellar') return 'cave' as const;
+    if (wine && wine.origin === 'wishlist') return 'wishlist' as const;
+    if (wine && (wine.stock || 0) === 0) return 'deguste' as const;
+    return 'cave' as const;
+  }, [friendId, wine?.id, wine?.origin, wine?.stock]);
+
+  // Données de l'ami (lecture seule)
+  const [friendData, setFriendData] = useState<{ amount: number; favorite: boolean; history: any[] } | null>(null);
+  const [friendProfile, setFriendProfile] = useState<{ first_name?: string; avatar?: string } | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (context !== 'cave_ami' || !friendId || !wineId) { setFriendData(null); return; }
+      try {
+        // Profil ami (affichage social)
+        const { data: fp } = await supabase
+          .from('User')
+          .select('first_name, avatar')
+          .eq('id', friendId)
+          .maybeSingle();
+        if (mounted) setFriendProfile(fp || null);
+
+        const { data: uw } = await supabase
+          .from('user_wine')
+          .select('amount, favorite, origin')
+          .eq('user_id', friendId)
+          .eq('wine_id', wineId)
+          .maybeSingle();
+        const { data: hist } = await supabase
+          .from('wine_history')
+          .select('id, event_type, event_date, rating, notes, created_at')
+          .eq('user_id', friendId)
+          .eq('wine_id', wineId)
+          .order('event_date', { ascending: false });
+        if (!mounted) return;
+        setFriendData({ amount: uw?.amount || 0, favorite: !!uw?.favorite, history: Array.isArray(hist) ? hist : [] });
+      } catch (e) {
+        if (!mounted) return;
+        setFriendData({ amount: 0, favorite: false, history: [] });
+      }
+    })();
+    return () => { mounted = false; };
+  }, [context, friendId, wineId]);
+
+  // Social: déterminer si ce vin est dans ma wishlist et provient de cet ami
+  // Vérification robuste côté DB pour éviter les états locaux obsolètes
+  const [myWishlistFromThisFriend, setMyWishlistFromThisFriend] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (!friendId || !user?.id || !wineId) { if (mounted) setMyWishlistFromThisFriend(false); return; }
+        const { data, error } = await supabase
+          .from('user_wine')
+          .select('wine_id')
+          .eq('user_id', user.id)
+          .eq('wine_id', wineId)
+          .eq('origin', 'wishlist')
+          .eq('source_user_id', friendId)
+          .limit(1);
+        if (!mounted) return;
+        setMyWishlistFromThisFriend(!!(data && data.length > 0 && data[0]?.wine_id));
+      } catch (_) {
+        if (mounted) setMyWishlistFromThisFriend(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [friendId, user?.id, wineId]);
 
   useEffect(() => {
     if (safeWine) {
@@ -351,7 +426,11 @@ export default function WineDetailsScreenV2({
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteWine(wineId);
+              if (context === 'wishlist') {
+                await removeWineFromWishlist(wineId);
+              } else {
+                await removeWineFromCellar(wineId);
+              }
               router.back();
             } catch (error) {
               Alert.alert('Erreur', 'Impossible de supprimer le vin');
@@ -471,14 +550,14 @@ export default function WineDetailsScreenV2({
         >
         {/* Image du vin */}
         <View style={styles.imageContainer}>
-          <Image
+          <ExpoImage
             source={
               safeWine.imageUri
-                ? { uri: safeWine.imageUri }
+                ? { uri: `${safeWine.imageUri}?t=${Date.now()}` }
                 : require('../assets/images/default-wine.png')
             }
             style={styles.wineImage}
-            resizeMode="cover"
+            contentFit="cover"
           />
           <View style={styles.wineTypeBadge}>
             <View 
@@ -512,111 +591,140 @@ export default function WineDetailsScreenV2({
         </View>
 
         {/* Stock */}
-        {safeWine.origin === 'cellar' && (
+        {(context === 'cave' || context === 'cave_ami') && (
           <View style={styles.stockSection}>
             <Text style={styles.sectionTitle}>Stock</Text>
-            <View style={styles.stockControls}>
-              <TouchableOpacity onPress={handleRemoveBottle} style={styles.stockButton}>
-                <Ionicons name="remove" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-              <Text style={styles.stockCount}>{safeWine.stock || 0}</Text>
-              <TouchableOpacity onPress={handleAddBottle} style={styles.stockButton}>
-                <Ionicons name="add" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
+            {context === 'cave' ? (
+              <View style={styles.stockControls}>
+                <TouchableOpacity onPress={handleRemoveBottle} style={styles.stockButton}>
+                  <Ionicons name="remove" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
+                <Text style={styles.stockCount}>{safeWine.stock || 0}</Text>
+                <TouchableOpacity onPress={handleAddBottle} style={styles.stockButton}>
+                  <Ionicons name="add" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.stockControls}>
+                <Text style={styles.stockCount}>{friendData?.amount ?? 0}</Text>
+              </View>
+            )}
           </View>
         )}
 
         {/* Note et évaluation */}
-        <View style={styles.ratingSection}>
-          <Text style={styles.sectionTitle}>Ma note</Text>
-          {renderStars(rating, handleSetRating)}
-        </View>
+        {context !== 'cave_ami' && (
+          <View style={styles.ratingSection}>
+            <Text style={styles.sectionTitle}>Ma note</Text>
+            {renderStars(rating, handleSetRating)}
+          </View>
+        )}
 
         {/* Profil de dégustation */}
-        <View style={styles.tastingSection}>
-          <Text style={styles.sectionTitle}>Profil de dégustation</Text>
-          {renderTastingCriteria('Puissance', 'power', tastingProfile.power)}
-          {renderTastingCriteria('Tanin', 'tannin', tastingProfile.tannin)}
-          {renderTastingCriteria('Acidité', 'acidity', tastingProfile.acidity)}
-          {renderTastingCriteria('Sucré', 'sweetness', tastingProfile.sweetness)}
-        </View>
+        {context !== 'cave_ami' && (
+          <View style={styles.tastingSection}>
+            <Text style={styles.sectionTitle}>Profil de dégustation</Text>
+            {renderTastingCriteria('Puissance', 'power', tastingProfile.power)}
+            {renderTastingCriteria('Tanin', 'tannin', tastingProfile.tannin)}
+            {renderTastingCriteria('Acidité', 'acidity', tastingProfile.acidity)}
+            {renderTastingCriteria('Sucré', 'sweetness', tastingProfile.sweetness)}
+          </View>
+        )}
 
         {/* Descriptif */}
-        <View style={styles.descriptionSection}>
-          <Text style={styles.sectionTitle}>Descriptif</Text>
-          <TextInput
-            style={styles.textArea}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Ajoutez une description du vin..."
-            placeholderTextColor="#999"
-            multiline
-            numberOfLines={4}
-            onBlur={handleSaveDescription}
-          />
-        </View>
+        {context !== 'cave_ami' && (
+          <View style={styles.descriptionSection}>
+            <Text style={styles.sectionTitle}>Descriptif</Text>
+            <TextInput
+              style={styles.textArea}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Ajoutez une description du vin..."
+              placeholderTextColor="#999"
+              multiline
+              numberOfLines={4}
+              onBlur={handleSaveDescription}
+            />
+          </View>
+        )}
 
         {/* Note personnelle */}
-        <View style={styles.commentSection}>
-          <Text style={styles.sectionTitle}>Note personnelle</Text>
-          <TextInput
-            style={styles.textArea}
-            value={personalComment}
-            onChangeText={setPersonalComment}
-            placeholder="Ajoutez vos notes personnelles..."
-            placeholderTextColor="#999"
-            multiline
-            numberOfLines={3}
-            onBlur={handleSaveComment}
-          />
-        </View>
+        {context !== 'cave_ami' && (
+          <View style={styles.commentSection}>
+            <Text style={styles.sectionTitle}>Note personnelle</Text>
+            <TextInput
+              style={styles.textArea}
+              value={personalComment}
+              onChangeText={setPersonalComment}
+              placeholder="Ajoutez vos notes personnelles..."
+              placeholderTextColor="#999"
+              multiline
+              numberOfLines={3}
+              onBlur={handleSaveComment}
+            />
+          </View>
+        )}
 
         {/* Historique */}
         <View style={styles.historySection}>
           <Text style={styles.sectionTitle}>Historique</Text>
-          {wineHistory.length > 0 ? (
-            // Éliminer les doublons basés sur l'ID et trier par date
-            wineHistory
-              .filter((entry: any, index: number, self) => 
-                index === self.findIndex(e => e.id === entry.id)
-              )
-              .sort((a: any, b: any) => 
-                new Date(b.event_date || b.created_at).getTime() - 
-                new Date(a.event_date || a.created_at).getTime()
-              )
-              .map((entry: any, index: number) => {
-                const getEventDescription = (event: any) => {
-                  if (!event || typeof event !== 'object') return 'Action effectuée';
-                  
-                  switch (event.event_type) {
-                    case 'added_to_cellar':
-                      return `Ajouté à la cave (${event.new_amount || 1} bouteille${(event.new_amount || 1) > 1 ? 's' : ''})`;
-                    case 'added_to_wishlist':
-                      return 'Ajouté à la wishlist';
-                    case 'stock_change':
-                      return `Stock modifié : ${event.previous_amount || 0} → ${event.new_amount || 0} bouteille${(event.new_amount || 0) > 1 ? 's' : ''}`;
-                    case 'rating_change':
-                      return `Note modifiée : ${event.rating || 0}/5`;
-                    case 'origin_change':
-                      return String(event.notes || 'Origine modifiée');
-                    case 'tasted':
-                      return `Dégusté (${event.rating || 0}/5)`;
-                    default:
-                      return String(event.event_type || 'Action effectuée');
-                  }
-                };
-
-                return (
-                  <View key={`${entry.id}-${index}`} style={styles.historyItem}>
-                    <Text style={styles.historyDate}>{formatDate(entry.event_date || entry.created_at || '')}</Text>
-                    <Text style={styles.historyAction}>{String(getEventDescription(entry) || 'Action effectuée')}</Text>
-                  </View>
-                );
-              })
-          ) : (
-            <Text style={styles.noHistoryText}>Aucun historique disponible</Text>
+          {context === 'cave_ami' && myWishlistFromThisFriend && (
+            <View style={[styles.historyItem, { borderBottomWidth: 0, alignItems: 'center' }]}>
+              <Text style={styles.historyAction}>ajouté à la liste d'envie de</Text>
+              {user?.avatar ? (
+                <ExpoImage source={{ uri: user.avatar }} style={{ width: 24, height: 24, borderRadius: 12, marginHorizontal: 8 }} contentFit="cover" />
+              ) : (
+                <View style={{ width: 24, height: 24, borderRadius: 12, marginHorizontal: 8, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' }}>
+                  <Text style={{ color: '#222', fontSize: 12, fontWeight: '700', lineHeight: 16 }}>
+                    {String(user?.first_name || '?').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <Text style={[styles.historyAction, { marginLeft: 0 }]}>{user?.first_name || 'moi'}</Text>
+            </View>
           )}
+          {(() => {
+            const base = context === 'cave_ami' ? (friendData?.history || []) : wineHistory;
+            const filtered = base.filter((e: any) => {
+              if (context === 'wishlist') return ['added_to_wishlist', 'origin_change'].includes(String(e.event_type));
+              if (context === 'deguste') return ['tasted', 'rating_change', 'noted', 'stock_change'].includes(String(e.event_type));
+              return true;
+            });
+            return filtered.length > 0 ? (
+              filtered
+                .filter((entry: any, index: number, self: any[]) => index === self.findIndex(e => e.id === entry.id))
+                .sort((a: any, b: any) => new Date(b.event_date || b.created_at).getTime() - new Date(a.event_date || a.created_at).getTime())
+                .map((entry: any, index: number) => {
+                  const getEventDescription = (event: any) => {
+                    if (!event || typeof event !== 'object') return 'Action effectuée';
+                    switch (event.event_type) {
+                      case 'added_to_cellar':
+                        return `Ajouté à la cave (${event.new_amount || 1} bouteille${(event.new_amount || 1) > 1 ? 's' : ''})`;
+                      case 'added_to_wishlist':
+                        return 'Ajouté à la liste d\'envie';
+                      case 'stock_change':
+                        return `Stock modifié : ${event.previous_amount || 0} → ${event.new_amount || 0} bouteille${(event.new_amount || 0) > 1 ? 's' : ''}`;
+                      case 'rating_change':
+                        return `Note modifiée : ${event.rating || 0}/5`;
+                      case 'origin_change':
+                        return String(event.notes || 'Origine modifiée');
+                      case 'tasted':
+                        return `Dégusté (${event.rating || 0}/5)`;
+                      default:
+                        return String(event.event_type || 'Action effectuée');
+                    }
+                  };
+                  return (
+                    <View key={`${entry.id}-${index}`} style={styles.historyItem}>
+                      <Text style={styles.historyDate}>{formatDate(entry.event_date || entry.created_at || '')}</Text>
+                      <Text style={styles.historyAction}>{String(getEventDescription(entry) || 'Action effectuée')}</Text>
+                    </View>
+                  );
+                })
+            ) : (
+              <Text style={styles.noHistoryText}>Aucun historique disponible</Text>
+            );
+          })()}
         </View>
 
         {/* Chez tes amis */}
@@ -642,7 +750,7 @@ export default function WineDetailsScreenV2({
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Modal d'actions */}
+      {/* Modal d'actions - options selon contexte */}
       <Modal
         visible={showActionsModal}
         transparent
@@ -667,22 +775,40 @@ export default function WineDetailsScreenV2({
               <Text style={styles.modalActionText}>Partager</Text>
             </TouchableOpacity>
             
-            {safeWine.origin === 'wishlist' ? (
+            {context === 'wishlist' ? (
               <TouchableOpacity style={styles.modalAction} onPress={handleMoveToCellar}>
                 <Ionicons name="wine" size={20} color="#FFFFFF" />
                 <Text style={styles.modalActionText}>Déplacer vers ma cave</Text>
               </TouchableOpacity>
-            ) : (
+            ) : context === 'cave' ? (
               <TouchableOpacity style={styles.modalAction} onPress={handleMoveToWishlist}>
                 <Ionicons name="heart-outline" size={20} color="#FFFFFF" />
                 <Text style={styles.modalActionText}>Déplacer vers ma wishlist</Text>
               </TouchableOpacity>
+            ) : context === 'deguste' ? (
+              <>
+                <TouchableOpacity style={styles.modalAction} onPress={handleMoveToCellar}>
+                  <Ionicons name="wine" size={20} color="#FFFFFF" />
+                  <Text style={styles.modalActionText}>Ajouter à ma cave</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalAction} onPress={handleMoveToWishlist}>
+                  <Ionicons name="heart-outline" size={20} color="#FFFFFF" />
+                  <Text style={styles.modalActionText}>Ajouter à ma wishlist</Text>
+                </TouchableOpacity>
+              </>
+            ) : context === 'cave_ami' ? (
+              <TouchableOpacity style={styles.modalAction} onPress={() => addWineToWishlist({ ...(wine as any), friendId })}>
+                <Ionicons name="heart-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.modalActionText}>Ajouter à ma wishlist</Text>
+              </TouchableOpacity>
             )}
             
-            <TouchableOpacity style={styles.modalAction} onPress={handleDeleteWine}>
-              <Ionicons name="trash-outline" size={20} color="#FF4444" />
-              <Text style={[styles.modalActionText, { color: '#FF4444' }]}>Supprimer</Text>
-            </TouchableOpacity>
+            {(context === 'cave' || context === 'wishlist') && (
+              <TouchableOpacity style={styles.modalAction} onPress={handleDeleteWine}>
+                <Ionicons name="trash-outline" size={20} color="#FF4444" />
+                <Text style={[styles.modalActionText, { color: '#FF4444' }]}>Supprimer</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </TouchableOpacity>
       </Modal>

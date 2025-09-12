@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useActiveCave } from './useActiveCave';
 import { useUser } from './useUser';
@@ -39,9 +39,18 @@ export function useWineHistory() {
   const [history, setHistory] = useState<WineHistoryEntry[]>([]);
   const [tastedWines, setTastedWines] = useState<TastedWine[]>([]);
   const [loading, setLoading] = useState(false);
+  const lastFetchHistoryRef = useRef(0);
+  const lastFetchTastedRef = useRef(0);
+  const isFetchingHistoryRef = useRef(false);
+  const isFetchingTastedRef = useRef(false);
 
   // Récupérer l'historique des dégustations
   const fetchHistory = async () => {
+    const now = Date.now();
+    if (isFetchingHistoryRef.current) return;
+    if (now - lastFetchHistoryRef.current < 1000) return;
+    isFetchingHistoryRef.current = true;
+    lastFetchHistoryRef.current = now;
     if (!user?.id || !caveId) return;
     
     setLoading(true);
@@ -66,16 +75,22 @@ export function useWineHistory() {
       console.error('Erreur lors de la récupération de l\'historique:', error);
     } finally {
       setLoading(false);
+      isFetchingHistoryRef.current = false;
     }
   };
 
   // Récupérer les vins dégustés (groupés par vin)
   const fetchTastedWines = async () => {
+    const now = Date.now();
+    if (isFetchingTastedRef.current) return;
+    if (now - lastFetchTastedRef.current < 1000) return;
+    isFetchingTastedRef.current = true;
+    lastFetchTastedRef.current = now;
     if (!user?.id || !caveId) return;
     
     setLoading(true);
     try {
-      console.log('🔍 fetchTastedWines: Début de la récupération pour cave:', { caveId, caveMode });
+      // console.log('🔍 fetchTastedWines: Début de la récupération pour cave:', { caveId, caveMode });
       
       // Requête pour récupérer les vins dégustés
       let query = supabase
@@ -99,11 +114,7 @@ export function useWineHistory() {
 
       const { data: historyData, error: historyError } = await query;
 
-      console.log('📊 fetchTastedWines: Données récupérées:', {
-        count: historyData?.length || 0,
-        data: historyData?.slice(0, 2), // Afficher les 2 premiers
-        error: historyError
-      });
+      // logs réduits
 
       if (historyError) throw historyError;
 
@@ -173,10 +184,7 @@ export function useWineHistory() {
         wine: winesMap.get(entry.wine_id)
       }));
 
-      console.log('🔗 fetchTastedWines: Données combinées:', {
-        count: combinedData?.length || 0,
-        data: combinedData?.slice(0, 2) // Afficher les 2 premiers
-      });
+      // logs réduits
 
       if (!combinedData || combinedData.length === 0) {
         setTastedWines([]);
@@ -185,22 +193,17 @@ export function useWineHistory() {
 
       // Filtrer les entrées sans vin (orphelins)
       const cleaned = combinedData.filter(entry => entry.wine);
-      console.log('🧹 fetchTastedWines: Données nettoyées:', {
-        count: cleaned?.length || 0,
-        data: cleaned?.slice(0, 2) // Afficher les 2 premiers
-      });
+      // logs réduits
 
       const grouped = groupTastingsByWine(cleaned, favoritesMap);
-      console.log('📋 fetchTastedWines: Données groupées:', {
-        count: grouped?.length || 0,
-        data: grouped?.slice(0, 2) // Afficher les 2 premiers
-      });
+      // logs réduits
       
       setTastedWines(grouped);
     } catch (error) {
       console.error('Erreur lors de la récupération des vins dégustés:', error);
     } finally {
       setLoading(false);
+      isFetchingTastedRef.current = false;
     }
   };
 

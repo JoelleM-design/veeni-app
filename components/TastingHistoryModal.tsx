@@ -35,7 +35,7 @@ export default function TastingHistoryModal({
         <Ionicons
           key={i}
           name={i <= (rating || 0) ? "star" : "star-outline"}
-          size={16}
+          size={32}
           color={i <= (rating || 0) ? "#FFD700" : "#666666"}
         />
       );
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
   },
   starsContainer: {
     flexDirection: 'row',
-    gap: 2,
+    gap: 16,
   },
   tastingNote: {
     fontSize: 14,

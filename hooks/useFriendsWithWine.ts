@@ -39,34 +39,42 @@ export const useFriendsWithWine = (wineId: string) => {
         return;
       }
 
-      // 2. Récupérer les vins de ces amis qui correspondent au wineId
-      const { data: userWinesData, error: winesError } = await supabase
+      // 2. Récupérer les entrées user_wine des amis pour ce vin (stock > 0)
+      const { data: userWinesRows, error: winesError } = await supabase
         .from('user_wine')
-        .select(`
-          user_id,
-          User!user_id (
-            id,
-            first_name,
-            avatar
-          )
-        `)
+        .select('user_id')
         .in('user_id', friendIds)
         .eq('wine_id', wineId)
-        .gt('amount', 0); // Seulement les vins en stock
+        .gt('amount', 0);
 
       if (winesError) {
         console.error('Erreur lors de la récupération des vins des amis:', winesError);
         return;
       }
 
-      // 3. Transformer les données
-      const friends: FriendWithWine[] = (userWinesData || [])
-        .filter(item => item.User && typeof item.User === 'object')
-        .map(item => ({
-          id: String((item.User as any)?.id || ''),
-          firstName: String((item.User as any)?.first_name || 'Ami'),
-          avatar: (item.User as any)?.avatar || undefined,
-        }));
+      const holderIds = Array.from(new Set((userWinesRows || []).map(r => String(r.user_id))));
+      if (holderIds.length === 0) {
+        setFriendsWithWine([]);
+        return;
+      }
+
+      // 3. Récupérer les profils des amis détenteurs dans la table User
+      const { data: usersData, error: usersError } = await supabase
+        .from('User')
+        .select('id, first_name, avatar')
+        .in('id', holderIds);
+
+      if (usersError) {
+        console.error('Erreur lors de la récupération des profils amis:', usersError);
+        setFriendsWithWine([]);
+        return;
+      }
+
+      const friends: FriendWithWine[] = (usersData || []).map(u => ({
+        id: String(u.id),
+        firstName: String(u.first_name || 'Ami'),
+        avatar: u.avatar || undefined,
+      }));
 
       setFriendsWithWine(friends);
     } catch (err) {

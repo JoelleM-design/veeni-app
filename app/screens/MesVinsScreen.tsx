@@ -8,6 +8,7 @@ import { ActiveFiltersBar } from '../../components/ui/ActiveFiltersBar';
 import { FilterModal } from '../../components/ui/FilterModal';
 import { SearchFilterBar } from '../../components/ui/SearchFilterBar';
 import { WineCard } from '../../components/WineCard';
+import { useFriendsWithWine } from '../../hooks/useFriendsWithWine';
 import { useStats } from '../../hooks/useStats';
 import { useWineHistory } from '../../hooks/useWineHistory';
 import { useWineList } from '../../hooks/useWineList';
@@ -89,6 +90,9 @@ const WineCardWithSocial = ({
     onOpenTastingModal(wineToDisplay);
   };
 
+  // Récupérer les amis qui ont aussi ce vin (pour badge)
+  const { friendsWithWine } = useFriendsWithWine(wineId);
+
   return (
     <WineCard
       wine={wineToDisplay}
@@ -97,6 +101,7 @@ const WineCardWithSocial = ({
       showStockButtons={tab === 'cellar'}
       onAddBottle={handleAddBottle}
       onRemoveBottle={handleRemoveBottle}
+      friendsWithWine={friendsWithWine}
     />
   );
 };
@@ -126,7 +131,7 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
   const { addTasting, reAddToCellar, tastedWines } = useWineHistory();
   const { stats, isLoading: statsLoading, error: statsError, refreshStats } = useStats(); // Utilise simplement useStats
   
-  console.log('🔄 MesVinsScreen: Stats SWR - isLoading =', statsLoading, 'stats =', stats, 'error =', statsError);
+  // logs réduits
 
   // Utiliser les vins dégustés pour l'onglet "Dégustés"
   const winesToDisplay = tab === 'tasted' ? tastedWines : wines;
@@ -228,7 +233,7 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
 
   // Stats calculées selon la logique de chaque onglet
   const localStats = useMemo(() => {
-    console.log('🔄 MesVinsScreen: Calcul des stats pour tab:', tab, 'avec', winesForStats.length, 'vins');
+    // logs réduits
     
     if (tab === 'cellar') {
       // 🧺 Ma cave : somme des stocks (ex: 3x Les Roches Blanches = 3)
@@ -248,7 +253,7 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
         .reduce((sum, wine) => sum + (wine.stock || 0), 0);
       
       const result = { total, red, white, rose, sparkling };
-      console.log('📊 MesVinsScreen: Stats cave calculées:', result);
+      // logs réduits
       return result;
     } else if (tab === 'wishlist') {
       // ⭐ Mes envies : nombre de vins uniques (1 par vin désiré)
@@ -260,7 +265,7 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
       const sparkling = wishlistWines.filter(w => w.color === 'sparkling').length;
       
       const result = { total, red, white, rose, sparkling };
-      console.log('📊 MesVinsScreen: Stats envies calculées:', result);
+      // logs réduits
       return result;
     } else {
       // 🍷 Dégustés : nombre total de dégustations (comme les bouteilles dans Ma cave)
@@ -279,7 +284,7 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
         .reduce((sum, wine) => sum + (wine.tastings?.length || 0), 0);
       
       const result = { total, red, white, rose, sparkling };
-      console.log('📊 MesVinsScreen: Stats dégustés calculées:', result);
+      // logs réduits
       return result;
     }
   }, [wines, tab, winesToDisplay, refreshKey, allWines, stats]);
@@ -348,7 +353,7 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
                 sparkling: tab === 'cellar' ? stats?.sparkling_wines_count || 0 : localStats.sparkling,
               };
               
-              console.log('🎯 MesVinsScreen: Rendu StatsBar avec stats:', statsToUse);
+              // logs réduits
               return (
                 <StatsBar 
                   key={`stats-${tab}-${refreshKey}-${JSON.stringify(statsToUse)}`}
@@ -412,14 +417,7 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
                   // Créer une clé unique simple
                   const uniqueKey = `${safeKey}-favorite-${wineData.favorite ? 'true' : 'false'}-refresh-${refreshKey}`;
                   
-                  console.log('MesVinsScreen - Mapping wine to WineCardWithSocial:', {
-                    originalWine: wine,
-                    wineData: wineData,
-                    tab,
-                    wineId: wineData.id,
-                    tastingCount: wine.tastingCount,
-                    lastTastedAt: wine.lastTastedAt
-                  });
+                  // logs réduits
                   
                   return (
                     <WineCardWithSocial

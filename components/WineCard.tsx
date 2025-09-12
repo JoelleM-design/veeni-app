@@ -2,12 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
     Dimensions,
-    Image,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { VeeniColors } from '../constants/Colors';
 
 const { width } = Dimensions.get('window');
@@ -30,6 +30,9 @@ export interface WineCardProps {
     note: number | null;
     personalComment: string | null;
     favorite?: boolean;
+    // Ajout social (affichages)
+    sourceUser?: { id: string; first_name?: string; avatar?: string };
+    commonFriends?: Array<{ id: string; firstName: string; avatar?: string }>;
   };
   showStockButtons?: boolean;
   showStock?: boolean;
@@ -85,6 +88,8 @@ export const WineCard: React.FC<WineCardProps> = ({
     note: wine.note || null,
     personalComment: wine.personalComment || null,
     favorite: wine.favorite || false,
+    sourceUser: wine.sourceUser,
+    commonFriends: wine.commonFriends || [],
   };
 
   const getWineTypeColor = (color: string) => {
@@ -156,13 +161,12 @@ export const WineCard: React.FC<WineCardProps> = ({
           <View style={styles.imageWrapper}>
             {safeWine.imageUri ? (
               <>
-                {console.log('🖼️ WineCard: Affichage image pour', safeWine.name, 'URL:', safeWine.imageUri)}
-                <Image
+                <ExpoImage
                   source={{ uri: `${safeWine.imageUri}?t=${Date.now()}` }}
                   style={styles.wineImage}
-                  resizeMode="cover"
-                  onLoad={() => console.log('✅ Image chargée avec succès:', safeWine.name)}
-                  onError={(error) => console.log('❌ Erreur chargement image:', safeWine.name, error.nativeEvent.error)}
+                  contentFit="cover"
+                  onLoad={() => {}}
+                  onError={() => {}}
                 />
               </>
             ) : (
@@ -250,13 +254,49 @@ export const WineCard: React.FC<WineCardProps> = ({
               </Text>
             )}
             
-            {/* Information sociale - Amis qui ont ce vin */}
-            {friendsWithWine.length > 0 && (
+            {/* Information sociale - Ajout depuis la cave d'un ami (wishlist) */}
+            {safeWine.origin === 'wishlist' && safeWine.sourceUser && (
               <View style={styles.socialRow}>
-                <Ionicons name="people" size={12} color="#FFFFFF" />
-                <Text style={styles.socialText}>
-                  Aussi chez {friendsWithWine.slice(0, 2).map(f => f.firstName).join(', ')}
-                  {friendsWithWine.length > 2 && ` +${friendsWithWine.length - 2}`}
+                <Text style={styles.socialText}>Vu chez</Text>
+                {safeWine.sourceUser.avatar ? (
+                  <Image source={{ uri: safeWine.sourceUser.avatar }} style={styles.socialAvatar} />
+                ) : (
+                  <View style={styles.socialAvatarPlaceholder}>
+                    <Text style={styles.socialAvatarInitial}>
+                      {(safeWine.sourceUser.first_name || '?').charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <Text style={[styles.socialText, styles.socialNameText]}>{safeWine.sourceUser.first_name || 'un ami'}</Text>
+              </View>
+            )}
+
+            {/* Information sociale - Amis qui ont aussi ce vin */}
+            {(safeWine.commonFriends?.length || friendsWithWine.length) > 0 && (
+              <View style={styles.socialRow}>
+                <Text style={styles.socialText}>Vu chez</Text>
+                {(() => {
+                  const list = (safeWine.commonFriends && safeWine.commonFriends.length > 0)
+                    ? safeWine.commonFriends
+                    : friendsWithWine;
+                  const first = list[0];
+                  return first?.avatar ? (
+                    <Image source={{ uri: first.avatar }} style={styles.socialAvatar} />
+                  ) : (
+                    <View style={styles.socialAvatarPlaceholder}>
+                      <Text style={styles.socialAvatarInitial}>{(first?.firstName || '?').charAt(0).toUpperCase()}</Text>
+                    </View>
+                  );
+                })()}
+                <Text style={[styles.socialText, styles.socialNameText]}>
+                  {(() => {
+                    const list = (safeWine.commonFriends && safeWine.commonFriends.length > 0)
+                      ? safeWine.commonFriends
+                      : friendsWithWine;
+                    const names = list.slice(0, 2).map(f => f.firstName).join(', ');
+                    const extra = list.length > 2 ? ` +${list.length - 2}` : '';
+                    return `${names}${extra}`;
+                  })()}
                 </Text>
               </View>
             )}
@@ -625,6 +665,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginLeft: 4,
     fontStyle: 'italic',
+  },
+  socialNameText: {
+    marginLeft: 0,
+  },
+  socialAvatar: {
+    width: 24, // multiple de 8
+    height: 24, // multiple de 8
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginHorizontal: 8, // multiple de 8
+  },
+  socialAvatarPlaceholder: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  socialAvatarInitial: {
+    color: '#222',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
   },
   stockButton: {
     width: 40,

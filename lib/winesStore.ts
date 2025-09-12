@@ -11,9 +11,12 @@ export function getWinesStore(): Wine[] {
 
 export function setWinesStore(next: Wine[]): void {
   winesStore = next;
-  for (const l of listeners) {
-    try { l(winesStore); } catch {}
-  }
+  // Différer la notification pour éviter les setState pendant le rendu
+  queueMicrotask(() => {
+    for (const l of listeners) {
+      try { l(winesStore); } catch {}
+    }
+  });
 }
 
 export function subscribeWines(listener: Listener): () => void {

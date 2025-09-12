@@ -1,10 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { Image as ExpoImage } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Dimensions, FlatList, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TastingNoteModal } from '../components/TastingNoteModal';
 import { VeeniColors } from '../constants/Colors';
+import { useFriendsWithWine } from '../hooks/useFriendsWithWine';
 import { useSharedCave } from '../hooks/useSharedCave';
 import { useUser } from '../hooks/useUser';
 import { useWineHistory } from '../hooks/useWineHistory';
@@ -54,16 +57,70 @@ export default function EditableWineDetailsScreen({
 }: EditableWineDetailsScreenProps) {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { wines, updateWine, addWineToWishlist, addWineToCellar, fetchWines, notifyUpdate } = useWines();
+  const { wines, updateWine, addWineToWishlist, addWineToCellar, removeWineFromWishlist, removeWineFromCellar, fetchWines, notifyUpdate } = useWines();
   
   // Mode lecture pour les profils visités (priorité aux paramètres de la fonction)
   const isReadOnlyMode = params.readOnly === 'true' || isReadOnly;
   const friendId = params.friendId as string;
   const isVisitedReadOnly = isReadOnlyMode && !!friendId;
-  const { tastedWines, refreshTastings, addTasting } = useWineHistory();
+  const { tastedWines, fetchTastedWines, fetchHistory, addTasting } = useWineHistory();
   const { user } = useUser();
-  const friendsWithWine: any[] = [];
   const { sharedCave } = useSharedCave();
+
+  // Origine sociale (fallback si non présent dans safeWine)
+  const [sourceUserLocal, setSourceUserLocal] = useState<{ id: string; first_name?: string; avatar?: string } | undefined>(undefined);
+
+  // Données du user_wine de l'ami (lecture seule)
+  const [friendUW, setFriendUW] = useState<{ favorite?: boolean; rating?: number; tasting_profile?: any; personal_comment?: string | null } | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (!isVisitedReadOnly || !friendId || !wineId) { if (mounted) setFriendUW(null); return; }
+        const { data } = await supabase
+          .from('user_wine')
+          .select('favorite, rating, tasting_profile, personal_comment')
+          .eq('user_id', friendId)
+          .eq('wine_id', wineId)
+          .maybeSingle();
+        if (!mounted) return;
+        setFriendUW(data || null);
+      } catch (_) {
+        if (mounted) setFriendUW(null);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [isVisitedReadOnly, friendId, wineId]);
+
+  // (déplacé plus bas après l'initialisation de safeWine)
+
+  useEffect(() => {
+    const loadSourceUserIfMissing = async () => {
+      try {
+        if (!user || !wineId) return;
+        // Si déjà présent sur le vin, inutile
+        if ((wine as any)?.sourceUser) return;
+        // Chercher le source_user_id sur user_wine
+        const { data: uw } = await supabase
+          .from('user_wine')
+          .select('source_user_id')
+          .eq('user_id', user.id)
+          .eq('wine_id', wineId)
+          .single();
+        const sid = uw?.source_user_id as string | undefined;
+        if (!sid) return;
+        const { data: src } = await supabase
+          .from('User')
+          .select('id, first_name, avatar')
+          .eq('id', sid)
+          .single();
+        if (src) setSourceUserLocal({ id: String(src.id), first_name: src.first_name || undefined, avatar: src.avatar || undefined });
+      } catch (_) {
+        // silencieux
+      }
+    };
+    loadSourceUserIfMissing();
+  }, [user, wineId, wine]);
 
   // Fonction pour mettre à jour un vin (gère le cas OCR)
   const updateWineSafe = async (wineId: string, updates: any) => {
@@ -82,7 +139,9 @@ export default function EditableWineDetailsScreen({
   const handleAddToWishlist = async () => {
     if (!safeWine || !user) return;
     try {
-      await addWineToWishlist(safeWine);
+      // Passer friendId pour renseigner source_user_id
+      const enriched = friendId ? { ...safeWine, friendId } : safeWine;
+      await addWineToWishlist(enriched as any);
       Alert.alert('Succès', 'Vin ajouté à votre liste d\'envie !');
     } catch (error) {
       console.error('Erreur lors de l\'ajout à la liste d\'envie:', error);
@@ -107,6 +166,7 @@ export default function EditableWineDetailsScreen({
     sweetness: 0
   });
   const [description, setDescription] = useState('');
+  const tastingUpdateTimer = useRef<any>(null);
   
   // Mode édition pour les vins OCR
   const [isEditing, setIsEditing] = useState(isFromOcr);
@@ -270,6 +330,11 @@ export default function EditableWineDetailsScreen({
   });
   const safeWine = wine || null;
 
+  // Valeurs à afficher (ami en lecture seule vs moi)
+  const displayRating = isVisitedReadOnly ? (friendUW?.rating ?? 0) : rating;
+  const displayTastingProfile = isVisitedReadOnly ? (friendUW?.tasting_profile ?? { power: 0, tannin: 0, acidity: 0, sweetness: 0 }) : tastingProfile;
+  const displayFavorite = isVisitedReadOnly ? !!friendUW?.favorite : !!(safeWine && (safeWine as any).favorite);
+
   // Si le vin n'existe plus, rediriger vers la liste
   useEffect(() => {
     if (!isReadOnlyMode && allWines.length > 0 && !wine) {
@@ -280,6 +345,32 @@ export default function EditableWineDetailsScreen({
 
   // Historique du vin
   const wineHistory = wine?.history || [];
+  // Amis possédant aussi ce vin (pour fallback d'affichage)
+  const { friendsWithWine } = useFriendsWithWine(String(wineId));
+  const firstFriendForDisplay = Array.isArray(friendsWithWine) && friendsWithWine.length > 0
+    ? { id: String(friendsWithWine[0].id), first_name: friendsWithWine[0].firstName, avatar: friendsWithWine[0].avatar }
+    : undefined;
+  // Origine sociale pour affichage (même source que la carte) avec fallback ami commun
+  // En visite: si l'utilisateur a ce vin en wishlist (même sans source), afficher "Ajouté à la liste d'envie de Moi"
+  const fallbackVisitedSocial = isVisitedReadOnly && showVisitedWishlistDest ? { id: String(user?.id || ''), first_name: user?.first_name, avatar: user?.avatar } : undefined;
+  const sourceUserForDisplay = (safeWine as any)?.sourceUser || sourceUserLocal || firstFriendForDisplay;
+  // Entrée sociale synthétique (si wishlist + source connue)
+  const computedSocialHistory = (safeWine?.origin === 'wishlist' && sourceUserForDisplay)
+    ? [{
+        id: `social-${safeWine?.id}`,
+        event_type: 'added_to_wishlist',
+        event_date: safeWine?.createdAt || new Date().toISOString(),
+        notes: `Ajouté depuis la cave/liste d'envie de ${sourceUserForDisplay.first_name || 'un ami'}`,
+        _social: true
+      }]
+    : [] as any[];
+  // Liste d'historique affichée = entrée sociale (si présente) + historique DB trié
+  const displayHistory = [
+    ...computedSocialHistory,
+    ...((wineHistory || [])
+      .filter((entry: any, index: number, self: any[]) => index === self.findIndex((e: any) => e.id === entry.id))
+      .sort((a: any, b: any) => new Date(b.event_date || b.created_at).getTime() - new Date(a.event_date || a.created_at).getTime()))
+  ];
   
   // Récupérer la dernière note de dégustation depuis l'historique
   const lastTastingNote = wineHistory
@@ -331,6 +422,18 @@ export default function EditableWineDetailsScreen({
   useEffect(() => {
     loadReferenceData();
   }, []);
+
+  // Rafraîchir la fiche quand on revient sur l'écran (pour voir les champs nouvellement remplis)
+  useFocusEffect(
+    useCallback(() => {
+      // Recharger depuis Supabase
+      fetchWines();
+      // Re-synchroniser l'historique des dégustations
+      fetchTastedWines();
+      fetchHistory();
+      return () => {};
+    }, [fetchWines, fetchTastedWines, fetchHistory])
+  );
 
   // Charger les données du vin OCR depuis les paramètres
   useEffect(() => {
@@ -639,7 +742,8 @@ export default function EditableWineDetailsScreen({
       await updateWineSafe(wineId, { stock: (safeWine.stock || 0) + 1 });
       // Rafraîchir les données pour mettre à jour l'UI
       await fetchWines();
-      await refreshTastings();
+      await fetchTastedWines();
+      await fetchHistory();
     }
   };
 
@@ -676,7 +780,8 @@ export default function EditableWineDetailsScreen({
         setTastingModalVisible(false);
         setSelectedWineForTasting(null);
         await fetchWines();
-        await refreshTastings();
+        await fetchTastedWines();
+        await fetchHistory();
       } else {
         Alert.alert('Erreur', 'Impossible d\'enregistrer la dégustation');
       }
@@ -779,7 +884,8 @@ export default function EditableWineDetailsScreen({
       
       // Rafraîchir les données
       await fetchWines();
-      await refreshTastings();
+      await fetchTastedWines();
+      await fetchHistory();
     }
   };
 
@@ -822,7 +928,8 @@ export default function EditableWineDetailsScreen({
       
       // Rafraîchir les données
       await fetchWines();
-      await refreshTastings();
+      await fetchTastedWines();
+      await fetchHistory();
     }
   };
 
@@ -830,9 +937,12 @@ export default function EditableWineDetailsScreen({
   const handleSetTastingCriteria = (criteria: string, value: number) => {
     const newTastingProfile = { ...tastingProfile, [criteria]: value };
     setTastingProfile(newTastingProfile);
-    if (safeWine) {
-      updateWineSafe(wineId, { tastingProfile: newTastingProfile });
-    }
+    if (tastingUpdateTimer.current) clearTimeout(tastingUpdateTimer.current);
+    tastingUpdateTimer.current = setTimeout(() => {
+      if (safeWine) {
+        updateWineSafe(wineId, { tastingProfile: newTastingProfile });
+      }
+    }, 200);
   };
 
 
@@ -896,7 +1006,7 @@ export default function EditableWineDetailsScreen({
             >
               <Ionicons
                 name={star <= value ? 'star' : 'star-outline'}
-                size={16}
+                size={24}
                 color={star <= value ? '#FFD700' : '#CCC'}
               />
             </TouchableOpacity>
@@ -918,9 +1028,14 @@ export default function EditableWineDetailsScreen({
           style: 'destructive',
           onPress: async () => {
             try {
-              // TODO: Implémenter la suppression
-              Alert.alert('Info', 'Fonction de suppression à implémenter');
-              router.back();
+              if (safeWine?.origin === 'wishlist') {
+                await removeWineFromWishlist(String(safeWine.id));
+              } else {
+                await removeWineFromCellar(String(safeWine.id));
+              }
+              await fetchWines();
+              notifyUpdate();
+              router.replace('/(tabs)/mes-vins');
             } catch (error) {
               Alert.alert('Erreur', 'Impossible de supprimer le vin');
             }
@@ -962,20 +1077,27 @@ export default function EditableWineDetailsScreen({
 
   // Fonction pour rendre les étoiles
   const renderStars = (currentRating: number, onPress?: (rating: number) => void) => {
+    const interactive = typeof onPress === 'function';
     return (
       <View style={styles.starsContainer}>
         {[1, 2, 3, 4, 5].map((star) => (
-          <TouchableOpacity
-            key={star}
-            onPress={() => onPress?.(star)}
-            disabled={!onPress}
-          >
-            <Ionicons
-              name={star <= currentRating ? 'star' : 'star-outline'}
-              size={24}
-              color={star <= currentRating ? '#FFD700' : '#CCC'}
-            />
-          </TouchableOpacity>
+          interactive ? (
+            <TouchableOpacity key={star} onPress={() => onPress?.(star)}>
+              <Ionicons
+                name={star <= currentRating ? 'star' : 'star-outline'}
+                size={32}
+                color={star <= currentRating ? '#FFD700' : '#CCC'}
+              />
+            </TouchableOpacity>
+          ) : (
+            <View key={star}>
+              <Ionicons
+                name={star <= currentRating ? 'star' : 'star-outline'}
+                size={32}
+                color={star <= currentRating ? '#FFD700' : '#CCC'}
+              />
+            </View>
+          )
         ))}
       </View>
     );
@@ -997,6 +1119,47 @@ export default function EditableWineDetailsScreen({
     }
   };
 
+  // Affichage social (destination) en mode visite: état + vérification DB
+  const [showVisitedWishlistDest, setShowVisitedWishlistDest] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (!isVisitedReadOnly || !user?.id || !friendId || !wineId) {
+          if (mounted) setShowVisitedWishlistDest(false);
+          return;
+        }
+        // 1) Vérifier wishlist avec source explicite (préféré)
+        const { data, error } = await supabase
+          .from('user_wine')
+          .select('wine_id')
+          .eq('user_id', user.id)
+          .eq('wine_id', wineId)
+          .eq('origin', 'wishlist')
+          .eq('source_user_id', friendId)
+          .limit(1);
+        if (!mounted) return;
+        if (data && data.length > 0 && data[0]?.wine_id) {
+          setShowVisitedWishlistDest(true);
+        } else {
+          // 2) Fallback: si la colonne source_user_id n'a pas été prise en compte à l'insertion
+          const { data: anyWishlist } = await supabase
+            .from('user_wine')
+            .select('wine_id')
+            .eq('user_id', user.id)
+            .eq('wine_id', wineId)
+            .eq('origin', 'wishlist')
+            .limit(1);
+          if (!mounted) return;
+          setShowVisitedWishlistDest(!!(anyWishlist && anyWishlist.length > 0 && anyWishlist[0]?.wine_id));
+        }
+      } catch (_) {
+        if (mounted) setShowVisitedWishlistDest(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [isVisitedReadOnly, user?.id, friendId, wineId]);
+
   if (!safeWine) {
     return (
       <SafeAreaView style={styles.container}>
@@ -1015,11 +1178,7 @@ export default function EditableWineDetailsScreen({
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {safeWine.name || 'Vin'}
-          </Text>
-        </View>
+        <View style={styles.headerCenter} />
         
         <View style={styles.headerRight}>
           {!isReadOnlyMode && (
@@ -1056,14 +1215,16 @@ export default function EditableWineDetailsScreen({
         >
         {/* Image du vin - Même ratio que WineCard */}
         <View style={styles.imageContainer}>
-          <Image
+          <ExpoImage
             source={
               safeWine.imageUri
                 ? { uri: `${safeWine.imageUri}?t=${Date.now()}` }
                 : require('../assets/images/default-wine.png')
             }
             style={styles.wineImage}
-            resizeMode="cover"
+            contentFit="cover"
+            onLoad={() => {}}
+            onError={() => {}}
           />
         </View>
 
@@ -1259,21 +1420,21 @@ export default function EditableWineDetailsScreen({
         )}
 
         {/* Note et évaluation */}
-        {(!isVisitedReadOnly || rating > 0) && (
+        {(!isVisitedReadOnly || displayRating > 0) && (
           <View style={styles.ratingSection}>
             <Text style={styles.sectionTitle}>Ma note</Text>
-            {renderStars(rating, isVisitedReadOnly ? undefined : handleSetRating)}
+            {renderStars(displayRating, isVisitedReadOnly ? undefined : handleSetRating)}
           </View>
         )}
 
         {/* Profil de dégustation */}
-        {(!isVisitedReadOnly || (tastingProfile.power + tastingProfile.tannin + tastingProfile.acidity + tastingProfile.sweetness > 0)) && (
+        {(!isVisitedReadOnly || (displayTastingProfile.power + displayTastingProfile.tannin + displayTastingProfile.acidity + displayTastingProfile.sweetness > 0)) && (
           <View style={styles.tastingSection}>
             <Text style={styles.sectionTitle}>Profil de dégustation</Text>
-            {renderTastingCriteria('Puissance', 'power', tastingProfile.power)}
-            {renderTastingCriteria('Tanin', 'tannin', tastingProfile.tannin)}
-            {renderTastingCriteria('Acidité', 'acidity', tastingProfile.acidity)}
-            {renderTastingCriteria('Sucré', 'sweetness', tastingProfile.sweetness)}
+            {renderTastingCriteria('Puissance', 'power', displayTastingProfile.power)}
+            {renderTastingCriteria('Tanin', 'tannin', displayTastingProfile.tannin)}
+            {renderTastingCriteria('Acidité', 'acidity', displayTastingProfile.acidity)}
+            {renderTastingCriteria('Sucré', 'sweetness', displayTastingProfile.sweetness)}
           </View>
         )}
 
@@ -1301,12 +1462,16 @@ export default function EditableWineDetailsScreen({
         )}
 
         {/* Note personnelle */}
-        {(!isVisitedReadOnly || ((lastTastingNote?.trim()?.length || 0) > 0 || (personalComment?.trim()?.length || 0) > 0)) && (
+        {(
+          !isVisitedReadOnly ||
+          ((lastTastingNote?.trim()?.length || 0) > 0 || (personalComment?.trim()?.length || 0) > 0) ||
+          (isVisitedReadOnly && (friendUW?.personal_comment || '').trim().length > 0)
+        ) && (
           <View style={styles.commentSection}>
             <Text style={styles.sectionTitle}>Note personnelle</Text>
             {isVisitedReadOnly ? (
               <Text style={[styles.textArea, { borderWidth: 0, backgroundColor: 'transparent', padding: 0 }]}>
-                {lastTastingNote || personalComment || ''}
+                {friendUW?.personal_comment || lastTastingNote || personalComment || ''}
               </Text>
             ) : (
               <TextInput
@@ -1324,19 +1489,11 @@ export default function EditableWineDetailsScreen({
         )}
 
         {/* Historique */}
-        {(!isVisitedReadOnly || wineHistory.length > 0) && (
+        {(!isVisitedReadOnly || displayHistory.length > 0) && (
         <View style={styles.historySection}>
           <Text style={styles.sectionTitle}>Historique</Text>
-          {wineHistory.length > 0 ? (
-            // Éliminer les doublons basés sur l'ID et trier par date
-            wineHistory
-              .filter((entry: any, index: number, self: any[]) => 
-                index === self.findIndex((e: any) => e.id === entry.id)
-              )
-              .sort((a: any, b: any) => 
-                new Date(b.event_date || b.created_at).getTime() - 
-                new Date(a.event_date || a.created_at).getTime()
-              )
+          {displayHistory.length > 0 ? (
+            displayHistory
               .map((entry: any, index: number) => {
                 const getEventDescription = (event: any) => {
                   if (!event || typeof event !== 'object') return 'Action effectuée';
@@ -1345,7 +1502,9 @@ export default function EditableWineDetailsScreen({
                     case 'added_to_cellar':
                       return `Ajouté à la cave (${event.new_amount || 1} bouteille${(event.new_amount || 1) > 1 ? 's' : ''})`;
                     case 'added_to_wishlist':
-                      return 'Ajouté à la wishlist';
+                      return 'Ajouté à la liste d\'envie';
+                    case 'added':
+                      return 'Ajouté';
                     case 'stock_change':
                       return `Stock modifié : ${event.previous_amount || 0} → ${event.new_amount || 0} bouteille${(event.new_amount || 0) > 1 ? 's' : ''}`;
                     case 'rating_change':
@@ -1359,14 +1518,22 @@ export default function EditableWineDetailsScreen({
                       const ratingText = event.rating ? `Note: ${event.rating}/5` : '';
                       return [noteText, ratingText].filter(Boolean).join(' - ') || 'Note ajoutée';
                     default:
-                      return String(event.event_type || 'Action effectuée');
+                      // Traduction basique des clés éventuelles
+                      const map: Record<string, string> = {
+                        added: 'Ajouté',
+                        favorited: 'Ajouté aux favoris',
+                        removed: 'Supprimé'
+                      };
+                      return map[String(event.event_type)] || 'Action effectuée';
                   }
                 };
+
+                const description = String(getEventDescription(entry) || 'Action effectuée');
 
                 return (
                   <View key={`${entry.id}-${index}`} style={styles.historyItem}>
                     <Text style={styles.historyDate}>{formatDate(entry.event_date || entry.created_at || '')}</Text>
-                    <Text style={styles.historyAction}>{String(getEventDescription(entry) || 'Action effectuée')}</Text>
+                    <Text style={styles.historyAction}>{description}</Text>
                   </View>
                 );
               })
@@ -1374,6 +1541,48 @@ export default function EditableWineDetailsScreen({
             !isVisitedReadOnly && <Text style={styles.noHistoryText}>Aucun historique disponible</Text>
           )}
         </View>
+        )}
+        {/* Social */}
+        {/* En visite (lecture seule): afficher la destination si confirmée; sinon, rien */}
+        {/* Chez soi: afficher l'origine si connue */}
+        {isVisitedReadOnly ? (
+          showVisitedWishlistDest ? (
+            <View style={styles.socialSection}>
+              <Text style={styles.sectionTitle}>Social</Text>
+              <View style={styles.historySocialRow}>
+                <Text style={styles.socialPrefixText} numberOfLines={1}>Ajouté à la liste d'envie de</Text>
+                {user?.avatar ? (
+                  <Image source={{ uri: user.avatar }} style={styles.historyAvatar} />
+                ) : (
+                  <View style={styles.historyAvatarPlaceholder}>
+                    <Text style={styles.historyAvatarInitial}>
+                      {(user?.first_name || '?').charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <Text style={[styles.socialPrefixText, styles.historyNameText]} numberOfLines={1}>{user?.first_name || 'moi'}</Text>
+              </View>
+            </View>
+          ) : null
+        ) : (
+          (sourceUserForDisplay || fallbackVisitedSocial) ? (
+            <View style={styles.socialSection}>
+              <Text style={styles.sectionTitle}>Social</Text>
+              <View style={styles.historySocialRow}>
+                <Text style={styles.socialPrefixText} numberOfLines={1}>{isVisitedReadOnly ? "Ajouté à la liste d'envie de" : 'Ajouté depuis la cave de'}</Text>
+                {(sourceUserForDisplay || fallbackVisitedSocial)?.avatar ? (
+                  <Image source={{ uri: (sourceUserForDisplay || fallbackVisitedSocial)?.avatar }} style={styles.historyAvatar} />
+                ) : (
+                  <View style={styles.historyAvatarPlaceholder}>
+                    <Text style={styles.historyAvatarInitial}>
+                      {((sourceUserForDisplay || fallbackVisitedSocial)?.first_name || '?').charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <Text style={[styles.socialPrefixText, styles.historyNameText]} numberOfLines={1}>{(sourceUserForDisplay || fallbackVisitedSocial)?.first_name || (isVisitedReadOnly ? 'moi' : 'un ami')}</Text>
+              </View>
+            </View>
+          ) : null
         )}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -2232,8 +2441,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomWidth: 0,
+    borderBottomColor: 'transparent',
     backgroundColor: '#1a1a1a',
   },
   backButton: {
@@ -2412,6 +2621,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: 'transparent',
+    marginTop: 32,
   },
   sectionTitle: {
     fontSize: 18,
@@ -2449,23 +2659,28 @@ const styles = StyleSheet.create({
   },
   ratingSection: {
     padding: 20,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: '#1a1a1a',
+    marginTop: 32,
   },
   starsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
+    gap: 16,
   },
   tastingSection: {
     padding: 20,
     backgroundColor: '#1a1a1a',
+    marginTop: 32,
   },
   descriptionSection: {
     padding: 20,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: '#1a1a1a',
+    marginTop: 32,
   },
   commentSection: {
     padding: 20,
     backgroundColor: '#1a1a1a',
+    marginTop: 32,
   },
   textArea: {
     borderWidth: 1,
@@ -2480,7 +2695,41 @@ const styles = StyleSheet.create({
   },
   historySection: {
     padding: 20,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: '#1a1a1a',
+    marginTop: 32,
+  },
+  socialSection: {
+    padding: 20,
+    backgroundColor: '#1a1a1a',
+    paddingTop: 0,
+    marginTop: 32,
+  },
+  historySocialRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  historyAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginRight: 8,
+  },
+  historyAvatarPlaceholder: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  historyAvatarInitial: {
+    color: '#222',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
   },
   historyItem: {
     flexDirection: 'row',
@@ -2498,6 +2747,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     flex: 1,
     marginLeft: 16,
+  },
+  socialPrefixText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    marginRight: 8,
+  },
+  historyNameText: {
+    marginLeft: 0,
   },
   noHistoryText: {
     fontSize: 14,
@@ -2672,7 +2929,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#444444',
   },
@@ -2684,6 +2941,7 @@ const styles = StyleSheet.create({
   criteriaStars: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
   loadingContainer: {
     flex: 1,

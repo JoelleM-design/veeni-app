@@ -17,7 +17,9 @@ export default function MesVinsTab() {
       pathname: '/wine/[id]',
       params: { 
         id: wineId,
-        tab: tab
+        tab: tab,
+        // Passer les données pour un rendu immédiat (évite un retour si le cache n'est pas prêt)
+        wineData: wineData ? JSON.stringify(wineData) : undefined,
       }
     });
   };

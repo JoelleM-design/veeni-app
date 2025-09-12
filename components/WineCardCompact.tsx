@@ -2,12 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
     Dimensions,
-    Image,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { VeeniColors } from '../constants/Colors';
 
 const { width } = Dimensions.get('window');
@@ -125,10 +125,10 @@ export const WineCardCompact: React.FC<WineCardCompactProps> = ({
         <View style={styles.imageCol}>
           <View style={styles.imageWrapper}>
             {safeWine.imageUri ? (
-              <Image
+              <ExpoImage
                 source={{ uri: `${safeWine.imageUri}?t=${Date.now()}` }}
                 style={styles.wineImage}
-                resizeMode="cover"
+                contentFit="cover"
               />
             ) : (
               <View style={[styles.placeholderImage, { backgroundColor: getWineTypeColor(safeWine.color) }]}> 
