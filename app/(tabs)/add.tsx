@@ -345,8 +345,10 @@ export default function AddScreen() {
 
       {/* Bouton de prise de photo sous la caméra */}
       <View style={styles.captureBelowCameraContainer}>
-        <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-          <Ionicons name="camera" size={32} color={WHITE} />
+        <TouchableOpacity style={styles.captureButton} onPress={takePicture} activeOpacity={0.7}>
+          <View style={styles.captureOuter}>
+            <View style={styles.captureInner} />
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -454,20 +456,26 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   captureButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: ACCENT,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+  },
+  captureOuter: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 4,
+    borderColor: WHITE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  captureInner: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: WHITE,
   },
   thumbnailsContainer: {
     marginTop: 30,
