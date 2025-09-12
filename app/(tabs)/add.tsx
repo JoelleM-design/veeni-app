@@ -323,25 +323,8 @@ export default function AddScreen() {
           <Ionicons name="arrow-back" size={24} color={WHITE} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Ajouter un vin</Text>
-        <TouchableOpacity
-          style={[
-            styles.analyzeHeaderButton,
-            (photos.length === 0 || isAnalyzing) && styles.analyzeHeaderButtonDisabled
-          ]}
-          onPress={() => {
-            console.log('🔥 BOUTON SUIVANT CLIQUÉ !');
-            console.log('🔥 Photos disponibles:', photos.length);
-            console.log('🔥 isAnalyzing:', isAnalyzing);
-            analyzePhotosWithOCR();
-          }}
-          disabled={photos.length === 0 || isAnalyzing}
-        >
-          {isAnalyzing ? (
-            <ActivityIndicator size="small" color={WHITE} />
-          ) : (
-            <Text style={styles.analyzeHeaderButtonText}>Suivant</Text>
-          )}
-        </TouchableOpacity>
+        {/* Espace réservé, bouton Suivant déplacé en bas */}
+        <View style={{ width: 80 }} />
       </View>
 
       {/* Sous-titre */}
@@ -358,6 +341,13 @@ export default function AddScreen() {
         />
         {/* Cadre de guidage visuel */}
         <View style={styles.guidanceFrame} />
+      </View>
+
+      {/* Bouton de prise de photo sous la caméra */}
+      <View style={styles.captureBelowCameraContainer}>
+        <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
+          <Ionicons name="camera" size={32} color={WHITE} />
+        </TouchableOpacity>
       </View>
 
       {/* Liste des vignettes photos */}
@@ -399,10 +389,21 @@ export default function AddScreen() {
         </View>
       )}
 
-      {/* Bouton de prise de photo en bas */}
+      {/* Bouton Suivant fixe en bas */}
       <View style={styles.bottomContainer}>
-        <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-          <Ionicons name="camera" size={32} color={WHITE} />
+        <TouchableOpacity
+          style={[styles.analyzeBottomButton, (photos.length === 0 || isAnalyzing) && styles.analyzeBottomButtonDisabled]}
+          onPress={analyzePhotosWithOCR}
+          disabled={photos.length === 0 || isAnalyzing}
+        >
+          {isAnalyzing ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={'#000'} />
+              <Text style={styles.analyzeBottomButtonText}>Analyse en cours…</Text>
+            </View>
+          ) : (
+            <Text style={styles.analyzeBottomButtonText}>Suivant</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -475,6 +476,10 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
     overflow: 'visible',
   },
+  captureBelowCameraContainer: {
+    paddingTop: 16,
+    alignItems: 'center',
+  },
   thumbnailWrapper: {
     marginRight: 10,
     position: 'relative',
@@ -499,10 +504,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 20,
-    paddingBottom: 40,
-    paddingTop: 20,
+    paddingBottom: 32,
+    paddingTop: 16,
     backgroundColor: BG,
-    alignItems: 'center',
   },
   analyzeButton: {
     backgroundColor: ACCENT,
@@ -584,6 +588,20 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderRadius: 8,
     pointerEvents: 'none',
+  },
+  analyzeBottomButton: {
+    backgroundColor: WHITE,
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  analyzeBottomButtonDisabled: {
+    backgroundColor: 'rgba(255,255,255,0.5)',
+  },
+  analyzeBottomButtonText: {
+    color: '#000',
+    fontSize: 18,
+    fontWeight: '700',
   },
   libraryButton: {
     width: 80,
