@@ -24,14 +24,41 @@ export function useSocialStats(userId: string | null) {
       setLoading(true);
       setError(null);
       try {
-        // 1) Dégustés: nombre de vins distincts dégustés par l'utilisateur
-        const { data: tastedRows, error: tastedErr } = await supabase
-          .from('wine_history')
-          .select('wine_id')
-          .eq('user_id', userId)
-          .eq('event_type', 'tasted');
-        if (tastedErr) throw tastedErr;
-        const tasted = new Set((tastedRows || []).map(r => String(r.wine_id))).size;
+        // 1) Dégustés (logique étendue):
+        // - vins de user_wine avec amount = 0 (ex-cave)
+        // - OU vins en wishlist avec rating ou tasting_profile rempli ou commentaire perso
+        // - + événements wine_history.tasted (distincts)
+        const [uwZeroRes, uwWishRes, histRes] = await Promise.all([
+          supabase.from('user_wine')
+            .select('wine_id, amount, origin')
+            .eq('user_id', userId)
+            .eq('origin', 'cellar')
+            .eq('amount', 0),
+          supabase.from('user_wine')
+            .select('wine_id, origin, rating, tasting_profile, personal_comment')
+            .eq('user_id', userId)
+            .eq('origin', 'wishlist'),
+          supabase.from('wine_history')
+            .select('wine_id')
+            .eq('user_id', userId)
+            .eq('event_type', 'tasted')
+        ]);
+
+        if (uwZeroRes.error) throw uwZeroRes.error;
+        if (uwWishRes.error) throw uwWishRes.error;
+        if (histRes.error) throw histRes.error;
+
+        const tastedSet = new Set<string>();
+        (uwZeroRes.data || []).forEach(r => tastedSet.add(String(r.wine_id)));
+        (uwWishRes.data || []).forEach(r => {
+          const hasRating = r.rating != null && r.rating > 0;
+          const tp = r.tasting_profile as any;
+          const hasTP = !!tp && ((tp.power || 0) + (tp.tannin || 0) + (tp.acidity || 0) + (tp.sweetness || 0) > 0);
+          const hasComment = typeof r.personal_comment === 'string' && r.personal_comment.trim().length > 0;
+          if (hasRating || hasTP || hasComment) tastedSet.add(String(r.wine_id));
+        });
+        (histRes.data || []).forEach(r => tastedSet.add(String(r.wine_id)));
+        const tasted = tastedSet.size;
 
         // 2) Favoris: vins likés dans user_wine (wishlist ou cave)
         const { data: favRows, error: favErr } = await supabase

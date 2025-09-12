@@ -525,24 +525,24 @@ export default function ProfileScreen() {
           <ProfileStatsBar />
         </View>
 
-        {/* Statistiques sociales (4 cartes) */}
-        <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12 }}>
-            <View style={{ width: '48%', backgroundColor: '#2A2A2A', borderRadius: 16, padding: 16 }}>
-              <Text style={{ color: '#FFF', fontSize: 22, fontWeight: '700' }}>{socialStats?.tasted ?? 0}</Text>
-              <Text style={{ color: '#999', marginTop: 4 }}>Dégustés</Text>
+        {/* Statistiques sociales (réutiliser le style de ProfileStatsBar) */}
+        <View style={styles.statsBar}>
+          <View style={styles.statsContainerRow}>
+            <View style={styles.statCard}> 
+              <Text style={styles.statNumber}>{socialStats?.tasted ?? 0}</Text>
+              <Text style={styles.statLabel}>Dégustés</Text>
             </View>
-            <View style={{ width: '48%', backgroundColor: '#2A2A2A', borderRadius: 16, padding: 16 }}>
-              <Text style={{ color: '#FFF', fontSize: 22, fontWeight: '700' }}>{socialStats?.favorites ?? 0}</Text>
-              <Text style={{ color: '#999', marginTop: 4 }}>Favoris</Text>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{socialStats?.favorites ?? 0}</Text>
+              <Text style={styles.statLabel}>Favoris</Text>
             </View>
-            <View style={{ width: '48%', backgroundColor: '#2A2A2A', borderRadius: 16, padding: 16 }}>
-              <Text style={{ color: '#FFF', fontSize: 22, fontWeight: '700' }}>{socialStats?.commonWithFriends ?? 0}</Text>
-              <Text style={{ color: '#999', marginTop: 4 }}>Goûts en commun</Text>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{socialStats?.commonWithFriends ?? 0}</Text>
+              <Text style={styles.statLabel}>Goûts en commun</Text>
             </View>
-            <View style={{ width: '48%', backgroundColor: '#2A2A2A', borderRadius: 16, padding: 16 }}>
-              <Text style={{ color: '#FFF', fontSize: 22, fontWeight: '700' }}>{socialStats?.inspiredFriends ?? 0}</Text>
-              <Text style={{ color: '#999', marginTop: 4 }}>Inspirés par vous</Text>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{socialStats?.inspiredFriends ?? 0}</Text>
+              <Text style={styles.statLabel}>Inspirés par vous</Text>
             </View>
           </View>
         </View>
@@ -803,6 +803,32 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
     marginBottom: 8,
     width: '100%',
+  },
+  statsContainerRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 16,
+  },
+  statCard: {
+    backgroundColor: '#333',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    flex: 1,
+    minWidth: '45%',
+    marginBottom: 8,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: '#999',
   },
   searchContainer: {
     marginBottom: Spacing.base,
