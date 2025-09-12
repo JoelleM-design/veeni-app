@@ -91,7 +91,8 @@ const WineCardWithSocial = ({
   };
 
   // Récupérer les amis qui ont aussi ce vin (pour badge)
-  const { friendsWithWine } = useFriendsWithWine(wineId);
+  // Eviter les requêtes coûteuses sur l’onglet "Dégustés"
+  const { friendsWithWine } = useFriendsWithWine(tab === 'tasted' ? '' : wineId);
 
   return (
     <WineCard
