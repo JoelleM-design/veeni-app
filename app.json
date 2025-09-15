@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "veeni-app",
-    "slug": "veeni-app",
+    "name": "Veeni",
+    "slug": "veeni",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/iconeveenipop.png",
@@ -9,6 +9,8 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "com.veeni.app",
+      "buildNumber": "1",
       "supportsTablet": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Cette application nécessite l'accès à votre bibliothèque de photos pour vous permettre de changer votre photo de profil.",
