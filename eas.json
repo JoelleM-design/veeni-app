@@ -14,7 +14,7 @@
       }
     },
     "production": {
-      "distribution": "app-store",
+      "distribution": "store",
       "developmentClient": false,
       "ios": {
         "resourceClass": "m-medium",
@@ -26,7 +26,11 @@
   },
   "submit": {
     "production": {
-      "ios": {}
+      "ios": {
+        "ascApiKeyPath": "./ASC_KEY.p8",
+        "ascApiKeyIssuerId": "99d208e1-58ab-4b65-b4ed-840468bef37f",
+        "ascApiKeyId": "3TH6S5593A"
+      }
     }
   }
 }

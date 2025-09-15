@@ -2,6 +2,7 @@
   "expo": {
     "name": "Veeni",
     "slug": "veeni",
+    "owner": "joellemartin",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/iconeveenipop.png",
