@@ -1,0 +1,34 @@
+{
+  "cli": {
+    "version": ">= 3.17.0"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "developmentClient": false,
+      "ios": {
+        "resourceClass": "m-medium",
+        "simulator": false,
+        "autoIncrement": "buildNumber",
+        "image": "latest"
+      }
+    },
+    "production": {
+      "distribution": "app-store",
+      "developmentClient": false,
+      "ios": {
+        "resourceClass": "m-medium",
+        "simulator": false,
+        "autoIncrement": "buildNumber",
+        "image": "latest"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {}
+    }
+  }
+}
+
+
