@@ -21,31 +21,45 @@ export const useFriendsWithWine = (wineId: string) => {
       setLoading(true);
       setError(null);
 
-      // 1. Récupérer les IDs des amis de l'utilisateur
-      const { data: friendsData, error: friendsError } = await supabase
-        .from('friend')
-        .select('friend_id')
-        .eq('user_id', user.id)
-        .eq('status', 'accepted');
+      // 1. Récupérer les IDs des amis (bidirectionnel)
+      const [friendsFromUser, friendsToUser] = await Promise.all([
+        supabase
+          .from('friend')
+          .select('friend_id')
+          .eq('user_id', user.id)
+          .eq('status', 'accepted'),
+        supabase
+          .from('friend')
+          .select('user_id')
+          .eq('friend_id', user.id)
+          .eq('status', 'accepted')
+      ]);
 
-      if (friendsError) {
-        console.error('Erreur lors de la récupération des amis:', friendsError);
+      if (friendsFromUser.error) {
+        console.error('Erreur lors de la récupération des amis (from):', friendsFromUser.error);
+        return;
+      }
+      if (friendsToUser.error) {
+        console.error('Erreur lors de la récupération des amis (to):', friendsToUser.error);
         return;
       }
 
-      const friendIds = friendsData?.map(f => f.friend_id) || [];
+      const friendIds = Array.from(new Set([
+        ...((friendsFromUser.data || []).map((r: any) => r.friend_id)),
+        ...((friendsToUser.data || []).map((r: any) => r.user_id)),
+      ]));
       if (friendIds.length === 0) {
         setFriendsWithWine([]);
         return;
       }
 
-      // 2. Récupérer les entrées user_wine des amis pour ce vin (stock > 0)
+      // 2. Récupérer les entrées user_wine des amis pour ce vin (cave OU wishlist)
       const { data: userWinesRows, error: winesError } = await supabase
         .from('user_wine')
-        .select('user_id')
+        .select('user_id, origin')
         .in('user_id', friendIds)
         .eq('wine_id', wineId)
-        .gt('amount', 0);
+        .or('origin.eq.cellar,origin.eq.wishlist,origin.is.null');
 
       if (winesError) {
         console.error('Erreur lors de la récupération des vins des amis:', winesError);

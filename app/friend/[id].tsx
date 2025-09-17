@@ -9,6 +9,7 @@ import { FilterModal } from '../../components/ui/FilterModal';
 import { SearchFilterBar } from '../../components/ui/SearchFilterBar';
 import { useUser } from '../../hooks/useUser';
 import { useUserStats } from '../../hooks/useUserStats';
+import { useWines } from '../../hooks/useWines';
 import { supabase } from '../../lib/supabase';
 import { Wine } from '../../types/wine';
 
@@ -47,6 +48,8 @@ export default function FriendDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { user } = useUser();
+  const { wines: myWines } = useWines();
+  const myWineIdSet = useMemo(() => new Set((myWines || []).map((w: any) => String(w.id))), [myWines]);
   const [friend, setFriend] = useState<Friend | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -401,7 +404,7 @@ export default function FriendDetailScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="chevron-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profil</Text>
+        <Text style={styles.headerTitle}>Profil de {friend.first_name || 'Utilisateur'}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -517,12 +520,10 @@ export default function FriendDetailScreen() {
                   <WineCardCompact
                     wine={wine}
                     readOnly={true}
+                    alsoOwnedByCurrentUser={myWineIdSet.has(String(wine.id)) ? { id: user?.id || '', first_name: user?.first_name, avatar: user?.avatar } : null}
                     onPress={() => {
                       console.log('[FriendProfile] Click carte', { wineId: wine.id, friendId: friend?.id });
-                      router.push({
-                        pathname: '/wine/[id]',
-                        params: { id: wine.id, readOnly: 'true', friendId: friend?.id || '' }
-                      });
+                      router.push({ pathname: '/wine/[id]', params: { id: wine.id, readOnly: 'true', friendId: friend?.id || '' } });
                     }}
                   />
                 </View>

@@ -1,6 +1,8 @@
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useSocialStats } from '../hooks/useSocialStats';
 import { useStats } from '../hooks/useStats';
+import { useUser } from '../hooks/useUser';
 import { useWineHistory } from '../hooks/useWineHistory';
 
 interface ProfileStatsBarProps {
@@ -10,6 +12,8 @@ interface ProfileStatsBarProps {
 export default function ProfileStatsBar({ style }: ProfileStatsBarProps) {
   const { stats, isLoading, error } = useStats();
   const { tastedWines } = useWineHistory();
+  const { user } = useUser();
+  const { stats: socialStats } = useSocialStats(user?.id || null);
   
   // Calculer le total des dégustations comme dans l'onglet "Dégustés"
   const totalTastings = useMemo(() => {
@@ -43,12 +47,12 @@ export default function ProfileStatsBar({ style }: ProfileStatsBarProps) {
     <View style={[styles.container, style]}>
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{stats.total_bottles_in_cellar}</Text>
-          <Text style={styles.statLabel}>En cave</Text>
+          <Text style={styles.statNumber}>{socialStats?.commonWithFriends ?? 0}</Text>
+          <Text style={styles.statLabel}>En commun</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{stats.wishlist_count}</Text>
-          <Text style={styles.statLabel}>À acheter</Text>
+          <Text style={styles.statNumber}>{socialStats?.inspiredFriends ?? 0}</Text>
+          <Text style={styles.statLabel}>Inspirés par vous</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>{totalTastings}</Text>

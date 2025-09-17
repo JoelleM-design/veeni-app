@@ -69,42 +69,56 @@ export function useSocialStats(userId: string | null, refreshKey: number = 0) {
         if (favErr) throw favErr;
         const favorites = new Set((favRows || []).map(r => String(r.wine_id))).size;
 
-        // Récupérer la liste des amis (IDs)
-        const { data: friendLinks, error: friendErr } = await supabase
-          .from('friend')
-          .select('friend_id')
-          .eq('user_id', userId)
-          .eq('status', 'accepted');
-        if (friendErr) throw friendErr;
-        const friendIds = Array.from(new Set((friendLinks || []).map(f => String(f.friend_id))));
+        // Récupérer la liste des amis (IDs) en bidirectionnel
+        const [friendsFromUserRes, friendsToUserRes] = await Promise.all([
+          supabase
+            .from('friend')
+            .select('friend_id')
+            .eq('user_id', userId)
+            .eq('status', 'accepted'),
+          supabase
+            .from('friend')
+            .select('user_id')
+            .eq('friend_id', userId)
+            .eq('status', 'accepted')
+        ]);
+        if (friendsFromUserRes.error) throw friendsFromUserRes.error;
+        if (friendsToUserRes.error) throw friendsToUserRes.error;
+
+        const friendIds = Array.from(new Set([
+          ...((friendsFromUserRes.data || []).map((r: any) => String(r.friend_id))),
+          ...((friendsToUserRes.data || []).map((r: any) => String(r.user_id)))
+        ]));
 
         let commonWithFriends = 0;
         let inspiredFriends = 0;
 
         if (friendIds.length > 0) {
-          // Mes vins (cave + wishlist)
+          // Mes vins: cave + wishlist (sans cave partagée)
           const { data: myWines, error: myWinesErr } = await supabase
             .from('user_wine')
-            .select('wine_id')
-            .eq('user_id', userId);
+            .select('wine_id, origin')
+            .eq('user_id', userId)
+            .or('origin.eq.cellar,origin.eq.wishlist,origin.is.null');
           if (myWinesErr) throw myWinesErr;
-          const myWineIds = new Set((myWines || []).map(w => String(w.wine_id)));
+          const myWineIds = new Set((myWines || []).map((w: any) => String(w.wine_id)));
 
-          // Vins des amis (cave + wishlist)
+          // Vins des amis: cave + wishlist (sans cave partagée)
           const { data: friendWines, error: fwErr } = await supabase
             .from('user_wine')
-            .select('wine_id, user_id, source_user_id')
-            .in('user_id', friendIds);
+            .select('wine_id, user_id, source_user_id, origin')
+            .in('user_id', friendIds)
+            .or('origin.eq.cellar,origin.eq.wishlist,origin.is.null');
           if (fwErr) throw fwErr;
 
-          const friendWineIds = new Set((friendWines || []).map(w => String(w.wine_id)));
+          const friendWineIds = new Set((friendWines || []).map((w: any) => String(w.wine_id)));
           commonWithFriends = Array.from(myWineIds).filter(id => friendWineIds.has(id)).length;
 
-          // Vins qui ont inspiré vos amis: entrées user_wine des amis où source_user_id = userId
+          // Inspirés par vous: uniquement les wishlist des amis qui référencent ton id
           const inspiredSet = new Set(
             (friendWines || [])
-              .filter(row => String(row.source_user_id || '') === String(userId))
-              .map(row => String(row.wine_id))
+              .filter((row: any) => row.origin === 'wishlist' && String(row.source_user_id || '') === String(userId))
+              .map((row: any) => String(row.wine_id))
           );
           inspiredFriends = inspiredSet.size;
         }

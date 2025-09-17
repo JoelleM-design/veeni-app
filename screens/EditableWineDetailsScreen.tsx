@@ -69,9 +69,10 @@ export default function EditableWineDetailsScreen({
 
   // Origine sociale (fallback si non présent dans safeWine)
   const [sourceUserLocal, setSourceUserLocal] = useState<{ id: string; first_name?: string; avatar?: string } | undefined>(undefined);
+  const [sourceFriendOrigin, setSourceFriendOrigin] = useState<'cellar' | 'wishlist' | null>(null);
 
   // Données du user_wine de l'ami (lecture seule)
-  const [friendUW, setFriendUW] = useState<{ favorite?: boolean; rating?: number; tasting_profile?: any; personal_comment?: string | null } | null>(null);
+  const [friendUW, setFriendUW] = useState<{ favorite?: boolean; rating?: number; tasting_profile?: any; personal_comment?: string | null; amount?: number; origin?: 'cellar' | 'wishlist' } | null>(null);
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -79,7 +80,7 @@ export default function EditableWineDetailsScreen({
         if (!isVisitedReadOnly || !friendId || !wineId) { if (mounted) setFriendUW(null); return; }
         const { data } = await supabase
           .from('user_wine')
-          .select('favorite, rating, tasting_profile, personal_comment')
+          .select('favorite, rating, tasting_profile, personal_comment, amount, origin')
           .eq('user_id', friendId)
           .eq('wine_id', wineId)
           .maybeSingle();
@@ -115,6 +116,14 @@ export default function EditableWineDetailsScreen({
           .eq('id', sid)
           .single();
         if (src) setSourceUserLocal({ id: String(src.id), first_name: src.first_name || undefined, avatar: src.avatar || undefined });
+        // Récupérer l'origine (cave ou liste) chez l'ami source
+        const friendUw = await supabase
+          .from('user_wine')
+          .select('origin')
+          .eq('user_id', sid)
+          .eq('wine_id', wineId)
+          .maybeSingle();
+        setSourceFriendOrigin(friendUw.data?.origin === 'wishlist' ? 'wishlist' : friendUw.data?.origin === 'cellar' ? 'cellar' : null);
       } catch (_) {
         // silencieux
       }
@@ -1160,6 +1169,148 @@ export default function EditableWineDetailsScreen({
     return () => { mounted = false; };
   }, [isVisitedReadOnly, user?.id, friendId, wineId]);
 
+  // Détection indépendante: est-ce que MOI (utilisateur courant) ai ce vin en wishlist ?
+  const [hasMyWishlistEntry, setHasMyWishlistEntry] = useState(false);
+  const [hasMyCellarEntry, setHasMyCellarEntry] = useState(false);
+  const [hasMyTasted, setHasMyTasted] = useState(false);
+  const hasMyAny = hasMyWishlistEntry || hasMyCellarEntry;
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (!user?.id || !wineId) { if (mounted) setHasMyWishlistEntry(false); return; }
+        const { data } = await supabase
+          .from('user_wine')
+          .select('wine_id')
+          .eq('user_id', user.id)
+          .eq('wine_id', wineId)
+          .eq('origin', 'wishlist')
+          .limit(1);
+        if (!mounted) return;
+        setHasMyWishlistEntry(!!(data && data.length > 0));
+      } catch (_) {
+        if (mounted) setHasMyWishlistEntry(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [user?.id, wineId]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (!user?.id || !wineId) { if (mounted) setHasMyTasted(false); return; }
+        const { data } = await supabase
+          .from('wine_history')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('wine_id', wineId)
+          .eq('event_type', 'tasted')
+          .limit(1);
+        if (!mounted) return;
+        setHasMyTasted(!!(data && data.length > 0));
+      } catch (_) {
+        if (mounted) setHasMyTasted(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [user?.id, wineId]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (!user?.id || !wineId) { if (mounted) setHasMyCellarEntry(false); return; }
+        const { data } = await supabase
+          .from('user_wine')
+          .select('wine_id')
+          .eq('user_id', user.id)
+          .eq('wine_id', wineId)
+          .eq('origin', 'cellar')
+          .limit(1);
+        if (!mounted) return;
+        setHasMyCellarEntry(!!(data && data.length > 0));
+      } catch (_) {
+        if (mounted) setHasMyCellarEntry(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [user?.id, wineId]);
+
+  // Social (inspiration sortante): qui a ajouté ce vin à sa wishlist depuis MA cave
+  const [inspiredUsers, setInspiredUsers] = useState<Array<{ id: string; first_name?: string; avatar?: string }>>([]);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (isVisitedReadOnly || !user?.id || !wineId) { if (mounted) setInspiredUsers([]); return; }
+        const { data, error } = await supabase
+          .from('user_wine')
+          .select('user_id, origin, source_user_id, User:user_id(id, first_name, avatar)')
+          .eq('wine_id', wineId)
+          .eq('origin', 'wishlist')
+          .eq('source_user_id', user.id);
+        if (!mounted) return;
+        if (error) { setInspiredUsers([]); return; }
+        const mapped = (data || [])
+          .map((r: any) => r.User)
+          .filter(Boolean)
+          .map((u: any) => ({ id: String(u.id), first_name: u.first_name, avatar: u.avatar }));
+        setInspiredUsers(mapped);
+      } catch (_) {
+        if (mounted) setInspiredUsers([]);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [isVisitedReadOnly, user?.id, wineId]);
+
+  // Amis ayant ce vin en cave / wishlist
+  const [friendsCellar, setFriendsCellar] = useState<Array<{ id: string; first_name?: string; avatar?: string }>>([]);
+  const [friendsWishlist, setFriendsWishlist] = useState<Array<{ id: string; first_name?: string; avatar?: string }>>([]);
+  const [friendsTasted, setFriendsTasted] = useState<Array<{ id: string; first_name?: string; avatar?: string }>>([]);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (!user?.id || !wineId) { if (mounted) { setFriendsCellar([]); setFriendsWishlist([]); } return; }
+
+        // Récupérer amis (bidirectionnel)
+        const [fFrom, fTo] = await Promise.all([
+          supabase.from('friend').select('friend_id').eq('user_id', user.id).eq('status', 'accepted'),
+          supabase.from('friend').select('user_id').eq('friend_id', user.id).eq('status', 'accepted')
+        ]);
+        if (fFrom.error || fTo.error) { if (mounted) { setFriendsCellar([]); setFriendsWishlist([]); } return; }
+        const friendIds = Array.from(new Set([...(fFrom.data || []).map((r: any) => r.friend_id), ...(fTo.data || []).map((r: any) => r.user_id)]));
+        if (friendIds.length === 0) { if (mounted) { setFriendsCellar([]); setFriendsWishlist([]); } return; }
+
+        // Récupérer entrées user_wine des amis pour ce vin par origin
+        const [{ data: uwCellar }, { data: uwWishlist }, { data: tastedRows }] = await Promise.all([
+          supabase.from('user_wine').select('user_id').in('user_id', friendIds).eq('wine_id', wineId).eq('origin', 'cellar'),
+          supabase.from('user_wine').select('user_id').in('user_id', friendIds).eq('wine_id', wineId).eq('origin', 'wishlist'),
+          supabase.from('wine_history').select('user_id').in('user_id', friendIds).eq('wine_id', wineId).eq('event_type', 'tasted')
+        ]);
+
+        const cellarIds = Array.from(new Set((uwCellar || []).map((r: any) => r.user_id)));
+        const wishlistIds = Array.from(new Set((uwWishlist || []).map((r: any) => r.user_id)));
+        const tastedIds = Array.from(new Set((tastedRows || []).map((r: any) => r.user_id)));
+
+        const [cellarUsers, wishlistUsers, tastedUsers] = await Promise.all([
+          cellarIds.length ? supabase.from('User').select('id, first_name, avatar').in('id', cellarIds) : Promise.resolve({ data: [] as any[] }),
+          wishlistIds.length ? supabase.from('User').select('id, first_name, avatar').in('id', wishlistIds) : Promise.resolve({ data: [] as any[] }),
+          tastedIds.length ? supabase.from('User').select('id, first_name, avatar').in('id', tastedIds) : Promise.resolve({ data: [] as any[] })
+        ]);
+
+        if (!mounted) return;
+        setFriendsCellar((cellarUsers.data || []).map((u: any) => ({ id: String(u.id), first_name: u.first_name, avatar: u.avatar })));
+        setFriendsWishlist((wishlistUsers.data || []).map((u: any) => ({ id: String(u.id), first_name: u.first_name, avatar: u.avatar })));
+        setFriendsTasted((tastedUsers.data || []).map((u: any) => ({ id: String(u.id), first_name: u.first_name, avatar: u.avatar })));
+      } catch (_) {
+        if (mounted) { setFriendsCellar([]); setFriendsWishlist([]); setFriendsTasted([]); }
+      }
+    })();
+    return () => { mounted = false; };
+  }, [user?.id, wineId]);
+
   if (!safeWine) {
     return (
       <SafeAreaView style={styles.container}>
@@ -1560,29 +1711,171 @@ export default function EditableWineDetailsScreen({
                     </Text>
                   </View>
                 )}
-                <Text style={[styles.socialPrefixText, styles.historyNameText]} numberOfLines={1}>{user?.first_name || 'moi'}</Text>
+                <Text style={[styles.socialPrefixText, styles.historyNameText]} numberOfLines={1}>{user?.first_name || 'vous'}</Text>
               </View>
             </View>
           ) : null
         ) : (
-          (sourceUserForDisplay || fallbackVisitedSocial) ? (
-            <View style={styles.socialSection}>
-              <Text style={styles.sectionTitle}>Social</Text>
+          <View style={styles.socialSection}>
+            <Text style={styles.sectionTitle}>Social</Text>
+
+            {/* 4) Ajouté depuis la cave d'un ami (ma wishlist avec source) OU  (visite -> déjà géré plus haut) */}
+            {(sourceUserForDisplay && !isVisitedReadOnly) && (
               <View style={styles.historySocialRow}>
-                <Text style={styles.socialPrefixText} numberOfLines={1}>{isVisitedReadOnly ? "Ajouté à la liste d'envie de" : 'Ajouté depuis la cave de'}</Text>
-                {(sourceUserForDisplay || fallbackVisitedSocial)?.avatar ? (
-                  <Image source={{ uri: (sourceUserForDisplay || fallbackVisitedSocial)?.avatar }} style={styles.historyAvatar} />
+                <Text style={styles.socialPrefixText} numberOfLines={1}>Ajouté depuis la {sourceFriendOrigin === 'wishlist' ? 'liste' : 'cave'} de</Text>
+                {sourceUserForDisplay.avatar ? (
+                  <Image source={{ uri: sourceUserForDisplay.avatar }} style={styles.historyAvatar} />
                 ) : (
-                  <View style={styles.historyAvatarPlaceholder}>
-                    <Text style={styles.historyAvatarInitial}>
-                      {((sourceUserForDisplay || fallbackVisitedSocial)?.first_name || '?').charAt(0).toUpperCase()}
-                    </Text>
+                  <View style={styles.historyAvatarPlaceholder}><Text style={styles.historyAvatarInitial}>{(sourceUserForDisplay.first_name || '?').charAt(0).toUpperCase()}</Text></View>
+                )}
+                <Text style={[styles.socialPrefixText, styles.historyNameText]} numberOfLines={1}>{sourceUserForDisplay.first_name || 'un ami'}</Text>
+              </View>
+            )}
+
+            {/* 2) Amis qui ont ce vin en cave */}
+            {friendsCellar.length > 0 && (
+              <View style={styles.historySocialRow}>
+                {friendsCellar.length === 1 ? (
+                  <>
+                    <Text style={styles.socialPrefixText}>Aussi dans la cave de</Text>
+                    {friendsCellar[0].avatar ? (
+                      <Image source={{ uri: friendsCellar[0].avatar }} style={styles.historyAvatar} />
+                    ) : (
+                      <View style={styles.historyAvatarPlaceholder}><Text style={styles.historyAvatarInitial}>{(friendsCellar[0].first_name || '?').charAt(0).toUpperCase()}</Text></View>
+                    )}
+                    <Text style={[styles.socialPrefixText, styles.historyNameText]} numberOfLines={1}>{friendsCellar[0].first_name || 'un ami'}</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.socialPrefixText}> {friendsCellar.length} ami(s) ont ce vin dans leur cave</Text>
+                    <View style={{ flexDirection: 'row', marginLeft: 8 }}>
+                      {friendsCellar.slice(0, 3).map(f => (
+                        f.avatar ? <Image key={f.id} source={{ uri: f.avatar }} style={styles.historyAvatar} /> : (
+                          <View key={f.id} style={styles.historyAvatarPlaceholder}><Text style={styles.historyAvatarInitial}>{(f.first_name || '?').charAt(0).toUpperCase()}</Text></View>
+                        )
+                      ))}
+                    </View>
+                  </>
+                )}
+              </View>
+            )}
+
+            {/* 3) Amis qui ont ce vin en wishlist */}
+            {friendsWishlist.length > 0 && (
+              <View style={styles.historySocialRow}>
+                {friendsWishlist.length === 1 ? (
+                  <>
+                    <Text style={styles.socialPrefixText}>Aussi dans la liste de</Text>
+                    {friendsWishlist[0].avatar ? (
+                      <Image source={{ uri: friendsWishlist[0].avatar }} style={styles.historyAvatar} />
+                    ) : (
+                      <View style={styles.historyAvatarPlaceholder}><Text style={styles.historyAvatarInitial}>{(friendsWishlist[0].first_name || '?').charAt(0).toUpperCase()}</Text></View>
+                    )}
+                    <Text style={[styles.socialPrefixText, styles.historyNameText]} numberOfLines={1}>{friendsWishlist[0].first_name || 'un ami'}</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.socialPrefixText}>Aussi dans la liste de {friendsWishlist.length} ami(s)</Text>
+                    <View style={{ flexDirection: 'row', marginLeft: 8 }}>
+                      {friendsWishlist.slice(0, 3).map(f => (
+                        f.avatar ? <Image key={f.id} source={{ uri: f.avatar }} style={styles.historyAvatar} /> : (
+                          <View key={f.id} style={styles.historyAvatarPlaceholder}><Text style={styles.historyAvatarInitial}>{(f.first_name || '?').charAt(0).toUpperCase()}</Text></View>
+                        )
+                      ))}
+                    </View>
+                  </>
+                )}
+              </View>
+            )}
+
+            {/* Aussi dégusté par amis */}
+            {friendsTasted.length > 0 && (
+              <View style={styles.historySocialRow}>
+                {friendsTasted.length === 1 ? (
+                  <>
+                    <Text style={styles.socialPrefixText}>Aussi dégusté par</Text>
+                    {friendsTasted[0].avatar ? (
+                      <Image source={{ uri: friendsTasted[0].avatar }} style={styles.historyAvatar} />
+                    ) : (
+                      <View style={styles.historyAvatarPlaceholder}><Text style={styles.historyAvatarInitial}>{(friendsTasted[0].first_name || '?').charAt(0).toUpperCase()}</Text></View>
+                    )}
+                    <Text style={[styles.socialPrefixText, styles.historyNameText]} numberOfLines={1}>{friendsTasted[0].first_name || 'un ami'}</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.socialPrefixText}>Aussi dégusté par {friendsTasted.length} ami(s)</Text>
+                    <View style={{ flexDirection: 'row', marginLeft: 8 }}>
+                      {friendsTasted.slice(0, 3).map(f => (
+                        f.avatar ? <Image key={f.id} source={{ uri: f.avatar }} style={styles.historyAvatar} /> : (
+                          <View key={f.id} style={styles.historyAvatarPlaceholder}><Text style={styles.historyAvatarInitial}>{(f.first_name || '?').charAt(0).toUpperCase()}</Text></View>
+                        )
+                      ))}
+                    </View>
+                  </>
+                )}
+              </View>
+            )}
+
+            {/* 5) Vin en commun — supprimé pour éviter le doublon avec "Aussi dans ..." */}
+
+            {/* Cas visite: par rapport à moi */}
+            {isVisitedReadOnly && (
+              <>
+                {hasMyCellarEntry && (
+                  <View style={styles.historySocialRow}>
+                    <Text style={styles.socialPrefixText}>Aussi dans la cave de</Text>
+                    {user?.avatar ? (
+                      <Image source={{ uri: user.avatar }} style={styles.historyAvatar} />
+                    ) : (
+                      <View style={styles.historyAvatarPlaceholder}>
+                        <Text style={styles.historyAvatarInitial}>{(user?.first_name || '?').charAt(0).toUpperCase()}</Text>
+                      </View>
+                    )}
+                    <Text style={[styles.socialPrefixText, styles.historyNameText]} numberOfLines={1}>{user?.first_name || 'vous'}</Text>
                   </View>
                 )}
-                <Text style={[styles.socialPrefixText, styles.historyNameText]} numberOfLines={1}>{(sourceUserForDisplay || fallbackVisitedSocial)?.first_name || (isVisitedReadOnly ? 'moi' : 'un ami')}</Text>
+                {hasMyWishlistEntry && (
+                  <View style={styles.historySocialRow}>
+                    <Text style={styles.socialPrefixText}>Aussi dans la liste d'envie de</Text>
+                    {user?.avatar ? (
+                      <Image source={{ uri: user.avatar }} style={styles.historyAvatar} />
+                    ) : (
+                      <View style={styles.historyAvatarPlaceholder}>
+                        <Text style={styles.historyAvatarInitial}>{(user?.first_name || '?').charAt(0).toUpperCase()}</Text>
+                      </View>
+                    )}
+                    <Text style={[styles.socialPrefixText, styles.historyNameText]} numberOfLines={1}>{user?.first_name || 'vous'}</Text>
+                  </View>
+                )}
+                {hasMyTasted && (
+                  <View style={styles.historySocialRow}>
+                    <Text style={styles.socialPrefixText}>Aussi dégusté par vous</Text>
+                  </View>
+                )}
+              </>
+            )}
+
+            {/* 6) Inspiré par moi */}
+            {!isVisitedReadOnly && inspiredUsers.length > 0 && (
+              <View style={styles.historySocialRow}>
+                <Text style={styles.socialPrefixText}>Ce vin a inspiré vos amis :</Text>
+                <View style={{ flexDirection: 'row', marginLeft: 8 }}>
+                  {inspiredUsers.slice(0, 3).map(f => (
+                    f.avatar ? <Image key={f.id} source={{ uri: f.avatar }} style={styles.historyAvatar} /> : (
+                      <View key={f.id} style={styles.historyAvatarPlaceholder}><Text style={styles.historyAvatarInitial}>{(f.first_name || '?').charAt(0).toUpperCase()}</Text></View>
+                    )
+                  ))}
+                </View>
               </View>
-            </View>
-          ) : null
+            )}
+
+            {/* 1) Aucun ami lié */}
+            {(friendsCellar.length + friendsWishlist.length === 0 && !sourceUserForDisplay && inspiredUsers.length === 0 && !isVisitedReadOnly) && (
+              <View style={styles.historySocialRow}>
+                <Text style={styles.socialPrefixText}>Aucun de vos amis n'a ce vin</Text>
+              </View>
+            )}
+          </View>
         )}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -2708,6 +3001,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#444',
   },
   historyAvatar: {
     width: 24,

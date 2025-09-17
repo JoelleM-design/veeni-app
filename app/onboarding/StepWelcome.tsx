@@ -18,11 +18,11 @@ export default function StepWelcome({ onNext }: { onNext: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#222', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  title: { color: '#FFF', fontSize: 32, fontFamily: 'VeganFont', marginBottom: 8, paddingHorizontal: 20, textAlign: 'center' },
-  subtitle: { color: '#FFF', fontSize: 16, textAlign: 'center', marginBottom: 32 },
-  button: { backgroundColor: '#393C40', borderWidth: 1, borderColor: '#555', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 36, marginBottom: 18, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, marginTop: 0 },
+  container: { flex: 1, backgroundColor: '#222', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 80 },
+  title: { color: '#FFF', fontSize: 32, fontFamily: 'VeganFont', marginBottom: 48, paddingHorizontal: 20, textAlign: 'center' },
+  subtitle: { color: '#FFF', fontSize: 16, textAlign: 'center', marginBottom: 40, lineHeight: 24 },
+  button: { backgroundColor: '#393C40', borderWidth: 1, borderColor: '#555', borderRadius: 16, paddingVertical: 16, paddingHorizontal: 36, marginTop: 24, marginBottom: 32, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   buttonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 16 },
-  link: { marginTop: 8 },
+  link: { marginTop: 24, paddingTop: 8 },
   linkText: { color: '#FFF', fontSize: 14, textAlign: 'center' },
 }); 

@@ -14,9 +14,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ProfileStatsBar from '../../components/ProfileStatsBar';
-import { useSocialStats } from '../../hooks/useSocialStats';
 import { SharedCaveInfo } from '../../components/SharedCaveInfo';
 import { Spacing, Typography, VeeniColors } from '../../constants/Colors';
+import { useSocialStats } from '../../hooks/useSocialStats';
 
 import * as Contacts from 'expo-contacts';
 import { useFriends } from '../../hooks/useFriends';
@@ -527,39 +527,9 @@ export default function ProfileScreen() {
           <ProfileStatsBar />
         </View>
 
-        {/* Statistiques sociales (réutiliser le style de ProfileStatsBar) */}
-        {/* Nouvelles stats sociales, présentation 2 par 2 (style existant) */}
-        <View style={styles.statsBar}>
-          <View style={styles.statsContainerRow}>
-            <View style={styles.statCard}> 
-              <Text style={styles.statNumber}>{socialStats?.tasted ?? 0}</Text>
-              <Text style={styles.statLabel}>Dégustés</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{socialStats?.favorites ?? 0}</Text>
-              <Text style={styles.statLabel}>Favoris</Text>
-            </View>
-            <View style={styles.statCard}> 
-              <Text style={styles.statNumber}>{socialStats?.commonWithFriends ?? 0}</Text>
-              <Text style={styles.statLabel}>Goûts en commun</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{socialStats?.inspiredFriends ?? 0}</Text>
-              <Text style={styles.statLabel}>Inspirés par vous</Text>
-            </View>
-          </View>
-        </View>
+        {/* Supprimé: bloc de stats sociales dupliquées */}
 
-        {/* BOUTON INVITER DES AMIS */}
-        <View style={styles.inviteButtonContainer}>
-          <TouchableOpacity 
-            style={styles.inviteButton}
-            onPress={handleShareApp}
-          >
-            <Ionicons name="add" size={20} color="#222" />
-            <Text style={styles.inviteButtonText}>Inviter des amis</Text>
-          </TouchableOpacity>
-        </View>
+        
 
         {/* Section Demandes d'amis */}
         {pendingRequests.length > 0 && (
@@ -654,62 +624,71 @@ export default function ProfileScreen() {
             ))}
           </View>
         </View>
-        {/* Section Amis suggérés - Affichage conditionnel */}
-        {contactsPermission !== 'undetermined' && (
-          <View style={[styles.section, styles.sectionWithSpacing]}>
-            <Text style={styles.sectionTitle}>Suggestions d'amis ({suggestedFriends.length})</Text>
-            {contactsPermission !== 'granted' ? (
-              <View style={styles.contactsPermissionBox}>
-                <Text style={styles.contactsPermissionText}>
-                  Active l'accès à tes contacts pour retrouver tes amis déjà sur Veeni.
-                </Text>
-                <TouchableOpacity 
-                  style={styles.contactsPermissionButton}
-                  onPress={requestContactsPermission}
-                >
-                  <Text style={styles.contactsPermissionButtonText}>
-                    Activer l'accès aux contacts
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : suggestionsLoading ? (
-              <Text style={styles.loadingText}>Recherche d'amis...</Text>
-            ) : suggestedFriends.length === 0 ? (
-              <Text style={styles.emptySuggestionsText}>
-                Aucun de tes contacts n'est encore sur Veeni.
+        {/* Section Amis suggérés - Toujours visible, avec gestion interne des permissions */}
+        <View style={[styles.section, styles.sectionWithHalfSpacing]}>
+          <Text style={styles.sectionTitle}>Suggestions d'amis ({suggestedFriends.length})</Text>
+          {contactsPermission !== 'granted' ? (
+            <View style={styles.contactsPermissionBox}>
+              <Text style={styles.contactsPermissionText}>
+                Active l'accès à tes contacts pour retrouver tes amis déjà sur Veeni.
               </Text>
-            ) : (
-              <View style={styles.friendsList}>
-                {suggestedFriends.map((friend) => (
-                  <View key={friend.id} style={styles.friendItem}>
-                    <View style={styles.friendAvatar}>
-                      {friend.avatar ? (
-                        <Image source={{ uri: friend.avatar }} style={styles.friendAvatarImage} />
-                      ) : (
-                        <Text style={styles.friendAvatarInitial}>
-                          {(friend.first_name?.charAt(0) || friend.email?.charAt(0) || 'U').toUpperCase()}
-                        </Text>
-                      )}
-                    </View>
-                    <Text style={styles.friendName}>
-                      {friend.first_name || friend.email || 'Utilisateur inconnu'}
-                    </Text>
-                    <TouchableOpacity 
-                      style={styles.addFriendButton}
-                      disabled={false}
-                      onPress={() => handleAddFriend(friend.id)}
-                    >
-                      <Ionicons name="add" size={20} color="#FFFFFF" />
-                      <Text style={styles.addFriendButtonText}>
-                        Ajouter
+              <TouchableOpacity 
+                style={styles.contactsPermissionButton}
+                onPress={requestContactsPermission}
+              >
+                <Text style={styles.contactsPermissionButtonText}>
+                  Activer l'accès aux contacts
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : suggestionsLoading ? (
+            <Text style={styles.loadingText}>Recherche d'amis...</Text>
+          ) : suggestedFriends.length === 0 ? (
+            <Text style={styles.emptySuggestionsText}>
+              Aucun de tes contacts n'est encore sur Veeni.
+            </Text>
+          ) : (
+            <View style={styles.friendsList}>
+              {suggestedFriends.map((friend) => (
+                <View key={friend.id} style={styles.friendItem}>
+                  <View style={styles.friendAvatar}>
+                    {friend.avatar ? (
+                      <Image source={{ uri: friend.avatar }} style={styles.friendAvatarImage} />
+                    ) : (
+                      <Text style={styles.friendAvatarInitial}>
+                        {(friend.first_name?.charAt(0) || friend.email?.charAt(0) || 'U').toUpperCase()}
                       </Text>
-                    </TouchableOpacity>
+                    )}
                   </View>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
+                  <Text style={styles.friendName}>
+                    {friend.first_name || friend.email || 'Utilisateur inconnu'}
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.addFriendButton}
+                    disabled={false}
+                    onPress={() => handleAddFriend(friend.id)}
+                  >
+                    <Ionicons name="add" size={20} color="#FFFFFF" />
+                    <Text style={styles.addFriendButtonText}>
+                      Ajouter
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+        {/* BOUTON INVITER DES AMIS - bas de page */}
+        <View style={styles.inviteButtonContainerBottom}>
+          <TouchableOpacity 
+            style={styles.inviteButton}
+            onPress={handleShareApp}
+          >
+            <Ionicons name="add" size={20} color="#222" />
+            <Text style={styles.inviteButtonText}>Inviter des amis</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Section historique - Chargement différé */}
 
 
@@ -1207,7 +1186,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF4F8B',
   },
   inviteButtonContainerBottom: {
-    marginTop: 32,
+    marginTop: 16,
     marginBottom: 32,
     alignItems: 'center',
   },
@@ -1228,5 +1207,8 @@ const styles = StyleSheet.create({
   },
   sectionWithSpacing: {
     marginBottom: 32,
+  },
+  sectionWithHalfSpacing: {
+    marginBottom: 16,
   },
 }); 

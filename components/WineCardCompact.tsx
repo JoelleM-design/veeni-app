@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
 import React from 'react';
 import {
     Dimensions,
@@ -7,7 +8,6 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
 import { VeeniColors } from '../constants/Colors';
 
 const { width } = Dimensions.get('window');
@@ -33,12 +33,14 @@ export interface WineCardCompactProps {
   };
   onPress?: () => void;
   readOnly?: boolean;
+  alsoOwnedByCurrentUser?: { id: string; first_name?: string; avatar?: string } | null;
 }
 
 export const WineCardCompact: React.FC<WineCardCompactProps> = ({
   wine,
   onPress,
   readOnly = false,
+  alsoOwnedByCurrentUser = null,
 }) => {
   // Fonction de nettoyage pour s'assurer que tous les champs sont des primitifs
   const safeWine = {
@@ -202,6 +204,23 @@ export const WineCardCompact: React.FC<WineCardCompactProps> = ({
                 {safeWine.grapes.length > 2 && '...'}
               </Text>
             )}
+
+            {/* Social: Aussi chez [Moi] si je possède aussi ce vin (cave ou wishlist) */}
+            {alsoOwnedByCurrentUser && (
+              <View style={styles.socialRow}>
+                <Text style={styles.socialText}>Aussi chez</Text>
+                {alsoOwnedByCurrentUser.avatar ? (
+                  <ExpoImage source={{ uri: alsoOwnedByCurrentUser.avatar }} style={styles.socialAvatar} />
+                ) : (
+                  <View style={styles.socialAvatarPlaceholder}>
+                    <Text style={styles.socialAvatarInitial}>
+                      {(alsoOwnedByCurrentUser.first_name || '?').charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <Text style={[styles.socialText, styles.socialNameText]}>{alsoOwnedByCurrentUser.first_name || 'vous'}</Text>
+              </View>
+            )}
           </View>
           
           {/* Section inférieure : stock */}
@@ -339,6 +358,42 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     marginTop: 6,
     marginBottom: 6,
+  },
+  socialRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  socialText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    marginLeft: 4,
+    fontStyle: 'italic',
+  },
+  socialNameText: {
+    marginLeft: 0,
+  },
+  socialAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginHorizontal: 8,
+  },
+  socialAvatarPlaceholder: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  socialAvatarInitial: {
+    color: '#222',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
   },
   bottomSection: {
     justifyContent: 'flex-end',

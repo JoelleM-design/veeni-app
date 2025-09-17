@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
 import React from 'react';
 import {
     Dimensions,
@@ -7,7 +8,6 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
 import { VeeniColors } from '../constants/Colors';
 
 const { width } = Dimensions.get('window');
@@ -257,9 +257,9 @@ export const WineCard: React.FC<WineCardProps> = ({
             {/* Information sociale - Ajout depuis la cave d'un ami (wishlist) */}
             {safeWine.origin === 'wishlist' && safeWine.sourceUser && (
               <View style={styles.socialRow}>
-                <Text style={styles.socialText}>Vu chez</Text>
+                <Text style={styles.socialText}>Aussi chez</Text>
                 {safeWine.sourceUser.avatar ? (
-                  <Image source={{ uri: safeWine.sourceUser.avatar }} style={styles.socialAvatar} />
+                  <ExpoImage source={{ uri: safeWine.sourceUser.avatar }} style={styles.socialAvatar} />
                 ) : (
                   <View style={styles.socialAvatarPlaceholder}>
                     <Text style={styles.socialAvatarInitial}>
@@ -274,14 +274,14 @@ export const WineCard: React.FC<WineCardProps> = ({
             {/* Information sociale - Amis qui ont aussi ce vin */}
             {(safeWine.commonFriends?.length || friendsWithWine.length) > 0 && (
               <View style={styles.socialRow}>
-                <Text style={styles.socialText}>Vu chez</Text>
+                <Text style={styles.socialText}>Aussi chez</Text>
                 {(() => {
                   const list = (safeWine.commonFriends && safeWine.commonFriends.length > 0)
                     ? safeWine.commonFriends
                     : friendsWithWine;
                   const first = list[0];
                   return first?.avatar ? (
-                    <Image source={{ uri: first.avatar }} style={styles.socialAvatar} />
+                    <ExpoImage source={{ uri: first.avatar }} style={styles.socialAvatar} />
                   ) : (
                     <View style={styles.socialAvatarPlaceholder}>
                       <Text style={styles.socialAvatarInitial}>{(first?.firstName || '?').charAt(0).toUpperCase()}</Text>
