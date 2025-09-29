@@ -1,65 +1,50 @@
-import { useEffect, useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { useSocialStats } from '../hooks/useSocialStats';
-import { useStats } from '../hooks/useStats';
+import { useRouter } from 'expo-router';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useProfileStats } from '../hooks/useProfileStats';
 import { useUser } from '../hooks/useUser';
-import { useWineHistory } from '../hooks/useWineHistory';
 
 interface ProfileStatsBarProps {
   style?: any; // No longer takes stats as prop
+  userId?: string; // ID de l'utilisateur dont on affiche les stats
+  viewerId?: string; // ID de l'utilisateur qui regarde (pour les permissions)
 }
 
-export default function ProfileStatsBar({ style }: ProfileStatsBarProps) {
-  const { stats, isLoading, error } = useStats();
-  const { tastedWines } = useWineHistory();
+export default function ProfileStatsBar({ style, userId, viewerId }: ProfileStatsBarProps) {
+  const router = useRouter();
   const { user } = useUser();
-  const { stats: socialStats } = useSocialStats(user?.id || null);
-  
-  // Calculer le total des dégustations comme dans l'onglet "Dégustés"
-  const totalTastings = useMemo(() => {
-    return tastedWines.reduce((sum, entry) => sum + (entry.tastingCount || 0), 0);
-  }, [tastedWines]);
-  
-  console.log('🔄 ProfileStatsBar: isLoading =', isLoading, 'stats =', stats, 'error =', error);
-  console.log('🔄 ProfileStatsBar: totalTastings calculé =', totalTastings, 'tastedWines =', tastedWines.length);
-
-  // Forcer la mise à jour du composant quand les stats changent
-  useEffect(() => {
-    if (stats) {
-      console.log('🔄 ProfileStatsBar: Stats mises à jour:', {
-        totalBottlesInCellar: stats.total_bottles_in_cellar,
-        favoriteWinesCount: stats.favorite_wines_count,
-        totalTastedWines: totalTastings, // Utiliser notre calcul local
-        sharedWinesWithFriends: stats.shared_wines_with_friends
-      });
-    }
-  }, [stats, totalTastings]);
-
-  if (isLoading || !stats) {
-    return (
-      <View style={[styles.container, style]}>
-        <Text style={styles.loadingText}>Chargement...</Text>
-      </View>
-    );
-  }
+  const targetUserId = userId || user?.id || null;
+  const { stats: profileStats } = useProfileStats(targetUserId, viewerId);
 
   return (
     <View style={[styles.container, style]}>
       <View style={styles.statsContainer}>
+        <TouchableOpacity 
+          style={styles.statCard}
+          onPress={() => {
+            if (targetUserId) {
+              router.push({
+                pathname: '/wines-with-memories',
+                params: {
+                  userId: targetUserId,
+                  viewerId: viewerId || user?.id
+                }
+              });
+            }
+          }}
+        >
+          <Text style={styles.statNumber}>{profileStats?.memoriesCount ?? 0}</Text>
+          <Text style={styles.statLabel}>Souvenirs</Text>
+        </TouchableOpacity>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{socialStats?.commonWithFriends ?? 0}</Text>
-          <Text style={styles.statLabel}>En commun</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{socialStats?.inspiredFriends ?? 0}</Text>
+          <Text style={styles.statNumber}>{profileStats?.inspiredCount ?? 0}</Text>
           <Text style={styles.statLabel}>Inspirés par vous</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{totalTastings}</Text>
+          <Text style={styles.statNumber}>{profileStats?.tastedCount ?? 0}</Text>
           <Text style={styles.statLabel}>Dégustés</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{stats.favorite_wines_count}</Text>
+          <Text style={styles.statNumber}>{profileStats?.favoritesCount ?? 0}</Text>
           <Text style={styles.statLabel}>Favoris</Text>
         </View>
       </View>

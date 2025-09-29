@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 
@@ -28,14 +28,15 @@ export default function LoginScreen() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'veeniapp://auth/reset-password'
+    });
     setLoading(false);
     if (error) {
       Alert.alert('Erreur', error.message);
       return;
     }
-    setShowConfirm(true);
-    setTimeout(() => setShowConfirm(false), 2500);
+    Alert.alert('Email envoyé', 'Un lien de réinitialisation a été envoyé à ton adresse email.');
   };
 
   return (
@@ -76,22 +77,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-      <Modal
-        visible={showConfirm}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowConfirm(false)}
-      >
-        <View style={styles.overlayBg}>
-          <View style={styles.iosAlertBox}>
-            <Text style={styles.iosAlertTitle}>Renseigne ton email</Text>
-            <Text style={styles.iosAlertText}>Merci de saisir ton email pour recevoir un lien de réinitialisation.</Text>
-            <TouchableOpacity style={styles.iosAlertBtn} onPress={() => setShowConfirm(false)}>
-              <Text style={styles.iosAlertBtnText}>OK</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      {/* Confirmation modale retirée au profit d'une alerte native */}
     </SafeAreaView>
   );
 }

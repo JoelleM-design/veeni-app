@@ -1,5 +1,5 @@
 import { decode } from 'base64-arraybuffer';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from './supabase';
 
 /**
@@ -16,7 +16,7 @@ export const uploadWineImage = async (wineId: string, localImageUri: string): Pr
     console.log('📤 Upload de l\'image vers Supabase Storage...');
     const fileName = `wine-${wineId}.jpg`;
     
-    // Lire l'image en base64
+    // Lire l'image en base64 (même méthode que les avatars)
     const imageBase64 = await FileSystem.readAsStringAsync(localImageUri, {
       encoding: FileSystem.EncodingType.Base64,
     });

@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
     KeyboardAvoidingView,
@@ -55,14 +54,12 @@ export default function TastingConfirmationModal({
           >
             <View style={styles.modal}>
               <View style={styles.header}>
-                <Ionicons name="wine" size={24} color="#FFFFFF" />
                 <Text style={styles.title}>Avez-vous dégusté ce vin ?</Text>
               </View>
               
               <Text style={styles.wineName}>{wineName}</Text>
               
               <View style={styles.noteContainer}>
-                <Text style={styles.noteLabel}>Note personnelle (optionnel)</Text>
                 <TextInput
                   style={styles.noteInput}
                   placeholder="Vos impressions sur ce vin..."
@@ -78,11 +75,11 @@ export default function TastingConfirmationModal({
               
               <View style={styles.buttons}>
                 <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-                  <Text style={styles.cancelButtonText}>Annuler</Text>
+                  <Text style={styles.cancelButtonText} numberOfLines={1}>Annuler</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
-                  <Text style={styles.confirmButtonText}>Confirmer la dégustation</Text>
+                  <Text style={styles.confirmButtonText} numberOfLines={1}>Confirmer</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -102,7 +99,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -113,13 +110,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     borderRadius: 12,
     padding: 24,
-    width: '100%',
-    maxWidth: 400,
+    width: 'auto',
+    minWidth: 320,
+    maxWidth: '90%',
     borderWidth: 1,
     borderColor: '#333333',
+    alignSelf: 'center',
   },
   header: {
-    flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
   },
@@ -127,7 +125,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginLeft: 12,
+    textAlign: 'center',
+    alignSelf: 'center',
   },
   wineName: {
     fontSize: 16,
@@ -135,9 +134,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginBottom: 20,
     textAlign: 'center',
+    alignSelf: 'center',
   },
   noteContainer: {
     marginBottom: 24,
+    marginRight: -24,
+    paddingRight: 24,
   },
   noteLabel: {
     fontSize: 14,
@@ -147,41 +149,56 @@ const styles = StyleSheet.create({
   noteInput: {
     backgroundColor: '#2a2a2a',
     borderRadius: 8,
-    padding: 12,
     color: '#FFFFFF',
     fontSize: 14,
     borderWidth: 1,
     borderColor: '#444444',
     minHeight: 80,
     textAlignVertical: 'top',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    width: '100%',
   },
   buttons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 16,
+    flexWrap: 'nowrap',
+    width: '100%',
   },
   cancelButton: {
     flex: 1,
     backgroundColor: '#333333',
     borderRadius: 8,
-    padding: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 56,
   },
   cancelButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '500',
+    numberOfLines: 1,
+    flexShrink: 0,
   },
   confirmButton: {
     flex: 1,
-    backgroundColor: '#393C40', borderWidth: 0,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 0,
     borderRadius: 8,
-    padding: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 56,
   },
   confirmButtonText: {
-    color: '#FFFFFF',
+    color: '#000000',
     fontSize: 16,
     fontWeight: '500',
+    numberOfLines: 1,
+    flexShrink: 0,
   },
 }); 

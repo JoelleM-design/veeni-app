@@ -97,6 +97,13 @@ export default function RootLayout() {
       if (isMounted) {
         setSession(session);
       }
+      if (event === 'PASSWORD_RECOVERY') {
+        // Router vers l'écran de réinitialisation lorsque le deep link s'ouvre
+        try {
+          // Utiliser Redirect n'est pas possible ici, on laisse expo-router router via Linking
+          // L'écran dédié gèrera la saisie du nouveau mot de passe
+        } catch (e) {}
+      }
     });
 
     return () => {

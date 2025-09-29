@@ -9,10 +9,13 @@ import { FilterModal } from '../../components/ui/FilterModal';
 import { SearchFilterBar } from '../../components/ui/SearchFilterBar';
 import { WineCard } from '../../components/WineCard';
 import { useFriendsWithWine } from '../../hooks/useFriendsWithWine';
+import { useSocialStats } from '../../hooks/useSocialStats';
 import { useStats } from '../../hooks/useStats';
+import { useUser } from '../../hooks/useUser';
 import { useWineHistory } from '../../hooks/useWineHistory';
 import { useWineList } from '../../hooks/useWineList';
 import { useWines } from '../../hooks/useWines';
+import { supabase } from '../../lib/supabase';
 
 type WineListTab = 'cellar' | 'wishlist' | 'tasted';
 
@@ -97,7 +100,13 @@ const WineCardWithSocial = ({
   return (
     <WineCard
       wine={wineToDisplay}
-      onPress={() => { if (wineId) { onWinePress(wineId, wineToDisplay); } }}
+      onPress={() => { 
+        if (wineId) { 
+          // S'assurer que le vin a la bonne propriété origin selon le tab
+          const wineWithOrigin = { ...wineToDisplay, origin: tab };
+          onWinePress(wineId, wineWithOrigin); 
+        } 
+      }}
       onToggleFavorite={handleToggleFavorite}
       showStockButtons={tab === 'cellar'}
       onAddBottle={handleAddBottle}
@@ -131,14 +140,16 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
   const wines = useWineList(tab, allWines);
   const { addTasting, reAddToCellar, tastedWines } = useWineHistory();
   const { stats, isLoading: statsLoading, error: statsError, refreshStats } = useStats(); // Utilise simplement useStats
+  const { user } = useUser();
+  const { stats: socialStats } = useSocialStats(user?.id || null);
   
   // logs réduits
 
-  // Utiliser les vins dégustés pour l'onglet "Dégustés"
-  const winesToDisplay = tab === 'tasted' ? tastedWines : wines;
+  // Utiliser les vins transformés par useWineList pour tous les onglets
+  const winesToDisplay = wines;
   
-  // Pour les stats, utiliser la même logique que StatsContext pour assurer la cohérence
-  const winesForStats = tab === 'tasted' ? tastedWines : allWines;
+  // Pour les stats, utiliser les vins transformés par useWineList
+  const winesForStats = wines;
 
   // Forcer le re-rendu quand l'écran redevient actif
   useEffect(() => {
@@ -175,8 +186,22 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
         console.log('🔄 handleConfirmTasting: Stock actuel:', currentStock, 'Nouveau stock:', currentStock - 1);
         
         if (currentStock > 0) {
-          await updateWine(selectedWineForTasting.id, { stock: currentStock - 1 });
-          console.log('✅ handleConfirmTasting: Stock mis à jour');
+          await supabase
+            .from('user_wine')
+            .update({ amount: currentStock - 1 })
+            .eq('wine_id', selectedWineForTasting.id)
+            .eq('user_id', (await supabase.auth.getUser()).data.user?.id as any);
+          console.log('✅ handleConfirmTasting: Stock décrémenté');
+        }
+        
+        // Mettre à jour la note personnelle si fournie
+        if (note) {
+          await supabase
+            .from('user_wine')
+            .update({ personal_comment: note })
+            .eq('wine_id', selectedWineForTasting.id)
+            .eq('user_id', (await supabase.auth.getUser()).data.user?.id as any);
+          console.log('✅ handleConfirmTasting: Note personnelle mise à jour');
         }
         
         // La mise à jour des données se fait automatiquement via le hook
@@ -269,33 +294,40 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
       // logs réduits
       return result;
     } else {
-      // 🍷 Dégustés : nombre total de dégustations (comme les bouteilles dans Ma cave)
-      const total = winesToDisplay.reduce((sum, wine) => sum + (wine.tastings?.length || 0), 0);
-      const red = winesToDisplay
-        .filter(w => w.wine?.wine_type === 'red')
-        .reduce((sum, wine) => sum + (wine.tastings?.length || 0), 0);
-      const white = winesToDisplay
-        .filter(w => w.wine?.wine_type === 'white')
-        .reduce((sum, wine) => sum + (wine.tastings?.length || 0), 0);
-      const rose = winesToDisplay
-        .filter(w => w.wine?.wine_type === 'rose')
-        .reduce((sum, wine) => sum + (wine.tastings?.length || 0), 0);
-      const sparkling = winesToDisplay
-        .filter(w => w.wine?.wine_type === 'sparkling')
-        .reduce((sum, wine) => sum + (wine.tastings?.length || 0), 0);
-      
+      // 🍷 Dégustés : utiliser les données brutes de useWineHistory pour les stats
+      const total = tastedWines.reduce((sum, entry) => sum + (entry.tastingCount || 0), 0);
+      const red = tastedWines
+        .filter(entry => entry.wine.wine_type === 'red')
+        .reduce((sum, entry) => sum + (entry.tastingCount || 0), 0);
+      const white = tastedWines
+        .filter(entry => entry.wine.wine_type === 'white')
+        .reduce((sum, entry) => sum + (entry.tastingCount || 0), 0);
+      const rose = tastedWines
+        .filter(entry => entry.wine.wine_type === 'rose')
+        .reduce((sum, entry) => sum + (entry.tastingCount || 0), 0);
+      const sparkling = tastedWines
+        .filter(entry => entry.wine.wine_type === 'sparkling')
+        .reduce((sum, entry) => sum + (entry.tastingCount || 0), 0);
+
+      console.log('🍷 Debug MesVins Dégustés – total bouteilles:', total, 'byColor:', { red, white, rose, sparkling });
+      console.log('🍷 Debug MesVins Dégustés – raw tastedWines:', tastedWines.length, tastedWines.map(t => ({ 
+        wineId: t.wine.id, 
+        wineName: t.wine.name, 
+        wineType: t.wine.wine_type,
+        tastingCount: t.tastingCount
+      })));
+
       const result = { total, red, white, rose, sparkling };
-      // logs réduits
       return result;
     }
-  }, [wines, tab, winesToDisplay, refreshKey, allWines, stats]);
+  }, [wines, tab, winesToDisplay, refreshKey, allWines, stats, tastedWines]);
 
   const filteredWines = winesToDisplay.filter(wine => {
-    // Pour les vins dégustés, la structure est différente
-    const wineName = tab === 'tasted' ? wine.wine.name : wine.name;
-    const wineDomaine = tab === 'tasted' ? wine.wine.producer?.name : wine.domaine;
-    const wineRegion = tab === 'tasted' ? wine.wine.region : wine.region;
-    const wineColor = tab === 'tasted' ? wine.wine.wine_type : wine.color;
+    // Maintenant que useWineList transforme les données, la structure est uniforme
+    const wineName = wine.name;
+    const wineDomaine = wine.domaine;
+    const wineRegion = wine.region;
+    const wineColor = wine.color;
     
     const matchesSearch = wineName.toLowerCase().includes(search.toLowerCase()) ||
       (wineDomaine && wineDomaine.toLowerCase().includes(search.toLowerCase())) ||
@@ -345,7 +377,8 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
         showsVerticalScrollIndicator={false}
       >
             {(() => {
-              // Utiliser les stats SWR pour "Ma cave" et "Mes envies", localStats pour "Dégustés"
+              // Utiliser les stats SWR pour "Ma cave" et "Mes envies".
+              // Pour "Dégustés", on utilise uniquement le calcul local (vins distincts et par couleur).
               const statsToUse = tab === 'tasted' ? localStats : {
                 total: tab === 'cellar' ? stats?.total_bottles_in_cellar || 0 : localStats.total,
                 red: tab === 'cellar' ? stats?.red_wines_count || 0 : localStats.red,
@@ -397,33 +430,18 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
                   // Vérification que l'ID est valide
                   const safeKey = wine.id && typeof wine.id === 'string' ? wine.id : `wine-${Math.random()}`;
                   
-                  // Pour l'onglet "Dégustés", transformer les données correctement
-                  let wineData;
-                  if (tab === 'tasted') {
-                    wineData = {
-                      ...wine.wine,
-                      tastingCount: wine.tastingCount,
-                      lastTastedAt: wine.lastTastedAt,
-                      origin: 'tasted'
-                    };
-                  } else {
-                    wineData = wine;
-                  }
-                  
-                  if (!wineData?.id) {
-                    console.warn('MesVinsScreen: vin sans ID valide, ignoré', { wine, wineData, tab });
+                  if (!wine?.id) {
+                    console.warn('MesVinsScreen: vin sans ID valide, ignoré', { wine, tab });
                     return null;
                   }
                   
                   // Créer une clé unique simple
-                  const uniqueKey = `${safeKey}-favorite-${wineData.favorite ? 'true' : 'false'}-refresh-${refreshKey}`;
-                  
-                  // logs réduits
+                  const uniqueKey = `${safeKey}-favorite-${wine.favorite ? 'true' : 'false'}-refresh-${refreshKey}`;
                   
                   return (
                     <WineCardWithSocial
                       key={uniqueKey}
-                      wine={wineData}
+                      wine={wine}
                       tab={tab}
                       onWinePress={onWinePress}
                       onOpenTastingModal={handleTasteWine}

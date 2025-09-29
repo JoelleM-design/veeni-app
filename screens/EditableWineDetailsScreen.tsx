@@ -232,10 +232,34 @@ export default function EditableWineDetailsScreen({
   const allWines = [
     ...wines,
     ...tastedWines.map((entry) => ({
-      ...entry.wine,
+      id: String(entry.wine.id || ''),
+      name: String(entry.wine.name || 'Nom inconnu'),
+      vintage: entry.wine.year ? parseInt(entry.wine.year) : null,
+      color: (entry.wine.wine_type || 'red') as 'red' | 'white' | 'rose' | 'sparkling',
+      domaine: String(entry.wine.producer?.name || 'Domaine inconnu'),
+      region: entry.wine.region?.name || '',
+      country: entry.wine.country?.name || '',
+      countryName: entry.wine.country?.name || '',
+      grapes: [],
+      imageUri: entry.wine.image_uri || null,
+      stock: 0, // Les vins dégustés n'ont pas de stock
+      origin: 'tasted' as const,
+      note: entry.tastings && entry.tastings.length > 0 ? entry.tastings[0].rating || null : null,
+      personalComment: entry.tastings && entry.tastings.length > 0 ? entry.tastings[0].note || null : null,
       lastTastedAt: entry.lastTastedAt,
       tastingCount: entry.tastingCount,
-      origin: 'tasted',
+      favorite: false,
+      createdAt: undefined,
+      updatedAt: undefined,
+      history: [],
+      tastingProfile: { power: 0, tannin: 0, acidity: 0, sweetness: 0 },
+      description: '',
+      priceRange: '',
+      appellation: '',
+      power: 0,
+      tannin: 0,
+      acidity: 0,
+      sweetness: 0,
     })),
   ];
 
@@ -984,11 +1008,8 @@ export default function EditableWineDetailsScreen({
     if (value !== undefined && safeWine) {
       console.log('✅ handleFieldBlur: Appel de handleFieldUpdate');
       handleFieldUpdate(field, value);
-      setEditingFields(prev => {
-        const newFields = { ...prev };
-        delete newFields[field];
-        return newFields;
-      });
+      // Ne pas effacer immédiatement la valeur locale pour éviter l'effet de disparition
+      // L'état global sera synchronisé juste après la sauvegarde
     } else {
       console.log('❌ handleFieldBlur: Pas de sauvegarde - value:', value, 'safeWine:', !!safeWine);
     }
@@ -1566,6 +1587,26 @@ export default function EditableWineDetailsScreen({
               <TouchableOpacity onPress={handleAddBottle} style={styles.stockButton}>
                 <Ionicons name="add" size={20} color="#FFFFFF" />
               </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Informations de dégustation pour les vins dégustés */}
+        {safeWine.origin === 'tasted' && (
+          <View style={styles.tastingInfoSection}>
+            <Text style={styles.sectionTitle}>Dégustation</Text>
+            <View style={styles.tastingInfoContent}>
+              <View style={styles.tastingInfoRow}>
+                <Ionicons name="wine" size={20} color="#FFD700" />
+                <Text style={styles.tastingInfoText}>
+                  Dégusté le {safeWine.lastTastedAt ? new Date(safeWine.lastTastedAt).toLocaleDateString('fr-FR') : 'Date inconnue'}
+                </Text>
+              </View>
+              {safeWine.tastingCount && safeWine.tastingCount > 1 && (
+                <Text style={styles.tastingCountText}>
+                  ({safeWine.tastingCount} dégustation{safeWine.tastingCount > 1 ? 's' : ''})
+                </Text>
+              )}
             </View>
           </View>
         )}
@@ -2332,40 +2373,35 @@ export default function EditableWineDetailsScreen({
                         const existingAppellation = appellations.find(a => 
                           a.name.toLowerCase() === newAppellationName.trim().toLowerCase()
                         );
-                        
                         if (existingAppellation) {
                           Alert.alert('Appellation existante', 'Cette appellation existe déjà dans la liste');
                           return;
                         }
-                        
-                        // Trouver l'ID de la région actuelle
+
+                        // Essayer d'insérer dans la base (avec region_id si dispo), sinon sans region_id
                         const currentRegion = regions.find(r => r.name === safeWine?.region);
-                        if (!currentRegion) {
-                          Alert.alert('Erreur', 'Veuillez d\'abord sélectionner une région');
-                          return;
+                        let createdName = newAppellationName.trim();
+                        try {
+                          const insertPayload: any = { name: createdName };
+                          if (currentRegion?.id) insertPayload.region_id = currentRegion.id;
+                          const { data, error } = await supabase
+                            .from('wine_appellations')
+                            .insert(insertPayload)
+                            .select()
+                            .single();
+                          if (!error && data) {
+                            setAppellations(prev => [...prev, data]);
+                            createdName = data.name;
+                          }
+                        } catch (_) {
+                          // Si l'insertion échoue (contrainte DB), on continue en ajustant seulement le vin
                         }
-                        
-                        // Ajouter la nouvelle appellation à la base de données
-                        const { data, error } = await supabase
-                          .from('wine_appellations')
-                          .insert({
-                            name: newAppellationName.trim(),
-                            region_id: currentRegion.id
-                          })
-                          .select()
-                          .single();
-                        
-                        if (error) throw error;
-                        
-                        // Mettre à jour la liste locale
-                        setAppellations(prev => [...prev, data]);
-                        
-                        // Sélectionner la nouvelle appellation
-                        await updateWineSafe(wineId, { appellation: data.name });
+
+                        // Sélectionner l'appellation (non bloquant même si l'insertion a échoué)
+                        await updateWineSafe(wineId, { appellation: createdName });
                         setShowAppellationPicker(false);
                         setNewAppellationName('');
-                        
-                        Alert.alert('Succès', 'Nouvelle appellation ajoutée et sélectionnée');
+                        Alert.alert('Succès', 'Appellation mise à jour');
                       } catch (error) {
                         console.error('Erreur ajout appellation:', error);
                         Alert.alert('Erreur', 'Impossible d\'ajouter l\'appellation');
@@ -2431,15 +2467,7 @@ export default function EditableWineDetailsScreen({
               )}
               
               <View style={styles.pickerContentContainer}>
-                {grapes.length === 0 ? (
-                  <View style={styles.loadingContainer}>
-                    <Text style={styles.loadingText}>Aucun cépage trouvé</Text>
-                  </View>
-                ) : getFilteredGrapes().length === 0 ? (
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>Aucun cépage trouvé</Text>
-                  </View>
-                ) : (
+                {grapes.length > 0 && getFilteredGrapes().length > 0 ? (
                   <FlatList
                     data={getFilteredGrapes()}
                     keyExtractor={(item) => item.id}
@@ -2470,6 +2498,10 @@ export default function EditableWineDetailsScreen({
                   )}
                     style={styles.pickerList}
                   />
+                ) : (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>Aucun cépage trouvé</Text>
+                  </View>
                 )}
                 
                 {/* Champ de saisie libre pour ajouter un nouveau cépage */}
@@ -2915,6 +2947,31 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     backgroundColor: 'transparent',
     marginTop: 32,
+  },
+  tastingInfoSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: 'transparent',
+    marginTop: 32,
+  },
+  tastingInfoContent: {
+    alignItems: 'center',
+  },
+  tastingInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  tastingInfoText: {
+    fontSize: 16,
+    color: '#FFD700',
+    marginLeft: 8,
+    fontWeight: '600',
+  },
+  tastingCountText: {
+    fontSize: 14,
+    color: '#CCCCCC',
+    fontStyle: 'italic',
   },
   sectionTitle: {
     fontSize: 18,

@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
     Alert,
     Image,
+    RefreshControl,
     ScrollView,
     Share,
     StyleSheet,
@@ -15,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ProfileStatsBar from '../../components/ProfileStatsBar';
 import { SharedCaveInfo } from '../../components/SharedCaveInfo';
+import { WinePreferenceDisplay } from '../../components/WinePreferenceDisplay';
 import { Spacing, Typography, VeeniColors } from '../../constants/Colors';
 import { useSocialStats } from '../../hooks/useSocialStats';
 
@@ -66,44 +68,6 @@ export default function ProfileScreen() {
   // Historique des dégustations simplifié
   const tastingHistory: any[] = [];
 
-  // Calcul de la préférence dynamique basée sur les vins
-  const userPreference = useMemo(() => {
-    if (!wines || wines.length === 0) return null;
-    
-    const cellarWines = wines.filter(wine => wine.origin === 'cellar');
-    if (cellarWines.length === 0) return null;
-    
-    // Compter les vins par couleur
-    const colorCount = cellarWines.reduce((acc, wine) => {
-      if (wine.color) {
-        acc[wine.color] = (acc[wine.color] || 0) + (wine.stock || 0);
-      }
-      return acc;
-    }, {} as Record<string, number>);
-    
-    // Trouver la couleur dominante
-    const dominantColor = Object.entries(colorCount).reduce((a, b) => 
-      (colorCount[a[0]] || 0) > (colorCount[b[0]] || 0) ? a : b
-    )[0];
-    
-    return dominantColor;
-  }, [wines]);
-
-  // Icônes pour les couleurs de vin
-  const colorIcons = {
-    red: <Ionicons name="wine" size={16} color={VeeniColors.wine.red} />,
-    white: <Ionicons name="wine" size={16} color={VeeniColors.wine.white} />,
-    rose: <Ionicons name="wine" size={16} color={VeeniColors.wine.rose} />,
-    sparkling: <Ionicons name="wine" size={16} color={VeeniColors.wine.sparkling} />,
-  };
-
-  // Labels pour les couleurs
-  const colorLabels = {
-    red: 'rouge',
-    white: 'blanc',
-    rose: 'rosé',
-    sparkling: 'effervescent',
-  };
 
   const handleAvatarPress = async () => {
     try {
@@ -195,7 +159,21 @@ export default function ProfileScreen() {
     }
   };
 
-  const loadSuggestedFriends = async () => {
+  // Rafraîchir les suggestions quand l'écran devient actif
+  useFocusEffect(
+    useCallback(() => {
+      if (contactsPermission === 'granted') {
+        // Délai pour éviter de surcharger lors des changements d'onglets rapides
+        const timeoutId = setTimeout(() => {
+          loadSuggestedFriends();
+        }, 500);
+        
+        return () => clearTimeout(timeoutId);
+      }
+    }, [contactsPermission])
+  );
+
+  const loadSuggestedFriends = async (forceRefresh = false) => {
     if (contactsPermission !== 'granted') return;
     
     try {
@@ -240,8 +218,9 @@ export default function ProfileScreen() {
         return;
       }
 
-      // Filtrer les utilisateurs qui ne sont pas déjà amis
-      const notFriends = (users || []).filter(u => !friendIds.includes(u.id));
+      // Filtrer les utilisateurs qui ne sont pas déjà amis (comparaison robuste en string)
+      const acceptedSet = new Set((friendIds || []).map(id => String(id)));
+      const notFriends = (users || []).filter(u => !acceptedSet.has(String(u.id)));
       
       // Log de débogage pour voir les données exactes
       console.log('🔍 Données des utilisateurs trouvés:', users);
@@ -278,13 +257,7 @@ export default function ProfileScreen() {
     try {
       const { error } = await supabase
         .from('friend')
-        .insert([
-          {
-            user_id: user?.id,
-            friend_id: friendId,
-            status: 'pending'
-          }
-        ]);
+        .upsert({ user_id: user?.id, friend_id: friendId, status: 'pending' } as any, { onConflict: 'user_id,friend_id' });
 
       if (error) {
         console.error('Erreur lors de l\'envoi de la demande d\'ami:', error);
@@ -292,10 +265,8 @@ export default function ProfileScreen() {
         return;
       }
 
-      // Retirer l'ami de la liste des suggestions
-      setSuggestedFriends(prev => prev.filter(friend => friend.id !== friendId));
-      
-      Alert.alert('Succès', 'Demande d\'ami envoyée !');
+      // Marquer comme en attente (sans retirer la suggestion)
+      setSentRequests(prev => (prev.includes(friendId) ? prev : [...prev, friendId]));
     } catch (error) {
       console.error('Erreur lors de l\'envoi de la demande d\'ami:', error);
       Alert.alert('Erreur', 'Impossible d\'envoyer la demande d\'ami');
@@ -307,21 +278,41 @@ export default function ProfileScreen() {
     
     try {
       setFriendsLoading(true);
-      const { data, error } = await supabase
-        .from('friend')
-        .select('friend_id')
-        .eq('user_id', user.id)
-        .eq('status', 'accepted');
+      const [fromRes, toRes] = await Promise.all([
+        supabase.from('friend').select('friend_id').eq('user_id', user.id).eq('status', 'accepted'),
+        supabase.from('friend').select('user_id').eq('friend_id', user.id).eq('status', 'accepted'),
+      ]);
 
-      if (error) throw error;
+      if (fromRes.error) throw fromRes.error;
+      if (toRes.error) throw toRes.error;
 
-      const ids = data?.map(f => f.friend_id) || [];
+      const ids = Array.from(new Set<string>([
+        ...((fromRes.data || []).map((r: any) => String(r.friend_id))),
+        ...((toRes.data || []).map((r: any) => String(r.user_id))),
+      ]));
       setFriendIds(ids);
       console.log('🔍 IDs des amis chargés:', ids);
     } catch (error) {
       console.error('Erreur lors du chargement des IDs amis:', error);
     } finally {
       setFriendsLoading(false);
+    }
+  };
+
+  // Charger les demandes sortantes en attente pour afficher "En attente"
+  const loadOutgoingPending = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('friend')
+        .select('friend_id')
+        .eq('user_id', user.id)
+        .eq('status', 'pending');
+      if (error) throw error;
+      const ids = (data || []).map((r: any) => String(r.friend_id));
+      setSentRequests(ids);
+    } catch (e) {
+      setSentRequests([]);
     }
   };
 
@@ -441,6 +432,32 @@ export default function ProfileScreen() {
     }
   }, [user, friendIds]);
 
+  // Charger en plus les demandes sortantes en attente
+  useEffect(() => {
+    if (user) {
+      loadOutgoingPending();
+    }
+  }, [user]);
+
+  // Abonnement temps réel aux acceptations de nos demandes
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel('profile-friends-realtime')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'friend', filter: `user_id=eq.${user.id}` }, (payload: any) => {
+        const row = payload?.new as any;
+        if (!row) return;
+        if (row.status === 'accepted') {
+          const fid = String(row.friend_id);
+          setSentRequests(prev => prev.filter(id => id !== fid));
+          setFriendIds(prev => (prev.includes(fid) ? prev : [...prev, fid]));
+          setSuggestedFriends(prev => prev.filter(f => f.id !== fid));
+        }
+      })
+      .subscribe();
+    return () => { try { supabase.removeChannel(channel); } catch {} };
+  }, [user]);
+
   // Charger l'historique de manière différée pour améliorer les performances
   useEffect(() => {
     if (user) {
@@ -466,9 +483,27 @@ export default function ProfileScreen() {
     );
   }
 
+  // Fonction de rafraîchissement pour le pull-to-refresh
+  const onRefresh = useCallback(async () => {
+    if (contactsPermission === 'granted') {
+      await loadSuggestedFriends(true);
+    }
+  }, [contactsPermission]);
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={suggestionsLoading}
+            onRefresh={onRefresh}
+            tintColor={VeeniColors.accent.primary}
+            colors={[VeeniColors.accent.primary]}
+          />
+        }
+      >
         {/* Header (non fixe) */}
         <View style={styles.headerContainer}>
           {/* SUPPRIMER LE BOUTON BACK */}
@@ -505,26 +540,18 @@ export default function ProfileScreen() {
           {/* Informations de cave partagée */}
           <SharedCaveInfo />
           {/* Préférence dynamique */}
-          {!winesLoading && wines && wines.length > 0 && userPreference ? (
-            <View style={styles.preferenceContainer}>
-              <Text style={styles.userPreference}>
-                A une préférence pour le vin{' '}
-              </Text>
-              <View style={styles.preferenceIcon}>
-                {colorIcons[userPreference as keyof typeof colorIcons]}
-              </View>
-              <Text style={styles.userPreference}>
-                {' '}{colorLabels[userPreference as keyof typeof colorLabels]}
-              </Text>
-            </View>
-          ) : !winesLoading && wines && wines.length > 0 ? (
-            <Text style={styles.userPreference}>Amateur de vins</Text>
-          ) : null}
+          <WinePreferenceDisplay 
+            wines={wines} 
+            winesLoading={winesLoading}
+            style={styles.preferenceContainer}
+            textStyle={styles.userPreference}
+            iconStyle={styles.preferenceIcon}
+          />
         </View>
         {/* Barre de statistiques */}
         {/* Anciennes stats conservées */}
         <View style={styles.statsBar}>
-          <ProfileStatsBar />
+          <ProfileStatsBar userId={user?.id} viewerId={user?.id} />
         </View>
 
         {/* Supprimé: bloc de stats sociales dupliquées */}
@@ -624,65 +651,12 @@ export default function ProfileScreen() {
             ))}
           </View>
         </View>
-        {/* Section Amis suggérés - Toujours visible, avec gestion interne des permissions */}
-        <View style={[styles.section, styles.sectionWithHalfSpacing]}>
-          <Text style={styles.sectionTitle}>Suggestions d'amis ({suggestedFriends.length})</Text>
-          {contactsPermission !== 'granted' ? (
-            <View style={styles.contactsPermissionBox}>
-              <Text style={styles.contactsPermissionText}>
-                Active l'accès à tes contacts pour retrouver tes amis déjà sur Veeni.
-              </Text>
-              <TouchableOpacity 
-                style={styles.contactsPermissionButton}
-                onPress={requestContactsPermission}
-              >
-                <Text style={styles.contactsPermissionButtonText}>
-                  Activer l'accès aux contacts
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : suggestionsLoading ? (
-            <Text style={styles.loadingText}>Recherche d'amis...</Text>
-          ) : suggestedFriends.length === 0 ? (
-            <Text style={styles.emptySuggestionsText}>
-              Aucun de tes contacts n'est encore sur Veeni.
-            </Text>
-          ) : (
-            <View style={styles.friendsList}>
-              {suggestedFriends.map((friend) => (
-                <View key={friend.id} style={styles.friendItem}>
-                  <View style={styles.friendAvatar}>
-                    {friend.avatar ? (
-                      <Image source={{ uri: friend.avatar }} style={styles.friendAvatarImage} />
-                    ) : (
-                      <Text style={styles.friendAvatarInitial}>
-                        {(friend.first_name?.charAt(0) || friend.email?.charAt(0) || 'U').toUpperCase()}
-                      </Text>
-                    )}
-                  </View>
-                  <Text style={styles.friendName}>
-                    {friend.first_name || friend.email || 'Utilisateur inconnu'}
-                  </Text>
-                  <TouchableOpacity 
-                    style={styles.addFriendButton}
-                    disabled={false}
-                    onPress={() => handleAddFriend(friend.id)}
-                  >
-                    <Ionicons name="add" size={20} color="#FFFFFF" />
-                    <Text style={styles.addFriendButtonText}>
-                      Ajouter
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
+        {/* Section Suggestions d'amis supprimée selon la demande */}
         {/* BOUTON INVITER DES AMIS - bas de page */}
         <View style={styles.inviteButtonContainerBottom}>
           <TouchableOpacity 
             style={styles.inviteButton}
-            onPress={handleShareApp}
+            onPress={() => router.push('/add-friends')}
           >
             <Ionicons name="add" size={20} color="#222" />
             <Text style={styles.inviteButtonText}>Inviter des amis</Text>

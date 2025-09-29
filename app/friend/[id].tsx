@@ -1,14 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Modal, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import ProfileStatsBar from '../../components/ProfileStatsBar';
 import { StatsBar } from '../../components/StatsBar';
 import { WineCardCompact } from '../../components/WineCardCompact';
+import { WinePreferenceDisplay } from '../../components/WinePreferenceDisplay';
 import { ActiveFiltersBar } from '../../components/ui/ActiveFiltersBar';
 import { FilterModal } from '../../components/ui/FilterModal';
 import { SearchFilterBar } from '../../components/ui/SearchFilterBar';
+import { useProfileStats } from '../../hooks/useProfileStats';
 import { useUser } from '../../hooks/useUser';
 import { useUserStats } from '../../hooks/useUserStats';
+import { useWineHistory } from '../../hooks/useWineHistory';
 import { useWines } from '../../hooks/useWines';
 import { supabase } from '../../lib/supabase';
 import { Wine } from '../../types/wine';
@@ -56,6 +60,8 @@ export default function FriendDetailScreen() {
 
   // Récupérer les stats de l'ami
   const { stats: friendStats, isLoading: statsLoading } = useUserStats(friend?.id || null);
+  // Active le fallback pour éviter 0 si la RPC ne remonte rien (affiche au moins les bonnes tendances)
+  const { stats: socialStatsFriend } = useProfileStats(friend?.id || null, user?.id);
   
   // Récupérer les vins de l'ami pour calculer sa préférence et les afficher
   const [friendWines, setFriendWines] = useState<any[]>([]);
@@ -64,11 +70,92 @@ export default function FriendDetailScreen() {
   const [winesLoading, setWinesLoading] = useState(false);
   const [friendWineCards, setFriendWineCards] = useState<Wine[]>([]);
   
+  // Vins de cave spécifiquement pour la préférence (toujours les vins de cave)
+  const [friendCellarWines, setFriendCellarWines] = useState<Wine[]>([]);
+  
+  // Utiliser useWineHistory pour l'ami (pour les stats correctes)
+  const { history: friendWineHistory, loading: friendHistoryLoading } = useWineHistory(friend?.id || null);
+  
   // États pour la navigation et la recherche
   const [tab, setTab] = useState<WineListTab>('cellar');
   const [search, setSearch] = useState('');
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  
+  // États pour le menu
+  const [menuVisible, setMenuVisible] = useState(false);
+
+  // Fonctions du menu
+  const handleRemoveFriend = async () => {
+    if (!friend?.id || !user?.id) return;
+    
+    Alert.alert(
+      'Supprimer cet ami',
+      `Êtes-vous sûr de vouloir supprimer ${friend.first_name} de vos amis ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('friend')
+                .delete()
+                .or(`and(user_id.eq.${user.id},friend_id.eq.${friend.id}),and(user_id.eq.${friend.id},friend_id.eq.${user.id})`);
+              
+              if (error) {
+                console.error('Erreur suppression amitié:', error);
+                Alert.alert('Erreur', 'Impossible de supprimer cet ami');
+              } else {
+                Alert.alert('Succès', `${friend.first_name} a été supprimé de vos amis`);
+                router.back();
+              }
+            } catch (err) {
+              console.error('Erreur inattendue:', err);
+              Alert.alert('Erreur', 'Une erreur inattendue s\'est produite');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleShareProfile = async () => {
+    if (!friend) return;
+    
+    try {
+      const message = `👤 Découvre le profil de ${friend.first_name} sur Veeni\nhttps://veeni.app`;
+      
+      console.log('👤 Tentative de partage profil:', message);
+      const result = await Share.share({
+        message,
+      });
+      console.log('👤 Résultat partage:', result);
+    } catch (err) {
+      console.error('Erreur partage:', err);
+      Alert.alert('Erreur', 'Impossible de partager le profil');
+    }
+  };
+
+
+  const handleReport = () => {
+    Alert.alert(
+      'Signaler le profil',
+      `Voulez-vous signaler le profil de ${friend?.first_name} ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Signaler',
+          style: 'destructive',
+          onPress: () => {
+            // TODO: Implémenter la logique de signalement
+            Alert.alert('Signalement', 'Le profil a été signalé. Merci pour votre retour.');
+          }
+        }
+      ]
+    );
+  };
 
   useEffect(() => {
     const fetchFriend = async () => {
@@ -107,8 +194,12 @@ export default function FriendDetailScreen() {
   // Récupérer les vins de l'ami pour calculer sa préférence
   useEffect(() => {
     const fetchFriendWines = async () => {
-      if (!friend?.id) return;
+      if (!friend?.id) {
+        console.log('🍷 Debug - Pas d\'ami défini, arrêt de la récupération');
+        return;
+      }
 
+      console.log('🍷 Debug - Récupération des vins pour l\'ami:', friend.id);
       setWinesLoading(true);
       try {
         // Récupérer les vins de cave
@@ -167,7 +258,7 @@ export default function FriendDetailScreen() {
           .eq('user_id', friend.id)
           .eq('origin', 'wishlist');
 
-        // Récupérer les vins dégustés
+        // Récupérer les événements liés aux dégustations (tasted + stock_change)
         const { data: tastedData, error: tastedError } = await supabase
           .from('wine_history')
           .select(`
@@ -177,6 +268,8 @@ export default function FriendDetailScreen() {
             notes,
             event_date,
             event_type,
+            previous_amount,
+            new_amount,
             wine (
               id,
               name,
@@ -195,13 +288,20 @@ export default function FriendDetailScreen() {
             )
           `)
           .eq('user_id', friend.id)
-          .eq('event_type', 'tasted')
+          .eq('event_type', 'stock_change')
           .order('event_date', { ascending: false });
 
         if (cellarError) {
-          console.error('Erreur récupération vins cave ami:', cellarError);
+          console.error('❌ Erreur récupération vins cave ami:', cellarError);
         } else {
-          console.log('🍷 Données vins cave ami récupérées:', cellarData);
+          console.log('✅ Données vins cave ami récupérées:', cellarData?.length || 0, 'vins');
+          console.log('🍷 Détail vins cave ami:', cellarData?.map(w => ({
+            id: w.wine?.id,
+            name: w.wine?.name,
+            wine_type: w.wine?.wine_type,
+            amount: w.amount,
+            origin: 'cellar'
+          })));
           setFriendWines(cellarData || []);
         }
 
@@ -215,8 +315,24 @@ export default function FriendDetailScreen() {
         if (tastedError) {
           console.error('Erreur récupération vins dégustés ami:', tastedError);
         } else {
-          console.log('🍷 Données vins dégustés ami récupérées:', tastedData);
-          setFriendTastedWines(tastedData || []);
+          console.log('🍷 Données vins dégustés ami récupérées (brut):', tastedData?.length || 0);
+          const raw = (tastedData || []) as any[];
+          // Filtrer: garder seulement les stock_change qui réduisent le stock
+          const filtered = raw.filter((e: any) => {
+            return e.event_type === 'stock_change' && Number(e.previous_amount) > Number(e.new_amount);
+          });
+          // Dédupliquer par vin (conserver l'événement le plus récent)
+          const byWine = new Map<string, any>();
+          for (const e of filtered) {
+            const key = String(e.wine?.id || e.wine_id);
+            const prev = byWine.get(key);
+            if (!prev || new Date(e.event_date).getTime() > new Date(prev.event_date).getTime()) {
+              byWine.set(key, e);
+            }
+          }
+          const deduped = Array.from(byWine.values());
+          console.log('🍷 Données vins dégustés ami filtrées+dédupliquées:', deduped.length);
+          setFriendTastedWines(deduped);
         }
       } catch (err) {
         console.error('Erreur inattendue vins ami:', err);
@@ -238,8 +354,11 @@ export default function FriendDetailScreen() {
       } else if (tab === 'wishlist') {
         sourceData = friendWishlistWines;
       } else if (tab === 'tasted') {
+        // Utiliser la liste filtrée/dédupliquée
         sourceData = friendTastedWines;
       }
+
+      console.log('🍷 Debug updateWineCards - tab:', tab, 'sourceData length:', sourceData.length);
 
       const wineCards: Wine[] = sourceData.map((item: any) => {
         const wineData = item.wine || item; // Pour les dégustés, les données sont directement dans item
@@ -272,30 +391,20 @@ export default function FriendDetailScreen() {
       });
       
       console.log('🍷 Cartes de vin finales pour onglet', tab, ':', wineCards);
+      console.log('🍷 Debug friendWineCards mis à jour avec origin:', wineCards.map(w => ({ name: w.name, origin: w.origin })));
       setFriendWineCards(wineCards);
+      
+      // Créer les vins de cave spécifiquement pour la préférence
+      if (tab === 'cellar') {
+        const cellarWines = wineCards.filter(wine => wine.origin === 'cellar');
+        console.log('🍷 Debug friendCellarWines mis à jour:', cellarWines.map(w => ({ name: w.name, origin: w.origin })));
+        setFriendCellarWines(cellarWines);
+      }
     };
 
     updateWineCards();
   }, [tab, friendWines, friendWishlistWines, friendTastedWines]);
 
-  // Calculer la préférence de l'ami
-  const friendPreference = useMemo(() => {
-    if (!friendWines || friendWines.length === 0) return null;
-    
-    const colorCounts = friendWines.reduce((acc, wine) => {
-      const color = wine.wine?.wine_type;
-      if (color) {
-        acc[color] = (acc[color] || 0) + 1;
-      }
-      return acc;
-    }, {} as Record<string, number>);
-
-    const mostCommonColor = Object.entries(colorCounts).reduce((a, b) => 
-      colorCounts[a[0]] > colorCounts[b[0]] ? a : b
-    )?.[0];
-
-    return mostCommonColor;
-  }, [friendWines]);
 
   // Stats calculées selon l'onglet actif
   const localStats = useMemo(() => {
@@ -325,17 +434,17 @@ export default function FriendDetailScreen() {
       const sparkling = friendWishlistWines.filter(w => w.wine?.wine_type === 'sparkling').length;
       
       return { total, red, white, rose, sparkling };
-    } else {
-      // Dégustés : nombre total de dégustations
-      const total = friendTastedWines.length;
-      const red = friendTastedWines.filter(w => w.wine?.wine_type === 'red').length;
-      const white = friendTastedWines.filter(w => w.wine?.wine_type === 'white').length;
-      const rose = friendTastedWines.filter(w => w.wine?.wine_type === 'rose').length;
-      const sparkling = friendTastedWines.filter(w => w.wine?.wine_type === 'sparkling').length;
-      
-      return { total, red, white, rose, sparkling };
+      } else {
+        // Dégustés: s'appuyer sur la liste déjà filtrée/dédupliquée
+        const events = friendTastedWines;
+        const total = events.length;
+        const red = events.filter(event => event.wine?.wine_type === 'red').length;
+        const white = events.filter(event => event.wine?.wine_type === 'white').length;
+        const rose = events.filter(event => event.wine?.wine_type === 'rose').length;
+        const sparkling = events.filter(event => event.wine?.wine_type === 'sparkling').length;
+        return { total, red, white, rose, sparkling };
     }
-  }, [friendWines, friendWishlistWines, friendTastedWines, tab]);
+  }, [friendWines, friendWishlistWines, friendTastedWines, friendWineCards, friendWineHistory, tab]);
 
   // Filtrage des vins
   const filteredWines = friendWineCards.filter(wine => {
@@ -405,8 +514,69 @@ export default function FriendDetailScreen() {
           <Ionicons name="chevron-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Profil de {friend.first_name || 'Utilisateur'}</Text>
-        <View style={styles.placeholder} />
+        <TouchableOpacity 
+          onPress={() => setMenuVisible(!menuVisible)} 
+          style={styles.menuButton}
+        >
+          <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
+        </TouchableOpacity>
       </View>
+
+      {/* Menu modal */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <TouchableOpacity 
+          style={styles.menuOverlay}
+          activeOpacity={1}
+          onPress={() => setMenuVisible(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.menuContainer}>
+              <View style={styles.menuOptions}>
+                <TouchableOpacity 
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setMenuVisible(false);
+                    handleShareProfile();
+                  }}
+                >
+                  <Ionicons name="share" size={20} color="#FFFFFF" />
+                  <Text style={styles.menuItemText}>Partager le profil</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setMenuVisible(false);
+                    handleRemoveFriend();
+                  }}
+                >
+                  <Ionicons name="person-remove" size={20} color="#FF4444" />
+                  <Text style={[styles.menuItemText, { color: '#FF4444' }]}>Supprimer cet ami</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.menuItem, styles.menuItemLast]}
+                  onPress={() => {
+                    setMenuVisible(false);
+                    handleReport();
+                  }}
+                >
+                  <Ionicons name="flag" size={20} color="#FF4444" />
+                  <Text style={[styles.menuItemText, { color: '#FF4444' }]}>Signaler</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       <ScrollView style={styles.content}>
         <View style={styles.profile}>
@@ -422,46 +592,18 @@ export default function FriendDetailScreen() {
             )}
           </View>
           <Text style={styles.name}>{friend.first_name || 'Utilisateur'}</Text>
-          {!winesLoading && friendWines && friendWines.length > 0 && friendPreference ? (
-            <View style={styles.preferenceContainer}>
-              <Text style={styles.userPreference}>
-                A une préférence pour le vin{' '}
-              </Text>
-              <View style={styles.preferenceIcon}>
-                {colorIcons[friendPreference as keyof typeof colorIcons]}
-              </View>
-            </View>
-          ) : null}
+          <WinePreferenceDisplay 
+            wines={friendCellarWines} 
+            winesLoading={winesLoading}
+            style={styles.preferenceContainer}
+            textStyle={styles.userPreference}
+            iconStyle={styles.preferenceIcon}
+          />
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Statistiques</Text>
-          <View style={styles.statsContainer}>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>
-                {statsLoading ? '...' : (friendStats?.total_bottles_in_cellar || 0)}
-              </Text>
-              <Text style={styles.statLabel}>En cave</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>
-                {statsLoading ? '...' : (friendStats?.wishlist_count || 0)}
-              </Text>
-              <Text style={styles.statLabel}>À acheter</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>
-                {statsLoading ? '...' : (friendStats?.total_tasted_wines || 0)}
-              </Text>
-              <Text style={styles.statLabel}>Dégustés</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>
-                {statsLoading ? '...' : (friendStats?.favorite_wines_count || 0)}
-              </Text>
-              <Text style={styles.statLabel}>Favoris</Text>
-            </View>
-          </View>
+          <ProfileStatsBar userId={friend?.id} viewerId={user?.id} />
         </View>
 
         <View style={styles.section}>
@@ -515,8 +657,8 @@ export default function FriendDetailScreen() {
             </View>
           ) : filteredWines.length > 0 ? (
             <View style={styles.winesGrid}>
-              {filteredWines.map((wine) => (
-                <View key={wine.id} style={styles.wineCardContainer}>
+              {filteredWines.map((wine, index) => (
+                <View key={`${wine.id}-${index}`} style={styles.wineCardContainer}>
                   <WineCardCompact
                     wine={wine}
                     readOnly={true}
@@ -738,5 +880,49 @@ const styles = StyleSheet.create({
   tabLabelActive: {
     color: '#FFF',
     fontWeight: '600',
+  },
+  // Styles du menu
+  menuButton: {
+    padding: 8,
+    borderRadius: 20,
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'flex-start',
+    paddingTop: 80,
+  },
+  menuContainer: {
+    backgroundColor: '#2a2a2a',
+    margin: 20,
+    borderRadius: 12,
+    maxHeight: 300,
+    minWidth: 250,
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    left: 'auto',
+    width: 220,
+  },
+  menuOptions: {
+    // Supprimé gap pour utiliser paddingVertical sur les items
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#444',
+    minHeight: 56,
+  },
+  menuItemLast: {
+    borderBottomWidth: 0,
+  },
+  menuItemText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginLeft: 12,
+    flex: 1,
   },
 }); 

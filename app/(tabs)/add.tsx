@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -534,7 +534,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(246, 160, 122, 0.5)',
   },
   analyzeButtonText: {
-    color: WHITE,
+    color: '#000',
     fontSize: 16,
     fontWeight: '600',
   },

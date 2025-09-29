@@ -4,6 +4,7 @@ import { uploadWineImage } from '../lib/uploadWineImage';
 import { checkWineDuplicate, getDuplicateErrorMessage, getSimilarWineMessage } from '../lib/wineDuplicateDetection';
 import { getWinesStore, setWinesStore, subscribeWines } from '../lib/winesStore';
 import { Wine } from '../types/wine';
+import { useActiveCave } from './useActiveCave';
 
 // Génère un UUID v4 vraiment aléatoire
 function generateId(): string {
@@ -28,6 +29,7 @@ export function useWines() {
   const [updateCallbacks, setUpdateCallbacks] = useState<(() => void)[]>([]);
   const lastFetchRef = useRef(0);
   const isFetchingRef = useRef(false);
+  const { caveMode, caveId } = useActiveCave();
 
   // Fonction pour s'abonner aux mises à jour
   const subscribeToUpdates = useCallback((callback: () => void) => {
@@ -242,20 +244,34 @@ export function useWines() {
 
         // Déterminer le nom et le domaine
         const rawName = String(wine.name || '');
-        const rawDomaine = typeof wine.producer === 'object' && wine.producer?.name ? String(wine.producer.name) : (typeof wine.producer === 'string' ? wine.producer : 'Domaine inconnu');
-        
-        // Si le nom est vide ou générique, utiliser le domaine comme nom
-        const isGenericName = !rawName || 
-          rawName === 'Vin sans nom' || 
-          rawName === 'Vin non identifié' || 
+        const rawDomaine = typeof wine.producer === 'object' && wine.producer?.name
+          ? String(wine.producer.name)
+          : (typeof wine.producer === 'string' ? wine.producer : 'Domaine inconnu');
+
+        // Si le nom est vide ou générique, on peut utiliser le domaine comme nom,
+        // mais on NE vide plus le domaine pour que l'UI l'affiche immédiatement après modification.
+        const isGenericName = !rawName ||
+          rawName === 'Vin sans nom' ||
+          rawName === 'Vin non identifié' ||
           rawName === 'Nom inconnu' ||
           rawName.length < 3;
-        
+
         const finalName = isGenericName && rawDomaine !== 'Domaine inconnu' ? rawDomaine : rawName;
-        const finalDomaine = isGenericName && rawDomaine !== 'Domaine inconnu' ? '' : rawDomaine;
+        const finalDomaine = rawDomaine;
 
         const countryName = wine.country && typeof wine.country === 'object' && wine.country.name ? String(wine.country.name) : '';
         const priceRange = typeof wine.price_range === 'string' ? wine.price_range : '';
+        const finalAppellation = (() => {
+          try {
+            if (wine.appellation && typeof wine.appellation === 'object' && wine.appellation.name) {
+              return String(wine.appellation.name);
+            }
+            if (typeof wine.appellation === 'string') return wine.appellation;
+            return '';
+          } catch (_) {
+            return '';
+          }
+        })();
         
         console.log('🍷 Mapping vin:', finalName, {
           country: wine.country,
@@ -273,7 +289,7 @@ export function useWines() {
           region: typeof wine.region === 'string' ? wine.region : '',
           country: countryName,
           priceRange: priceRange,
-          appellation: typeof wine.appellation === 'string' ? wine.appellation : '',
+          appellation: finalAppellation,
           grapes: (() => {
             try {
               if (!wine.grapes) return [];
@@ -356,8 +372,58 @@ export function useWines() {
   const updateWine = async (wineId: string, updates: Partial<Wine>) => {
     try {
       console.log('🔄 updateWine appelé avec:', { wineId, updates });
+      
+      // Si c'est un vin OCR (ID commence par 'ocr-'), ne pas essayer de mettre à jour la DB
+      if (wineId.startsWith('ocr-')) {
+        console.log('🍷 Vin OCR détecté, mise à jour locale uniquement');
+        setWines(prevWines => 
+          prevWines.map(wine => 
+            wine.id === wineId 
+              ? { ...wine, ...updates, updatedAt: new Date().toISOString() }
+              : wine
+          )
+        );
+        return;
+      }
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Utilisateur non connecté');
+
+      // OPTIMISTIC UPDATE: appliquer immédiatement les changements en local pour réactivité UI
+      setWines(prevWines => {
+        const base = prevWines.length ? prevWines : getWinesStore();
+        const updatedWines = base.map(wine => 
+          wine.id === wineId 
+            ? { 
+                ...wine, 
+                ...updates,
+                // Mettre à jour les champs spécifiques
+                stock: updates.stock !== undefined ? updates.stock : wine.stock,
+                note: updates.note !== undefined ? updates.note : wine.note,
+                origin: updates.origin !== undefined ? updates.origin : wine.origin,
+                personalComment: updates.personalComment !== undefined ? updates.personalComment : wine.personalComment,
+                tastingProfile: updates.tastingProfile !== undefined ? updates.tastingProfile : wine.tastingProfile,
+                favorite: updates.favorite !== undefined ? updates.favorite : wine.favorite,
+                description: updates.description !== undefined ? updates.description : wine.description,
+                name: updates.name !== undefined ? updates.name : wine.name,
+                domaine: updates.domaine !== undefined ? updates.domaine : wine.domaine,
+                vintage: updates.vintage !== undefined ? updates.vintage : wine.vintage,
+                region: updates.region !== undefined ? updates.region : wine.region,
+                country: updates.country !== undefined ? updates.country : wine.country,
+                color: updates.color !== undefined ? updates.color : wine.color,
+                priceRange: updates.priceRange !== undefined ? updates.priceRange : wine.priceRange,
+                grapes: updates.grapes !== undefined ? updates.grapes : wine.grapes,
+                updatedAt: new Date().toISOString(),
+                // Propager éventuellement le sourceUser si on déplace/ajoute depuis un ami
+                sourceUser: (updates as any).sourceUser !== undefined ? (updates as any).sourceUser : wine.sourceUser
+              }
+            : wine
+        );
+        setWinesStore(updatedWines);
+        return updatedWines;
+      });
+      // Notifier immédiatement pour rafraîchir les abonnés (cartes, listes, etc.)
+      notifyUpdate();
 
       // Mettre à jour dans user_wine (champs spécifiques à l'utilisateur)
       const userWineUpdates: any = {};
@@ -419,7 +485,41 @@ export function useWines() {
       
       if (updates.description !== undefined) wineUpdates.description = updates.description;
       if (updates.name !== undefined) wineUpdates.name = updates.name;
-      if (updates.domaine !== undefined) wineUpdates.domaine = updates.domaine;
+      // Domaine (producer): map UI field to producer_id in DB
+      if (updates.domaine !== undefined) {
+        try {
+          let producerId: string | null = null;
+          const domaineName = updates.domaine?.trim();
+          if (domaineName && domaineName.length > 0) {
+            // Try find existing producer by name
+            const { data: existingProducer } = await supabase
+              .from('producer')
+              .select('id')
+              .eq('name', domaineName)
+              .maybeSingle();
+            if (existingProducer?.id) {
+              producerId = existingProducer.id as string;
+            } else {
+              // Create producer if not exists
+              const { data: newProducer, error: createProducerError } = await supabase
+                .from('producer')
+                .insert({ name: domaineName })
+                .select('id')
+                .single();
+              if (!createProducerError && newProducer?.id) {
+                producerId = newProducer.id as string;
+              }
+            }
+          } else {
+            // Empty domaine means unset producer
+            producerId = null;
+          }
+          // Apply to wine updates (producer foreign key)
+          wineUpdates.producer_id = producerId;
+        } catch (producerErr) {
+          console.error('Erreur lors du réglage du producteur:', producerErr);
+        }
+      }
       if (updates.vintage !== undefined) wineUpdates.year = updates.vintage?.toString();
       if (updates.region !== undefined) wineUpdates.region = updates.region;
       if (updates.color !== undefined) wineUpdates.wine_type = updates.color;
@@ -448,7 +548,14 @@ export function useWines() {
           wineUpdates.country_id = countryId;
         }
       }
-      if (updates.priceRange !== undefined) wineUpdates.price_range = updates.priceRange;
+      if (updates.priceRange !== undefined) {
+        wineUpdates.price_range = updates.priceRange || null;
+      }
+      if (updates.appellation !== undefined) {
+        // Stocker l'appellation comme chaîne libre (non bloquante)
+        const appName = String(updates.appellation || '').trim();
+        wineUpdates.appellation = appName.length > 0 ? appName : null;
+      }
       if (updates.grapes !== undefined) wineUpdates.grapes = updates.grapes;
 
       console.log('📝 Mise à jour wine avec:', wineUpdates);
@@ -491,55 +598,20 @@ export function useWines() {
         }
       }
 
-      // Mettre à jour l'état local immédiatement avec les nouvelles données
-      setWines(prevWines => {
-        const base = prevWines.length ? prevWines : getWinesStore();
-        const updatedWines = base.map(wine => 
-          wine.id === wineId 
-            ? { 
-                ...wine, 
-                ...updates,
-                // Mettre à jour les champs spécifiques
-                stock: updates.stock !== undefined ? updates.stock : wine.stock,
-                note: updates.note !== undefined ? updates.note : wine.note,
-                origin: updates.origin !== undefined ? updates.origin : wine.origin,
-                personalComment: updates.personalComment !== undefined ? updates.personalComment : wine.personalComment,
-                tastingProfile: updates.tastingProfile !== undefined ? updates.tastingProfile : wine.tastingProfile,
-                favorite: updates.favorite !== undefined ? updates.favorite : wine.favorite,
-                description: updates.description !== undefined ? updates.description : wine.description,
-                name: updates.name !== undefined ? updates.name : wine.name,
-                domaine: updates.domaine !== undefined ? updates.domaine : wine.domaine,
-                vintage: updates.vintage !== undefined ? updates.vintage : wine.vintage,
-                region: updates.region !== undefined ? updates.region : wine.region,
-                country: updates.country !== undefined ? updates.country : wine.country,
-                color: updates.color !== undefined ? updates.color : wine.color,
-                priceRange: updates.priceRange !== undefined ? updates.priceRange : wine.priceRange,
-                grapes: updates.grapes !== undefined ? updates.grapes : wine.grapes,
-                // Propager éventuellement le sourceUser si on déplace/ajoute depuis un ami
-                sourceUser: (updates as any).sourceUser !== undefined ? (updates as any).sourceUser : wine.sourceUser
-              }
-            : wine
-        );
-        
-        console.log('🍷 Vins mis à jour localement:', updatedWines.length, 'vins');
-        if (updates.favorite !== undefined) {
-          console.log('❤️ Mise à jour favorite:', { wineId, newFavorite: updates.favorite });
-        }
-        setWinesStore(updatedWines);
-        return updatedWines;
-      });
-      
-      // Notifier tous les abonnés de la mise à jour
-      notifyUpdate();
+      // Un deuxième notifyUpdate après la persistance est acceptable mais pas nécessaire ici
     } catch (err) {
       console.error('Erreur complète lors de la mise à jour:', err);
       setError(err instanceof Error ? err : new Error('Erreur lors de la mise à jour'));
+      // Re-synchroniser avec la source distante en cas d'échec
+      try { await fetchWines(); } catch {}
       // Ne pas faire planter l'app, juste afficher l'erreur
     }
   };
 
   const addWineToCellar = async (wine: Wine) => {
     try {
+      // Le flux OCR est géré plus bas (création si ID temporaire)
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Utilisateur non connecté');
 
@@ -589,7 +661,8 @@ export function useWines() {
               wine_id: wineId,
               amount: wine.stock || 1,
               rating: null,
-              origin: wine.origin || 'cellar'
+              origin: wine.origin || 'cellar',
+              ...(caveMode === 'household' ? { household_id: caveId } : {})
             });
 
           if (error) throw error;
@@ -661,7 +734,12 @@ export function useWines() {
           region: wine.region,
           producer_id: producerId,
           country_id: countryId,
-          image_uri: await uploadWineImage(wineId, wine.imageUri || ''),
+          image_uri: await (async () => {
+            console.log('🖼️ Upload image pour vin:', wineId, 'URI:', wine.imageUri);
+            const result = await uploadWineImage(wineId, wine.imageUri || '');
+            console.log('🖼️ Résultat upload:', result);
+            return result;
+          })(),
           grapes: wine.grapes
         });
       
@@ -680,7 +758,8 @@ export function useWines() {
           wine_id: wineId,
           amount: wine.stock || 1,
           rating: wine.note || null,
-          origin: 'cellar'
+          origin: 'cellar',
+          ...(caveMode === 'household' ? { household_id: caveId } : {})
         });
 
       if (error) throw error;
@@ -702,6 +781,8 @@ export function useWines() {
 
   const addWineToWishlist = async (wine: Wine & { friendId?: string }) => {
     try {
+      // Le flux OCR est géré plus bas (création si ID temporaire)
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Utilisateur non connecté');
 
@@ -756,7 +837,8 @@ export function useWines() {
             wine_id: wineId,
             amount: 0,
             rating: null,
-            origin: 'wishlist'
+            origin: 'wishlist',
+            ...(caveMode === 'household' ? { household_id: caveId } : {})
           };
           if (wine.friendId) payload.source_user_id = wine.friendId;
           let insertErrorPrimary = null as any;
@@ -889,7 +971,8 @@ export function useWines() {
         wine_id: wineId,
         amount: 0,
         rating: null,
-        origin: 'wishlist'
+        origin: 'wishlist',
+        ...(caveMode === 'household' ? { household_id: caveId } : {})
       };
       if (wine.friendId) payload2.source_user_id = wine.friendId;
       let res2 = await supabase

@@ -33,9 +33,17 @@ export interface TastedWine {
   favorite?: boolean;
 }
 
-export function useWineHistory() {
+export function useWineHistory(userId?: string | null) {
   const { user } = useUser();
   const { caveId, caveMode, isShared } = useActiveCave();
+  
+  // Utiliser l'ID fourni ou l'utilisateur connecté
+  const targetUserId = userId || user?.id;
+  
+  // Pour un ami, utiliser directement son ID comme caveId et forcer le mode 'user'
+  const effectiveCaveId = userId ? userId : caveId;
+  const effectiveCaveMode = userId ? 'user' : caveMode;
+  const effectiveIsShared = userId ? false : isShared;
   const [history, setHistory] = useState<WineHistoryEntry[]>([]);
   const [tastedWines, setTastedWines] = useState<TastedWine[]>([]);
   const [loading, setLoading] = useState(false);
@@ -51,7 +59,7 @@ export function useWineHistory() {
     if (now - lastFetchHistoryRef.current < 1000) return;
     isFetchingHistoryRef.current = true;
     lastFetchHistoryRef.current = now;
-    if (!user?.id || !caveId) return;
+    if (!targetUserId || !effectiveCaveId) return;
     
     setLoading(true);
     try {
@@ -61,8 +69,8 @@ export function useWineHistory() {
         .order('created_at', { ascending: false });
 
       // Filtrer selon le mode actif
-      if (caveMode === 'user') {
-        query = query.eq('user_id', caveId);
+      if (effectiveCaveMode === 'user') {
+        query = query.eq('user_id', effectiveCaveId);
       } else {
         query = query.eq('household_id', caveId);
       }
@@ -86,7 +94,7 @@ export function useWineHistory() {
     if (now - lastFetchTastedRef.current < 1000) return;
     isFetchingTastedRef.current = true;
     lastFetchTastedRef.current = now;
-    if (!user?.id || !caveId) return;
+    if (!targetUserId || !effectiveCaveId) return;
     
     setLoading(true);
     try {
@@ -100,21 +108,36 @@ export function useWineHistory() {
           wine_id,
           event_date,
           rating,
-          notes
+          notes,
+          event_type,
+          previous_amount,
+          new_amount,
+          wine: wine_id (
+            id,
+            name,
+            year,
+            wine_type,
+            region,
+            producer (name)
+          )
         `)
-        .eq('event_type', 'tasted')
+        .eq('event_type', 'stock_change')
         .order('event_date', { ascending: false });
 
       // Filtrer selon le mode actif
-      if (caveMode === 'user') {
-        query = query.eq('user_id', caveId);
+      if (effectiveCaveMode === 'user') {
+        query = query.eq('user_id', effectiveCaveId);
       } else {
         query = query.eq('household_id', caveId);
       }
 
       const { data: historyData, error: historyError } = await query;
 
-      // logs réduits
+      console.log('🔍 fetchTastedWines: Données récupérées:', { 
+        count: historyData?.length || 0, 
+        eventTypes: historyData?.map(h => h.event_type) || [],
+        sample: historyData?.slice(0, 3) || []
+      });
 
       if (historyError) throw historyError;
 
@@ -158,8 +181,8 @@ export function useWineHistory() {
         .in('wine_id', wineIds);
 
       // Filtrer selon le mode actif
-      if (caveMode === 'user') {
-        userWinesQuery = userWinesQuery.eq('user_id', caveId);
+      if (effectiveCaveMode === 'user') {
+        userWinesQuery = userWinesQuery.eq('user_id', effectiveCaveId);
       } else {
         userWinesQuery = userWinesQuery.eq('household_id', caveId);
       }
@@ -196,8 +219,18 @@ export function useWineHistory() {
       // logs réduits
 
       const grouped = groupTastingsByWine(cleaned, favoritesMap);
-      // logs réduits
-      
+      // Debug: résumé par couleur pour les dégustés
+      try {
+        const summary = grouped.reduce((acc: any, g: any) => {
+          const color = g?.wine?.wine_type || 'unknown';
+          acc[color] = (acc[color] || 0) + (g?.tastings?.length || 0);
+          return acc;
+        }, {} as Record<string, number>);
+        const details = grouped.map((g: any) => ({ id: g?.wine?.id, name: g?.wine?.name, color: g?.wine?.wine_type, tastings: g?.tastings?.length }));
+        console.log('🍷 Debug dégustés (grouped) summary:', summary);
+        console.log('🍷 Debug dégustés (grouped) details:', details);
+      } catch (_) {}
+
       setTastedWines(grouped);
     } catch (error) {
       console.error('Erreur lors de la récupération des vins dégustés:', error);
@@ -217,7 +250,7 @@ export function useWineHistory() {
           const wineId = entry.wine.id;
           if (!map.has(wineId)) {
             map.set(wineId, {
-              wine: entry.wine,
+              wine: { ...entry.wine, origin: 'tasted' },
               tastings: [],
               lastTastedAt: entry.event_date,
               tastingCount: 0,
@@ -225,71 +258,80 @@ export function useWineHistory() {
             });
           }
 
-      const group = map.get(wineId);
-      group.tastings.push({
-        id: entry.id,
-        date: entry.event_date,
-        note: entry.notes,
-        rating: entry.rating,
-      });
+          const group = map.get(wineId);
+          
+          // Pour les stock_change, vérifier si c'est une réduction de stock
+          if (entry.event_type === 'stock_change') {
+            // Compter seulement si c'est une réduction (bouteille bue)
+            if (entry.previous_amount > entry.new_amount) {
+              group.tastings.push({
+                id: entry.id,
+                date: entry.event_date,
+                note: entry.notes,
+                rating: entry.rating,
+                eventType: 'stock_change',
+                previousAmount: entry.previous_amount,
+                newAmount: entry.new_amount
+              });
+              group.tastingCount += 1;
+            }
+          }
 
-      group.tastingCount += 1;
+          // mettre à jour la date la plus récente
+          if (new Date(entry.event_date) > new Date(group.lastTastedAt)) {
+            group.lastTastedAt = entry.event_date;
+          }
+        }
 
-      // mettre à jour la date la plus récente
-      if (new Date(entry.event_date) > new Date(group.lastTastedAt)) {
-        group.lastTastedAt = entry.event_date;
-      }
-    }
-
-    return Array.from(map.values());
-  };
+        return Array.from(map.values());
+      };
 
   // Ajouter une dégustation
   const addTasting = async (wineId: string, note?: string) => {
-    if (!user?.id || !caveId) return;
+    if (!targetUserId || !effectiveCaveId) return;
     
     try {
-      // 1. Ajouter l'entrée dans wine_history
-      const historyData: any = {
-        wine_id: wineId,
-        event_type: 'tasted',
-        event_date: new Date().toISOString(),
-        notes: note || null
-      };
-
-      // Utiliser le bon champ selon le mode
-      if (caveMode === 'user') {
-        historyData.user_id = caveId;
-      } else {
-        historyData.household_id = caveId;
-      }
-
-      const { data: historyEntry, error: historyError } = await supabase
-        .from('wine_history')
-        .insert(historyData)
-        .select()
-        .single();
-
-      if (historyError) throw historyError;
-
-      // 2. Décrémenter le stock dans user_wine
+      // 1. Décrémenter le stock dans user_wine
       let wineQuery = supabase
         .from('user_wine')
         .select('amount')
         .eq('wine_id', wineId);
 
       // Filtrer selon le mode actif
-      if (caveMode === 'user') {
-        wineQuery = wineQuery.eq('user_id', caveId);
+      if (effectiveCaveMode === 'user') {
+        wineQuery = wineQuery.eq('user_id', effectiveCaveId);
       } else {
         wineQuery = wineQuery.eq('household_id', caveId);
       }
 
-      const { data: wineData, error: wineError } = await wineQuery.single();
+      const { data: wineData, error: wineError } = await wineQuery.limit(1).single();
 
       if (wineError) throw wineError;
 
       const newAmount = wineData.amount - 1;
+
+      // Créer un événement stock_change dans l'historique (avec la note de dégustation)
+      const stockChangeData: any = {
+        wine_id: wineId,
+        event_type: 'stock_change',
+        event_date: new Date().toISOString(),
+        previous_amount: wineData.amount,
+        new_amount: newAmount,
+        notes: note || null
+      };
+
+      // Utiliser le bon champ selon le mode
+      if (effectiveCaveMode === 'user') {
+        stockChangeData.user_id = effectiveCaveId;
+      } else {
+        stockChangeData.household_id = caveId;
+      }
+
+      const { error: stockChangeError } = await supabase
+        .from('wine_history')
+        .insert(stockChangeData);
+
+      if (stockChangeError) throw stockChangeError;
 
       if (newAmount === 0) {
         // Si stock = 0, supprimer de user_wine
@@ -299,8 +341,8 @@ export function useWineHistory() {
           .eq('wine_id', wineId);
 
         // Filtrer selon le mode actif
-        if (caveMode === 'user') {
-          deleteQuery = deleteQuery.eq('user_id', caveId);
+        if (effectiveCaveMode === 'user') {
+          deleteQuery = deleteQuery.eq('user_id', effectiveCaveId);
         } else {
           deleteQuery = deleteQuery.eq('household_id', caveId);
         }
@@ -316,8 +358,8 @@ export function useWineHistory() {
           .eq('wine_id', wineId);
 
         // Filtrer selon le mode actif
-        if (caveMode === 'user') {
-          updateQuery = updateQuery.eq('user_id', caveId);
+        if (effectiveCaveMode === 'user') {
+          updateQuery = updateQuery.eq('user_id', effectiveCaveId);
         } else {
           updateQuery = updateQuery.eq('household_id', caveId);
         }
@@ -327,11 +369,11 @@ export function useWineHistory() {
         if (updateError) throw updateError;
       }
 
-      // 3. Rafraîchir les données
+      // 2. Rafraîchir les données
       await fetchHistory();
       await fetchTastedWines();
 
-      return { success: true, historyEntry };
+      return { success: true };
     } catch (error) {
       console.error('Erreur lors de l\'ajout de la dégustation:', error);
       return { success: false, error };
@@ -340,7 +382,7 @@ export function useWineHistory() {
 
   // Réajouter un vin à la cave
   const reAddToCellar = async (wineId: string) => {
-    if (!user?.id || !caveId) return;
+    if (!targetUserId || !effectiveCaveId) return;
     
     try {
       // Vérifier si le vin existe déjà dans la cave
@@ -350,13 +392,13 @@ export function useWineHistory() {
         .eq('wine_id', wineId);
 
       // Filtrer selon le mode actif
-      if (caveMode === 'user') {
-        existingQuery = existingQuery.eq('user_id', caveId);
+      if (effectiveCaveMode === 'user') {
+        existingQuery = existingQuery.eq('user_id', effectiveCaveId);
       } else {
         existingQuery = existingQuery.eq('household_id', caveId);
       }
 
-      const { data: existingWine } = await existingQuery.single();
+      const { data: existingWine } = await existingQuery.limit(1).single();
 
       if (existingWine) {
         // Incrémenter le stock existant
@@ -366,8 +408,8 @@ export function useWineHistory() {
           .eq('wine_id', wineId);
 
         // Filtrer selon le mode actif
-        if (caveMode === 'user') {
-          updateQuery = updateQuery.eq('user_id', caveId);
+        if (effectiveCaveMode === 'user') {
+          updateQuery = updateQuery.eq('user_id', effectiveCaveId);
         } else {
           updateQuery = updateQuery.eq('household_id', caveId);
         }
@@ -384,8 +426,8 @@ export function useWineHistory() {
         };
 
         // Utiliser le bon champ selon le mode
-        if (caveMode === 'user') {
-          wineData.user_id = caveId;
+        if (effectiveCaveMode === 'user') {
+          wineData.user_id = effectiveCaveId;
         } else {
           wineData.household_id = caveId;
         }
@@ -427,7 +469,7 @@ export function useWineHistory() {
   };
 
   useEffect(() => {
-    if (user?.id && caveId) {
+    if (targetUserId && effectiveCaveId) {
       // Délaisser un micro délai pour laisser retomber les re-render en cascade
       const t = setTimeout(() => {
         fetchHistory();
@@ -435,7 +477,7 @@ export function useWineHistory() {
       }, 100);
       return () => clearTimeout(t);
     }
-  }, [user?.id, caveId, caveMode]);
+  }, [targetUserId, effectiveCaveId, effectiveCaveMode]);
 
   return {
     history,

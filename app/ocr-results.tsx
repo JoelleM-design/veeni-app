@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { WineCard } from '../components/WineCard';
 import { VeeniColors } from '../constants/Colors';
+import { useStats } from '../hooks/useStats';
 import { useWines } from '../hooks/useWines';
 import type { Wine } from '../types/wine';
 
@@ -14,6 +15,7 @@ export default function OcrResultsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { addWineToCellar, addWineToWishlist } = useWines();
+  const { refreshStats } = useStats();
 
   // Initialiser les vins détectés à partir des params (résultat OCR)
   const [detectedWines, setDetectedWines] = useState<Wine[]>([]);
@@ -97,6 +99,7 @@ export default function OcrResultsScreen() {
       console.log('Ajout à la cave:', wine);
       
       await addWineToCellar({ ...wine, origin: 'cellar' as const, stock: 1 });
+      await refreshStats();
       
       // Nettoyer les fichiers locaux après ajout réussi
       await cleanupLocalFiles(wine);
@@ -124,6 +127,7 @@ export default function OcrResultsScreen() {
       console.log('Ajout à la wishlist:', wine);
       
       await addWineToWishlist({ ...wine, origin: 'wishlist' as const, stock: 0 });
+      await refreshStats();
       
       // Nettoyer les fichiers locaux après ajout réussi
       await cleanupLocalFiles(wine);
@@ -152,8 +156,8 @@ export default function OcrResultsScreen() {
       pathname: `/wine/${wine.id}`,
       params: { 
         isFromOcr: 'true',
-        returnToOcr: 'true', // Indiquer qu'on doit revenir à l'écran OCR
-        wineData: JSON.stringify(wine) // Passer les données du vin OCR
+        returnToOcr: 'true',
+        wineData: JSON.stringify(wine)
       }
     });
   };
@@ -203,9 +207,9 @@ export default function OcrResultsScreen() {
             <View key={wine.id} style={styles.wineCardContainer}>
               <WineCard 
                 wine={wine} 
-                onPress={() => handleEditWine(wine)}
+                onPress={undefined}
                 showStockButtons={false}
-                readOnly={false}
+                readOnly={true}
               />
               
               <View style={styles.actionButtons}>

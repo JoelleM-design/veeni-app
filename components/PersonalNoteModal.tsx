@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
     Alert,
     KeyboardAvoidingView,
@@ -62,10 +62,12 @@ export default function PersonalNoteModal({
       >
         <View style={styles.header}>
           <TouchableOpacity onPress={handleClose} style={styles.cancelButton}>
+            <Ionicons name="close" size={20} color="#666666" />
             <Text style={styles.cancelText}>Annuler</Text>
           </TouchableOpacity>
           <Text style={styles.title}>{title}</Text>
           <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
+            <Ionicons name="checkmark" size={20} color="#FFFFFF" />
             <Text style={styles.saveText}>Enregistrer</Text>
           </TouchableOpacity>
         </View>
@@ -103,11 +105,16 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eee',
   },
   cancelButton: {
-    padding: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 48,
   },
   cancelText: {
     fontSize: 16,
     color: '#666',
+    marginLeft: 8,
   },
   title: {
     fontSize: 18,
@@ -115,12 +122,17 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   saveButton: {
-    padding: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 48,
   },
   saveText: {
     fontSize: 16,
     fontWeight: '600',
     color: VeeniColors.accent.primary,
+    marginLeft: 8,
   },
   content: {
     flex: 1,

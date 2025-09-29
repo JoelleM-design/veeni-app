@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 3.17.0"
+    "version": ">= 3.17.0",
+    "appVersionSource": "local"
   },
   "build": {
     "preview": {
@@ -9,17 +10,17 @@
       "ios": {
         "resourceClass": "m-medium",
         "simulator": false,
-        "autoIncrement": "buildNumber",
+        "autoIncrement": true,
         "image": "latest"
       }
     },
     "production": {
       "distribution": "store",
       "developmentClient": false,
+      "autoIncrement": true,
       "ios": {
         "resourceClass": "m-medium",
         "simulator": false,
-        "autoIncrement": "buildNumber",
         "image": "latest"
       }
     }
@@ -29,7 +30,8 @@
       "ios": {
         "ascApiKeyPath": "./ASC_KEY.p8",
         "ascApiKeyIssuerId": "99d208e1-58ab-4b65-b4ed-840468bef37f",
-        "ascApiKeyId": "3TH6S5593A"
+        "ascApiKeyId": "3TH6S5593A",
+        "ascAppId": "6750554128"
       }
     }
   }

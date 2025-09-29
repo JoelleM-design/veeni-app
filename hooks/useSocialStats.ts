@@ -8,131 +8,195 @@ export interface SocialStats {
   inspiredFriends: number;
 }
 
-export function useSocialStats(userId: string | null, refreshKey: number = 0) {
+export function useSocialStats(userId: string | null, refreshKey: number = 0, disableFallback: boolean = false) {
   const [stats, setStats] = useState<SocialStats>({ tasted: 0, favorites: 0, commonWithFriends: 0, inspiredFriends: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userId) {
-      setStats({ tasted: 0, favorites: 0, commonWithFriends: 0, inspiredFriends: 0 });
-      setLoading(false);
-      return;
-    }
+    let isActive = true;
 
-    const run = async () => {
-      setLoading(true);
-      setError(null);
+    const computeClientFallback = async (): Promise<SocialStats> => {
       try {
-        // 1) Dégustés (logique étendue):
-        // - vins de user_wine avec amount = 0 (ex-cave)
-        // - OU vins en wishlist avec rating ou tasting_profile rempli ou commentaire perso
-        // - + événements wine_history.tasted (distincts)
-        const [uwZeroRes, uwWishRes, histRes] = await Promise.all([
-          supabase.from('user_wine')
-            .select('wine_id, amount, origin')
-            .eq('user_id', userId)
-            .eq('origin', 'cellar')
-            .eq('amount', 0),
-          supabase.from('user_wine')
-            .select('wine_id, origin, rating, tasting_profile, personal_comment')
-            .eq('user_id', userId)
+        // 1) User + household
+        const { data: me } = await supabase.from('User').select('id, household_id').eq('id', userId).single();
+        const myHouseholdId = me?.household_id || null;
+
+        // 2) My cellar (via household or user) and wishlist
+        const [myCellarHhRes, myCellarUserRes, myWishlistRes, myHistoryRes, myHistoryHhRes] = await Promise.all([
+          myHouseholdId
+            ? supabase
+                .from('user_wine')
+                .select('wine_id, favorite, amount, origin, household_id, user_id')
+                .eq('household_id', myHouseholdId)
+                .or('origin.eq.cellar,origin.is.null')
+            : Promise.resolve({ data: [] as any[] }),
+          supabase
+            .from('user_wine')
+            .select('wine_id, favorite, amount, origin, household_id, user_id')
+            .eq('user_id', userId as any)
+            .or('origin.eq.cellar,origin.is.null'),
+          supabase
+            .from('user_wine')
+            .select('wine_id, favorite, rating, personal_comment, tasting_profile')
+            .eq('user_id', userId as any)
             .eq('origin', 'wishlist'),
-          supabase.from('wine_history')
+          supabase
+            .from('wine_history')
             .select('wine_id')
-            .eq('user_id', userId)
-            .eq('event_type', 'tasted')
+            .eq('user_id', userId as any)
+            .eq('event_type', 'tasted'),
+          myHouseholdId
+            ? supabase
+                .from('wine_history')
+                .select('wine_id, household_id')
+                .eq('household_id', myHouseholdId)
+                .eq('event_type', 'tasted')
+            : Promise.resolve({ data: [] as any[] }),
+        ]);
+        const myCellar = [
+          ...((myCellarHhRes?.data || []) as any[]),
+          ...((myCellarUserRes?.data || []) as any[]),
+        ];
+        const myWishlist = (myWishlistRes?.data || []);
+        const myIds = new Set<string>([
+          ...myCellar.map((r: any) => String(r.wine_id)),
+          ...myWishlist.map((r: any) => String(r.wine_id)),
         ]);
 
-        if (uwZeroRes.error) throw uwZeroRes.error;
-        if (uwWishRes.error) throw uwWishRes.error;
-        if (histRes.error) throw histRes.error;
+        // tasted = nombre d'événements (pas DISTINCT des vins)
+        const historyRows = [
+          ...(((myHistoryRes as any)?.data || []) as any[]),
+          ...(((myHistoryHhRes as any)?.data || []) as any[]),
+        ];
 
-        const tastedSet = new Set<string>();
-        (uwZeroRes.data || []).forEach(r => tastedSet.add(String(r.wine_id)));
-        (uwWishRes.data || []).forEach(r => {
-          const hasRating = r.rating != null && r.rating > 0;
+        const historyWineIds = new Set<string>(historyRows.map((r: any) => String(r.wine_id)));
+        const zeroStockIds = new Set<string>(
+          myCellar.filter((r: any) => (r.amount || 0) === 0).map((r: any) => String(r.wine_id))
+        );
+        const wishlistQualifiedIds = new Set<string>(myWishlist.filter((r: any) => {
           const tp = r.tasting_profile as any;
           const hasTP = !!tp && ((tp.power || 0) + (tp.tannin || 0) + (tp.acidity || 0) + (tp.sweetness || 0) > 0);
-          const hasComment = typeof r.personal_comment === 'string' && r.personal_comment.trim().length > 0;
-          if (hasRating || hasTP || hasComment) tastedSet.add(String(r.wine_id));
-        });
-        (histRes.data || []).forEach(r => tastedSet.add(String(r.wine_id)));
-        const tasted = tastedSet.size;
+          const hasRating = (r.rating || 0) > 0;
+          const hasComment = (r.personal_comment || '').trim().length > 0;
+          return hasTP || hasRating || hasComment;
+        }).map((r: any) => String(r.wine_id)));
+        // Comptage distinct par vin: union de (historique, stock=0, wishlist qualifiée)
+        const unionIds = new Set<string>();
+        historyWineIds.forEach(id => unionIds.add(id));
+        zeroStockIds.forEach(id => unionIds.add(id));
+        wishlistQualifiedIds.forEach(id => unionIds.add(id));
+        const tasted = unionIds.size;
 
-        // 2) Favoris: vins likés dans user_wine (wishlist ou cave)
-        const { data: favRows, error: favErr } = await supabase
-          .from('user_wine')
-          .select('wine_id')
-          .eq('user_id', userId)
-          .eq('favorite', true);
-        if (favErr) throw favErr;
-        const favorites = new Set((favRows || []).map(r => String(r.wine_id))).size;
+        // favorites
+        const favorites = new Set<string>([
+          ...myCellar.filter((r: any) => !!r.favorite).map((r: any) => String(r.wine_id)),
+          ...myWishlist.filter((r: any) => !!r.favorite).map((r: any) => String(r.wine_id)),
+        ]).size;
 
-        // Récupérer la liste des amis (IDs) en bidirectionnel
-        const [friendsFromUserRes, friendsToUserRes] = await Promise.all([
-          supabase
-            .from('friend')
-            .select('friend_id')
-            .eq('user_id', userId)
-            .eq('status', 'accepted'),
-          supabase
-            .from('friend')
-            .select('user_id')
-            .eq('friend_id', userId)
-            .eq('status', 'accepted')
+        // friends bidirectional
+        const [fromRes, toRes] = await Promise.all([
+          supabase.from('friend').select('friend_id').eq('user_id', userId as any).eq('status', 'accepted'),
+          supabase.from('friend').select('user_id').eq('friend_id', userId as any).eq('status', 'accepted'),
         ]);
-        if (friendsFromUserRes.error) throw friendsFromUserRes.error;
-        if (friendsToUserRes.error) throw friendsToUserRes.error;
-
-        const friendIds = Array.from(new Set([
-          ...((friendsFromUserRes.data || []).map((r: any) => String(r.friend_id))),
-          ...((friendsToUserRes.data || []).map((r: any) => String(r.user_id)))
+        const friendIds = Array.from(new Set<string>([
+          ...((fromRes?.data || []).map((r: any) => String(r.friend_id))),
+          ...((toRes?.data || []).map((r: any) => String(r.user_id))),
         ]));
 
         let commonWithFriends = 0;
-        let inspiredFriends = 0;
+        let inspiredFriends = 0; // sans source_user_id fiable côté client
 
         if (friendIds.length > 0) {
-          // Mes vins: cave + wishlist (sans cave partagée)
-          const { data: myWines, error: myWinesErr } = await supabase
-            .from('user_wine')
-            .select('wine_id, origin')
-            .eq('user_id', userId)
-            .or('origin.eq.cellar,origin.eq.wishlist,origin.is.null');
-          if (myWinesErr) throw myWinesErr;
-          const myWineIds = new Set((myWines || []).map((w: any) => String(w.wine_id)));
+          const { data: friendsUsers } = await supabase.from('User').select('id, household_id').in('id', friendIds);
+          const householdMap = new Map<string, string | null>();
+          (friendsUsers || []).forEach((u: any) => householdMap.set(String(u.id), u.household_id || null));
 
-          // Vins des amis: cave + wishlist (sans cave partagée)
-          const { data: friendWines, error: fwErr } = await supabase
-            .from('user_wine')
-            .select('wine_id, user_id, source_user_id, origin')
-            .in('user_id', friendIds)
-            .or('origin.eq.cellar,origin.eq.wishlist,origin.is.null');
-          if (fwErr) throw fwErr;
+          // friends cellar via household ids
+          const fhids = Array.from(new Set<string>(((friendsUsers || []).map((u: any) => u.household_id)).filter(Boolean)));
+          const fNoHh = (friendsUsers || []).filter((u: any) => !u.household_id).map((u: any) => String(u.id));
 
-          const friendWineIds = new Set((friendWines || []).map((w: any) => String(w.wine_id)));
-          commonWithFriends = Array.from(myWineIds).filter(id => friendWineIds.has(id)).length;
+          const [fCellarHhRes, fCellarUserRes, fWishlistRes] = await Promise.all([
+            fhids.length ? supabase.from('user_wine').select('wine_id, household_id').or('origin.eq.cellar,origin.is.null').in('household_id', fhids) : Promise.resolve({ data: [] as any[] }),
+            fNoHh.length ? supabase.from('user_wine').select('wine_id, user_id').or('origin.eq.cellar,origin.is.null').in('user_id', fNoHh) : Promise.resolve({ data: [] as any[] }),
+            supabase.from('user_wine').select('wine_id, user_id').eq('origin', 'wishlist').in('user_id', friendIds),
+          ]);
 
-          // Inspirés par vous: uniquement les wishlist des amis qui référencent ton id
-          const inspiredSet = new Set(
-            (friendWines || [])
-              .filter((row: any) => row.origin === 'wishlist' && String(row.source_user_id || '') === String(userId))
-              .map((row: any) => String(row.wine_id))
-          );
-          inspiredFriends = inspiredSet.size;
+          const friendWineIds = new Set<string>([
+            ...((fCellarHhRes?.data || []).map((r: any) => String(r.wine_id))),
+            ...((fCellarUserRes?.data || []).map((r: any) => String(r.wine_id))),
+            ...((fWishlistRes?.data || []).map((r: any) => String(r.wine_id))),
+          ]);
+
+          // Intersection by id + fallback (name+producer), en évitant double comptage
+          const idCommonSet = new Set(Array.from(myIds).filter(id => friendWineIds.has(id)));
+
+          const myIdsArr = Array.from(myIds);
+          const fIdsArr = Array.from(friendWineIds);
+          const [myW, frW] = await Promise.all([
+            myIdsArr.length ? supabase.from('wine').select('id, name, producer_id').in('id', myIdsArr) : Promise.resolve({ data: [] as any[] }),
+            fIdsArr.length ? supabase.from('wine').select('id, name, producer_id').in('id', fIdsArr) : Promise.resolve({ data: [] as any[] }),
+          ]);
+          const norm = (s: string) => (s || '').toLowerCase().trim();
+          const myPairs = new Set((myW?.data || []).map((w: any) => `${norm(w.name)}|${w.producer_id || ''}`));
+          const frPairs = new Set((frW?.data || []).map((w: any) => `${norm(w.name)}|${w.producer_id || ''}`));
+          let nmCommon = 0;
+          myPairs.forEach(p => { if (frPairs.has(p)) nmCommon += 1; });
+
+          commonWithFriends = Math.max(idCommonSet.size, nmCommon);
         }
 
-        setStats({ tasted, favorites, commonWithFriends, inspiredFriends });
+        return { tasted, favorites, commonWithFriends, inspiredFriends };
+      } catch (_) {
+        return { tasted: 0, favorites: 0, commonWithFriends: 0, inspiredFriends: 0 };
+      }
+    };
+
+    const run = async () => {
+      if (!userId) {
+        if (isActive) {
+          setStats({ tasted: 0, favorites: 0, commonWithFriends: 0, inspiredFriends: 0 });
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      try {
+        const { data, error } = await supabase.rpc('get_user_social_stats', { target_user_id: userId });
+        const row = Array.isArray(data) ? data[0] : data;
+        let serverStats: SocialStats = {
+          tasted: row?.tasted ?? 0,
+          favorites: row?.favorites ?? 0,
+          commonWithFriends: row?.common_with_friends ?? 0,
+          inspiredFriends: row?.inspired_friends ?? 0,
+        };
+
+        // Always use client-side calculation for now since RPC function doesn't exist
+        if (!disableFallback) {
+          const clientStats = await computeClientFallback();
+          serverStats = clientStats;
+        }
+
+        if (isActive) setStats(serverStats);
       } catch (e: any) {
-        setError(e?.message || 'Erreur inconnue');
-        setStats({ tasted: 0, favorites: 0, commonWithFriends: 0, inspiredFriends: 0 });
+        if (isActive) {
+          setError(e?.message || 'Erreur inconnue');
+          if (!disableFallback) {
+            const fb = await computeClientFallback();
+            setStats(fb);
+          } else {
+            setStats({ tasted: 0, favorites: 0, commonWithFriends: 0, inspiredFriends: 0 });
+          }
+        }
       } finally {
-        setLoading(false);
+        if (isActive) setLoading(false);
       }
     };
 
     run();
+    return () => { isActive = false; };
   }, [userId, refreshKey]);
 
   return { stats, loading, error };

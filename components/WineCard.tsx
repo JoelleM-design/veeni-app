@@ -26,13 +26,16 @@ export interface WineCardProps {
     grapes: string[];
     imageUri: string | null;
     stock: number;
-    origin: 'cellar' | 'wishlist';
+    origin: 'cellar' | 'wishlist' | 'tasted';
     note: number | null;
     personalComment: string | null;
     favorite?: boolean;
     // Ajout social (affichages)
     sourceUser?: { id: string; first_name?: string; avatar?: string };
     commonFriends?: Array<{ id: string; firstName: string; avatar?: string }>;
+    // Données spécifiques aux vins dégustés
+    lastTastedAt?: string;
+    tastingCount?: number;
   };
   showStockButtons?: boolean;
   showStock?: boolean;
@@ -191,6 +194,7 @@ export const WineCard: React.FC<WineCardProps> = ({
                 />
               </TouchableOpacity>
             )}
+            
           </View>
         </View>
         {/* Bloc infos à droite */}
@@ -254,6 +258,18 @@ export const WineCard: React.FC<WineCardProps> = ({
               </Text>
             )}
             
+            {/* Information spécifique aux vins dégustés */}
+            {safeWine.origin === 'tasted' && (
+              <View style={styles.tastedInfo}>
+                <Text style={styles.tastedStatus}>Dégusté le {safeWine.lastTastedAt ? new Date(safeWine.lastTastedAt).toLocaleDateString('fr-FR') : 'Date inconnue'}</Text>
+                {safeWine.tastingCount && safeWine.tastingCount > 1 && (
+                  <Text style={styles.tastingCountText}>
+                    ({safeWine.tastingCount} dégustation{safeWine.tastingCount > 1 ? 's' : ''})
+                  </Text>
+                )}
+              </View>
+            )}
+
             {/* Information sociale - Ajout depuis la cave d'un ami (wishlist) */}
             {safeWine.origin === 'wishlist' && safeWine.sourceUser && (
               <View style={styles.socialRow}>
@@ -319,8 +335,8 @@ export const WineCard: React.FC<WineCardProps> = ({
               </View>
             )}
             
-            {/* Boutons stock (seulement sur Ma cave) */}
-            {showStockButtons && !readOnly && (
+            {/* Boutons stock (seulement sur Ma cave, pas pour les dégustés) */}
+            {showStockButtons && !readOnly && safeWine.origin !== 'tasted' && (
               <View style={styles.stockRow}>
                 <TouchableOpacity
                   style={styles.stockButton}
@@ -690,6 +706,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 16,
+  },
+  // Styles pour les vins dégustés
+  tastedInfo: {
+    marginBottom: 8,
+  },
+  tastedStatus: {
+    color: '#FFD700',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  tastingCountText: {
+    color: '#CCC',
+    fontSize: 12,
+    fontStyle: 'italic',
   },
   stockButton: {
     width: 40,

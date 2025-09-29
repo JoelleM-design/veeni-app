@@ -5,12 +5,14 @@ import * as Contacts from 'expo-contacts';
 import * as MailComposer from 'expo-mail-composer';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Platform, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, Platform, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SharedCaveModal } from '../components/SharedCaveModal';
+import { VeeniColors } from '../constants/Colors';
 import { useSharedCave } from '../hooks/useSharedCave';
+import { supabase } from '../lib/supabase';
 
 export default function SettingsScreen() {
-  const [pushEnabled, setPushEnabled] = useState(true);
+  const [pushEnabled, setPushEnabled] = useState(false);
   const [contactsEnabled, setContactsEnabled] = useState(false);
   const [contactsStatusChecked, setContactsStatusChecked] = useState(false);
   const [showHouseholdModal, setShowHouseholdModal] = useState(false);
@@ -49,14 +51,28 @@ export default function SettingsScreen() {
     setShowHouseholdModal(true);
   };
 
-  // Vérifier la permission au montage
+  // Vérifier les permissions au montage (contacts + notifications)
   useEffect(() => {
     (async () => {
-      const stored = await AsyncStorage.getItem('contactsEnabled');
-      if (stored !== null) setContactsEnabled(stored === 'true');
+      const storedContacts = await AsyncStorage.getItem('contactsEnabled');
+      if (storedContacts !== null) setContactsEnabled(storedContacts === 'true');
       const { status } = await Contacts.getPermissionsAsync();
       setContactsStatusChecked(true);
       if (status === 'granted') setContactsEnabled(true);
+
+      try {
+        const storedPush = await AsyncStorage.getItem('pushEnabled');
+        if (storedPush !== null) setPushEnabled(storedPush === 'true');
+        // Import dynamique pour éviter crash si le module n'est pas présent
+        const Notifications = await import('expo-notifications');
+        const settings = await Notifications.getPermissionsAsync();
+        if (settings?.granted) {
+          setPushEnabled(true);
+          await AsyncStorage.setItem('pushEnabled', 'true');
+        }
+      } catch (_) {
+        // Module non présent ou indisponible: on garde l'état stocké
+      }
     })();
   }, []);
 
@@ -70,10 +86,53 @@ export default function SettingsScreen() {
       } else {
         setContactsEnabled(false);
         await AsyncStorage.setItem('contactsEnabled', 'false');
+        Alert.alert('Permission refusée', 'Active l\'accès aux contacts dans les Réglages pour utiliser cette fonction.', [
+          { text: 'Ouvrir les réglages', onPress: () => Linking.openSettings() },
+          { text: 'OK', style: 'cancel' },
+        ]);
       }
     } else {
+      // Impossible de révoquer par code: proposer d'ouvrir les réglages
       setContactsEnabled(false);
       await AsyncStorage.setItem('contactsEnabled', 'false');
+      Alert.alert('Désactivation', 'Pour désactiver complètement, rends-toi dans les Réglages système.', [
+        { text: 'Ouvrir les réglages', onPress: () => Linking.openSettings() },
+        { text: 'OK', style: 'cancel' },
+      ]);
+    }
+  };
+
+  // Gestion du switch notifications
+  const handlePushSwitch = async (value: boolean) => {
+    try {
+      const Notifications = await import('expo-notifications');
+      if (value) {
+        const { granted, status } = await Notifications.requestPermissionsAsync();
+        if (granted || status === 'granted') {
+          setPushEnabled(true);
+          await AsyncStorage.setItem('pushEnabled', 'true');
+        } else {
+          setPushEnabled(false);
+          await AsyncStorage.setItem('pushEnabled', 'false');
+          Alert.alert('Permission notifications', 'Active les notifications dans les Réglages pour les recevoir.', [
+            { text: 'Ouvrir les réglages', onPress: () => Linking.openSettings() },
+            { text: 'OK', style: 'cancel' },
+          ]);
+        }
+      } else {
+        // On ne peut pas révoquer côté app, proposer les réglages
+        setPushEnabled(false);
+        await AsyncStorage.setItem('pushEnabled', 'false');
+        Alert.alert('Désactivation', 'Désactive les notifications depuis les Réglages système si besoin.', [
+          { text: 'Ouvrir les réglages', onPress: () => Linking.openSettings() },
+          { text: 'OK', style: 'cancel' },
+        ]);
+      }
+    } catch (_) {
+      // Module non disponible
+      setPushEnabled(false);
+      await AsyncStorage.setItem('pushEnabled', 'false');
+      Alert.alert('Notifications indisponibles', 'Le module de notifications n\'est pas disponible dans cette build.');
     }
   };
 
@@ -126,7 +185,8 @@ Informations techniques :
                 Alert.alert('Erreur', 'Impossible de se déconnecter. Veuillez réessayer.');
                 return;
               }
-              // La redirection sera gérée automatiquement par le RootLayout
+              // Sécuriser la redirection immédiatement
+              try { router.replace('/login'); } catch {}
             } catch (error) {
               Alert.alert('Erreur', 'Une erreur est survenue lors de la déconnexion.');
             }
@@ -156,9 +216,9 @@ Informations techniques :
           <Text style={styles.label}>Activer les notifications push</Text>
           <Switch
             value={pushEnabled}
-            onValueChange={setPushEnabled}
-            trackColor={{ false: '#888', true: '#FFFFFF' }}
-            thumbColor={pushEnabled ? '#FFF' : '#FFF'}
+            onValueChange={handlePushSwitch}
+            trackColor={{ false: '#4A4A4A', true: VeeniColors.accent.primary }}
+            thumbColor={pushEnabled ? '#FFFFFF' : '#E0E0E0'}
           />
         </View>
         <Text style={styles.subLabel}>Reçois une alerte quand un ami ajoute ou aime un vin.</Text>
@@ -170,8 +230,8 @@ Informations techniques :
           <Switch
             value={contactsEnabled}
             onValueChange={handleContactsSwitch}
-            trackColor={{ false: '#888', true: '#FFFFFF' }}
-            thumbColor={contactsEnabled ? '#FFF' : '#FFF'}
+            trackColor={{ false: '#4A4A4A', true: VeeniColors.accent.primary }}
+            thumbColor={contactsEnabled ? '#FFFFFF' : '#E0E0E0'}
             disabled={!contactsStatusChecked}
           />
         </View>

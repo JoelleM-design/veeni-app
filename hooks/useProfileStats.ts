@@ -1,170 +1,209 @@
-
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { useFriends } from './useFriends';
-import { useUser } from './useUser';
-import { useWineHistory } from './useWineHistory';
-import { useWines } from './useWines';
 
 export interface ProfileStats {
-  // Nouvelles métriques principales
-  totalTastedWines: number;        // Nombre total de vins dégustés
-  sharedWinesWithFriends: number;  // Nombre de vins en commun avec amis
-  sharedWinesCount: number;        // Nombre de vins ajoutés via un ami
-  totalBottlesInCellar: number;    // Nombre de bouteilles en cave
-  favoriteWinesCount: number;      // Nombre de vins "coup de cœur"
-  
-  // Métriques existantes (gardées pour compatibilité)
-  totalWines: number;
-  cellarCount: number;
-  wishlistCount: number;
-  favoritesCount: number;
-  redWinesCount: number;
-  whiteWinesCount: number;
-  roseWinesCount: number;
-  sparklingWinesCount: number;
+  tastedCount: number;      // wine_history avec event_type = 'tasted'
+  favoritesCount: number;   // user_wine avec favorite = true
+  wishlistCount: number;    // user_wine avec origin = 'wishlist' (même si amount = 0)
+  cellarCount: number;      // user_wine avec origin = 'cellar' (même si amount = 0)
+  memoriesCount: number;    // souvenirs créés par l'utilisateur
+  inspiredCount: number;    // user_wine avec source_user_id (pour plus tard)
 }
 
-export function useProfileStats() {
-  const { wines = [], subscribeToUpdates } = useWines();
-  const { tastedWines = [] } = useWineHistory();
-  const { friends = [] } = useFriends();
-  const { user } = useUser();
-  const [sharedWinesCount, setSharedWinesCount] = useState(0);
-  const [sharedWinesViaFriendsCount, setSharedWinesViaFriendsCount] = useState(0);
-  const [forceUpdate, setForceUpdate] = useState(0);
+export function useProfileStats(userId: string | null, viewerId?: string) {
+  const [stats, setStats] = useState<ProfileStats>({
+    tastedCount: 0,
+    favoritesCount: 0,
+    wishlistCount: 0,
+    cellarCount: 0,
+    memoriesCount: 0,
+    inspiredCount: 0
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // S'abonner aux mises à jour de useWines
   useEffect(() => {
-    const unsubscribe = subscribeToUpdates(() => {
-      console.log('🔄 useProfileStats: Notification reçue de useWines, forcer mise à jour');
-      setForceUpdate(prev => prev + 1);
-    });
-    return unsubscribe;
-  }, [subscribeToUpdates]);
+    if (!userId) {
+      setStats({
+        tastedCount: 0,
+        favoritesCount: 0,
+        wishlistCount: 0,
+        cellarCount: 0,
+        memoriesCount: 0,
+        inspiredCount: 0
+      });
+      return;
+    }
 
-  // Calculer les vins en commun avec les amis
-  useEffect(() => {
-    const calculateSharedWines = async () => {
-      if (!user || friends.length === 0) {
-        setSharedWinesCount(0);
-        setSharedWinesViaFriendsCount(0);
-        return;
-      }
+    const calculateStats = async () => {
+      setLoading(true);
+      setError(null);
 
       try {
-        // Récupérer les wine_ids de l'utilisateur actuel
-        const { data: userWines, error: userError } = await supabase
-          .from('user_wine')
-          .select('wine_id')
-          .eq('user_id', user.id)
-          .gt('amount', 0);
+        console.log('🔄 useProfileStats: Calcul des stats pour', userId, 'viewer:', viewerId);
+        
+        // Vérifier l'utilisateur authentifié
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        console.log('🔍 Utilisateur authentifié:', currentUser?.id);
 
-        if (userError) throw userError;
+        // 1. Dégustés = uniquement les stock_change qui réduisent le stock
+        const { data: stockChangeData, error: stockChangeError } = await supabase
+          .from('wine_history')
+          .select('previous_amount, new_amount')
+          .eq('user_id', userId)
+          .eq('event_type', 'stock_change');
 
-        const userWineIds = userWines?.map(w => w.wine_id) || [];
-
-        if (userWineIds.length === 0) {
-          setSharedWinesCount(0);
-          setSharedWinesViaFriendsCount(0);
-          return;
+        if (stockChangeError) {
+          console.error('❌ Erreur stock_change:', stockChangeError);
+          throw stockChangeError;
         }
 
-        // Récupérer les wine_ids des amis
-        const friendIds = friends.map(f => f.id);
-        const { data: friendWines, error: friendError } = await supabase
+        const tastedCount = (stockChangeData || []).filter((event: any) => {
+          return Number(event.previous_amount) > Number(event.new_amount);
+        }).length;
+
+        console.log('✅ Dégustés (stock_change réductions):', tastedCount);
+
+        // 2. Favoris - user_wine avec favorite = true
+        const { data: favoritesData, error: favoritesError } = await supabase
           .from('user_wine')
-          .select('wine_id')
-          .in('user_id', friendIds)
-          .gt('amount', 0);
+          .select('id', { count: 'exact' })
+          .eq('user_id', userId)
+          .eq('favorite', true);
 
-        if (friendError) throw friendError;
+        if (favoritesError) {
+          console.error('❌ Erreur favorites:', favoritesError);
+          throw favoritesError;
+        }
 
-        const friendWineIds = friendWines?.map(w => w.wine_id) || [];
+        const favoritesCount = favoritesData?.length || 0;
+        console.log('✅ Favoris:', favoritesCount);
 
-        // Calculer l'intersection (vins en commun)
-        const sharedWineIds = userWineIds.filter(id => friendWineIds.includes(id));
-        setSharedWinesCount(sharedWineIds.length);
+        // 3. Wishlist - user_wine avec origin = 'wishlist' (même si amount = 0)
+        const { data: wishlistData, error: wishlistError } = await supabase
+          .from('user_wine')
+          .select('id', { count: 'exact' })
+          .eq('user_id', userId)
+          .eq('origin', 'wishlist');
 
-        // Pour l'instant, on utilise une logique simple : 
-        // vins ajoutés via un ami = vins en commun (à affiner plus tard)
-        setSharedWinesViaFriendsCount(sharedWineIds.length);
+        if (wishlistError) {
+          console.error('❌ Erreur wishlist:', wishlistError);
+          throw wishlistError;
+        }
 
-      } catch (error) {
-        console.error('Erreur lors du calcul des vins partagés:', error);
-        setSharedWinesCount(0);
-        setSharedWinesViaFriendsCount(0);
+        const wishlistCount = wishlistData?.length || 0;
+        console.log('✅ Wishlist:', wishlistCount);
+
+        // 4. Cave - user_wine avec origin = 'cellar' (même si amount = 0)
+        const { data: cellarData, error: cellarError } = await supabase
+          .from('user_wine')
+          .select('id', { count: 'exact' })
+          .eq('user_id', userId)
+          .eq('origin', 'cellar');
+
+        if (cellarError) {
+          console.error('❌ Erreur cellar:', cellarError);
+          throw cellarError;
+        }
+
+        const cellarCount = cellarData?.length || 0;
+        console.log('✅ Cave:', cellarCount);
+
+        // 5. Inspirés - user_wine avec source_user_id (pour plus tard)
+        const { data: inspiredData, error: inspiredError } = await supabase
+          .from('user_wine')
+          .select('id', { count: 'exact' })
+          .eq('origin', 'wishlist')
+          .eq('source_user_id', userId);
+
+        if (inspiredError) {
+          console.error('❌ Erreur inspired:', inspiredError);
+          // Ne pas throw car la colonne peut ne pas exister sur d'anciens enregistrements
+          console.log('⚠️ Colonne source_user_id manquante ou erreur, inspirés = 0');
+        }
+
+        const inspiredCount = inspiredData?.length || 0;
+        console.log('✅ Inspirés:', inspiredCount);
+
+        // 6. Souvenirs - compter les souvenirs créés par l'utilisateur OU où il est mentionné
+        console.log('🔍 Calcul souvenirs pour user_id:', userId);
+        
+        // Récupérer tous les souvenirs visibles (les miens + ceux de mes amis)
+        const { data: allMemoriesData, error: memoriesError } = await supabase
+          .from('wine_memories')
+          .select('id, user_id, friends_tagged');
+
+        if (memoriesError) {
+          console.error('❌ Erreur souvenirs:', memoriesError);
+          throw memoriesError;
+        }
+
+        // Filtrer pour compter :
+        // 1. Souvenirs créés par l'utilisateur
+        // 2. Souvenirs où l'utilisateur est mentionné dans friends_tagged
+        const userMemories = allMemoriesData?.filter(memory => {
+          // Créateur du souvenir
+          if (memory.user_id === userId) return true;
+          
+          // Mentionné dans friends_tagged
+          if (memory.friends_tagged && Array.isArray(memory.friends_tagged)) {
+            return memory.friends_tagged.includes(userId);
+          }
+          
+          return false;
+        }) || [];
+        
+        const memoriesCount = userMemories.length;
+        
+        console.log('🔍 Total souvenirs visibles:', allMemoriesData?.length || 0);
+        console.log('✅ Souvenirs de l\'utilisateur (créés + mentionnés):', memoriesCount);
+
+        // Mettre à jour les stats
+        setStats({
+          tastedCount,
+          favoritesCount,
+          wishlistCount,
+          cellarCount,
+          memoriesCount: memoriesCount || 0,
+          inspiredCount
+        });
+
+        console.log('📊 Stats finales:', {
+          tastedCount,
+          favoritesCount,
+          wishlistCount,
+          cellarCount,
+          memoriesCount: memoriesCount || 0,
+          inspiredCount
+        });
+
+      } catch (err) {
+        console.error('❌ Erreur générale useProfileStats:', err);
+        setError(err instanceof Error ? err.message : 'Erreur inconnue');
+      } finally {
+        setLoading(false);
       }
     };
 
-    calculateSharedWines();
-  }, [user, friends]);
+    calculateStats();
+  }, [userId, viewerId]);
 
-  // Détecter les changements de vins pour forcer la mise à jour
-  useEffect(() => {
-    console.log('🔄 useProfileStats: Changement détecté dans wines:', wines.length, 'vins');
-    const cellarWines = wines.filter(wine => wine.origin === 'cellar');
-    const totalBottles = cellarWines.reduce((sum, wine) => sum + (wine.stock || 0), 0);
-    console.log('📊 Total bouteilles en cave:', totalBottles);
-  }, [wines]);
-
-  // Calculer les stats directement à partir des vins actuels (synchronisation immédiate)
-  const stats = useMemo(() => {
-    console.log('🔄 useProfileStats: Recalcul des stats avec', wines.length, 'vins');
-    
-    // Métriques existantes
-    const cellarWines = wines.filter(wine => wine.origin === 'cellar');
-    const wishlistWines = wines.filter(wine => wine.origin === 'wishlist');
-    const favoriteWines = wines.filter(wine => wine.favorite === true);
-    
-    const redWines = wines.filter(wine => wine.color === 'red');
-    const whiteWines = wines.filter(wine => wine.color === 'white');
-    const roseWines = wines.filter(wine => wine.color === 'rose');
-    const sparklingWines = wines.filter(wine => wine.color === 'sparkling');
-
-    // Nombre total de vins dégustés (source: wine_history)
-    const totalTastedWines = tastedWines.length;
-
-    // Nombre de vins en commun avec amis (calculé dynamiquement)
-    const sharedWinesWithFriends = sharedWinesCount;
-
-    // Nombre de vins ajoutés via un ami (pour l'instant = vins en commun)
-    const sharedWinesViaFriends = sharedWinesViaFriendsCount;
-
-    // Nombre total de bouteilles en cave (SUM des stocks) - CALCUL IMMÉDIAT
-    const totalBottlesInCellar = cellarWines.reduce((sum, wine) => sum + (wine.stock || 0), 0);
-
-    // Nombre de vins "coup de cœur" (favorite = true)
-    const favoriteWinesCount = favoriteWines.length;
-
-    console.log('📊 Stats calculées:', {
-      totalTastedWines,
-      sharedWinesWithFriends,
-      sharedWinesCount: sharedWinesViaFriends,
-      totalBottlesInCellar,
-      favoriteWinesCount,
-      cellarWinesCount: cellarWines.length
-    });
-
-    return {
-      // Nouvelles métriques principales
-      totalTastedWines,
-      sharedWinesWithFriends,
-      sharedWinesCount: sharedWinesViaFriends,
-      totalBottlesInCellar,
-      favoriteWinesCount,
-      
-      // Métriques existantes
-      totalWines: wines.length,
-      cellarCount: cellarWines.length,
-      wishlistCount: wishlistWines.length,
-      favoritesCount: favoriteWines.length,
-      redWinesCount: redWines.length,
-      whiteWinesCount: whiteWines.length,
-      roseWinesCount: roseWines.length,
-      sparklingWinesCount: sparklingWines.length,
-    };
-  }, [wines, tastedWines, sharedWinesCount, sharedWinesViaFriendsCount, forceUpdate]);
-
-  return stats;
+  return {
+    stats,
+    loading,
+    error,
+    refetch: () => {
+      if (userId) {
+        setStats({
+          tastedCount: 0,
+          favoritesCount: 0,
+          wishlistCount: 0,
+          cellarCount: 0,
+          memoriesCount: 0,
+          inspiredCount: 0
+        });
+        // Le useEffect se déclenchera automatiquement
+      }
+    }
+  };
 }

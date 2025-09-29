@@ -10,7 +10,7 @@ export const useFriends = (friendIds: string[]) => {
   const cacheTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const fetchFriends = async () => {
-    if (friendIds.length === 0) {
+    if (!friendIds || friendIds.length === 0) {
       setFriends([]);
       return;
     }

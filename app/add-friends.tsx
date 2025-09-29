@@ -17,7 +17,44 @@ export default function AddFriendsScreen() {
   const [contactsPermission, setContactsPermission] = useState<'undetermined' | 'granted' | 'denied'>('undetermined');
   const [contactsError, setContactsError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [acceptedIds, setAcceptedIds] = useState<string[]>([]);
+  const [pendingOutgoingIds, setPendingOutgoingIds] = useState<string[]>([]);
+  const [pendingIncomingIds, setPendingIncomingIds] = useState<string[]>([]);
 
+  // Load friend relationships (accepted, pending in/out)
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [accFrom, accTo, pendOut, pendIn] = await Promise.all([
+          supabase.from('friend').select('friend_id').eq('user_id', user.id).eq('status', 'accepted'),
+          supabase.from('friend').select('user_id').eq('friend_id', user.id).eq('status', 'accepted'),
+          supabase.from('friend').select('friend_id').eq('user_id', user.id).eq('status', 'pending'),
+          supabase.from('friend').select('user_id').eq('friend_id', user.id).eq('status', 'pending'),
+        ]);
+        if (cancelled) return;
+        const accepted = Array.from(new Set<string>([
+          ...((accFrom.data || []).map((r: any) => String(r.friend_id))),
+          ...((accTo.data || []).map((r: any) => String(r.user_id))),
+        ]));
+        const pendOutIds = ((pendOut.data || []).map((r: any) => String(r.friend_id)));
+        const pendInIds = ((pendIn.data || []).map((r: any) => String(r.user_id)));
+        setAcceptedIds(accepted);
+        setPendingOutgoingIds(pendOutIds);
+        setPendingIncomingIds(pendInIds);
+      } catch (e) {
+        setAcceptedIds([]);
+        setPendingOutgoingIds([]);
+        setPendingIncomingIds([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Fetch suggestions excluding already accepted friends
   useEffect(() => {
     async function fetchSuggestions() {
       if (!user) return;
@@ -28,13 +65,13 @@ export default function AddFriendsScreen() {
           .select('id, first_name, email, avatar')
           .neq('id', user.id);
         if (error) throw error;
-        let notFriends = data || [];
+        const acceptedSet = new Set(acceptedIds);
+        let candidates = (data || []).filter(u => !acceptedSet.has(String(u.id)));
         if (search.trim()) {
-          notFriends = notFriends.filter(u =>
-            (u.first_name || '').toLowerCase().includes(search.trim().toLowerCase())
-          );
+          const q = search.trim().toLowerCase();
+          candidates = candidates.filter(u => (u.first_name || '').toLowerCase().includes(q));
         }
-        setSuggestions(notFriends);
+        setSuggestions(candidates);
       } catch (e) {
         setSuggestions([]);
       } finally {
@@ -42,7 +79,7 @@ export default function AddFriendsScreen() {
       }
     }
     fetchSuggestions();
-  }, [user, search]);
+  }, [user, search, acceptedIds]);
 
   // Vérifier la permission au montage
   useEffect(() => {
@@ -79,6 +116,94 @@ export default function AddFriendsScreen() {
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+
+  const handleAddFriend = async (targetUserId: string) => {
+    if (!user) return;
+    const acceptedSet = new Set(acceptedIds);
+    const pendOutSet = new Set(pendingOutgoingIds);
+    const pendInSet = new Set(pendingIncomingIds);
+    if (acceptedSet.has(targetUserId) || pendOutSet.has(targetUserId)) return;
+
+    try {
+      // If there is an incoming pending request from the target, accept it
+      if (pendInSet.has(targetUserId)) {
+        await supabase
+          .from('friend')
+          .update({ status: 'accepted' })
+          .eq('user_id', targetUserId)
+          .eq('friend_id', user.id);
+        await supabase
+          .from('friend')
+          .upsert({ user_id: user.id, friend_id: targetUserId, status: 'accepted' } as any, { onConflict: 'user_id,friend_id' });
+        setPendingIncomingIds(prev => prev.filter(id => id !== targetUserId));
+        setAcceptedIds(prev => (prev.includes(targetUserId) ? prev : [...prev, targetUserId]));
+        setSuggestions(prev => prev.filter((u: any) => String(u.id) !== String(targetUserId)));
+        return;
+      }
+
+      // Otherwise, send a new outgoing request (pending)
+      const { error } = await supabase
+        .from('friend')
+        .upsert({ user_id: user.id, friend_id: targetUserId, status: 'pending' } as any, { onConflict: 'user_id,friend_id' });
+      if (error) return;
+      setPendingOutgoingIds(prev => (prev.includes(targetUserId) ? prev : [...prev, targetUserId]));
+    } catch (e) {
+      // swallow
+    }
+  };
+
+  // Realtime: when other user accepts our request, remove from suggestions
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel('add-friends-realtime')
+      // Incoming requests to me updated to accepted
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'friend', filter: `friend_id=eq.${user.id}` }, (payload: any) => {
+        const newRow = payload?.new as any;
+        if (!newRow) return;
+        if (newRow.status === 'accepted') {
+          const otherId = String(newRow.user_id);
+          setAcceptedIds(prev => (prev.includes(otherId) ? prev : [...prev, otherId]));
+          setPendingIncomingIds(prev => prev.filter(id => id !== otherId));
+          setPendingOutgoingIds(prev => prev.filter(id => id !== otherId));
+          setSuggestions(prev => prev.filter((u: any) => String(u.id) !== otherId));
+        }
+      })
+      // My outgoing pending request accepted (row where I am user_id)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'friend', filter: `user_id=eq.${user.id}` }, (payload: any) => {
+        const newRow = payload?.new as any;
+        if (!newRow) return;
+        if (newRow.status === 'accepted') {
+          const otherId = String(newRow.friend_id);
+          setAcceptedIds(prev => (prev.includes(otherId) ? prev : [...prev, otherId]));
+          setPendingOutgoingIds(prev => prev.filter(id => id !== otherId));
+          setSuggestions(prev => prev.filter((u: any) => String(u.id) !== otherId));
+        }
+      })
+      // Also catch inserts that directly create an accepted relation
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friend', filter: `user_id=eq.${user.id}` }, (payload: any) => {
+        const newRow = payload?.new as any;
+        if (!newRow) return;
+        if (newRow.status === 'accepted') {
+          const otherId = String(newRow.friend_id);
+          setAcceptedIds(prev => (prev.includes(otherId) ? prev : [...prev, otherId]));
+          setSuggestions(prev => prev.filter((u: any) => String(u.id) !== otherId));
+        }
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friend', filter: `friend_id=eq.${user.id}` }, (payload: any) => {
+        const newRow = payload?.new as any;
+        if (!newRow) return;
+        if (newRow.status === 'accepted') {
+          const otherId = String(newRow.user_id);
+          setAcceptedIds(prev => (prev.includes(otherId) ? prev : [...prev, otherId]));
+          setSuggestions(prev => prev.filter((u: any) => String(u.id) !== otherId));
+        }
+      })
+      .subscribe();
+    return () => {
+      try { supabase.removeChannel(channel); } catch {}
+    };
+  }, [user]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -142,9 +267,21 @@ export default function AddFriendsScreen() {
               <Text style={styles.suggestionName}>{sugg.first_name}</Text>
               <Text style={styles.suggestionMeta}>0 amis sur Veeni</Text>
             </View>
-            <TouchableOpacity style={styles.addBtn}>
-              <Text style={styles.addBtnText}>+ Ajouter</Text>
-            </TouchableOpacity>
+            {(() => {
+              const id = String(sugg.id);
+              const isAccepted = acceptedIds.includes(id);
+              const isPendingOut = pendingOutgoingIds.includes(id);
+              const label = isAccepted ? 'Ami' : isPendingOut ? 'En attente' : '+ Ajouter';
+              return (
+                <TouchableOpacity
+                  style={[styles.addBtn, (isAccepted || isPendingOut) ? styles.addBtnDisabled : undefined]}
+                  disabled={isAccepted || isPendingOut}
+                  onPress={() => handleAddFriend(id)}
+                >
+                  <Text style={styles.addBtnText}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })()}
           </View>
         ))}
       </ScrollView>
