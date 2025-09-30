@@ -32,6 +32,21 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env
+.env.local
+.env.development
+.env.production
+
+# Fichiers de clés sensibles
+*.p8
+*.p12
+*.key
+*.mobileprovision
+ASC_KEY.p8
+
+# Fichiers de test avec clés exposées (à nettoyer)
+test-*.js
+scripts/clear_*.js
 
 # typescript
 *.tsbuildinfo

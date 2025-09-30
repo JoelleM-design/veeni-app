@@ -173,12 +173,12 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
   };
 
   // Fonction pour confirmer la dégustation
-  const handleConfirmTasting = async (note?: string) => {
+  const handleConfirmTasting = async (rating: number) => {
     if (!selectedWineForTasting) return;
 
     try {
       console.log('🔄 handleConfirmTasting: Vin sélectionné:', selectedWineForTasting);
-      const result = await addTasting(selectedWineForTasting.id, note);
+      const result = await addTasting(selectedWineForTasting.id, rating);
       
       if (result.success) {
         // Supprimer une bouteille après la dégustation
@@ -194,15 +194,7 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
           console.log('✅ handleConfirmTasting: Stock décrémenté');
         }
         
-        // Mettre à jour la note personnelle si fournie
-        if (note) {
-          await supabase
-            .from('user_wine')
-            .update({ personal_comment: note })
-            .eq('wine_id', selectedWineForTasting.id)
-            .eq('user_id', (await supabase.auth.getUser()).data.user?.id as any);
-          console.log('✅ handleConfirmTasting: Note personnelle mise à jour');
-        }
+        // Plus de note personnelle à enregistrer ici
         
         // La mise à jour des données se fait automatiquement via le hook
         setTastingModalVisible(false);

@@ -80,3 +80,4 @@ J'ai corrigé tous les problèmes mentionnés et simplifié l'interface.
 - ✅ Sauvegarde manuelle sans erreurs
 - ✅ Un seul souvenir par vin
 
+

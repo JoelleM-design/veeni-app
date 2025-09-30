@@ -659,14 +659,24 @@ export default function WineDetailsScreenV2({
   // Fonctions de gestion des actions
   const handleToggleFavorite = async () => {
     if (!safeWine) return;
+    
+    // Mise à jour immédiate de l'état local pour une synchronisation instantanée
+    const newFavoriteState = !safeWine.favorite;
+    
     if (isOcrWine) {
-      setEditedWine((prev: any) => ({ ...(prev || {}), favorite: !safeWine.favorite }));
+      setEditedWine((prev: any) => ({ ...(prev || {}), favorite: newFavoriteState }));
       return;
     }
+    
+    // Pour les vins non-OCR, utiliser localWineUpdates
+    setLocalWineUpdates((prev) => ({ ...prev, favorite: newFavoriteState }));
+    
     try {
-      await updateWine(wineId, { favorite: !safeWine.favorite });
+      await updateWine(wineId, { favorite: newFavoriteState });
     } catch (error) {
       console.error('Erreur lors du toggle favori:', error);
+      // En cas d'erreur, on revert l'état local
+      setLocalWineUpdates((prev) => ({ ...prev, favorite: safeWine.favorite }));
     }
   };
 
@@ -719,35 +729,30 @@ export default function WineDetailsScreenV2({
   };
 
   // Fonction pour confirmer la dégustation
-  const handleConfirmTasting = async (rating: number, notes?: string) => {
+  const handleConfirmTasting = async (rating: number) => {
     if (!selectedWineForTasting) return;
 
     try {
       console.log('🔄 handleConfirmTasting: Vin sélectionné:', selectedWineForTasting);
       
-      // Utiliser addTasting pour créer l'entrée dans wine_history avec la note
-      const result = await addTasting(selectedWineForTasting.id, notes);
+      // Pas de vérification de stock côté client, addTasting gère tout
+      
+      // addTasting gère la mise à jour du stock et la création de l'entrée historique
+      const result = await addTasting(selectedWineForTasting.id, rating);
       
       if (result && result.success) {
-        // Supprimer une bouteille après la dégustation
-        const currentStock = selectedWineForTasting.stock || selectedWineForTasting.amount || 0;
-        console.log('🔄 handleConfirmTasting: Stock actuel:', currentStock, 'Nouveau stock:', currentStock - 1);
-        
-        if (currentStock > 0) {
-          await updateWine(selectedWineForTasting.id, { stock: currentStock - 1 });
-          console.log('✅ handleConfirmTasting: Stock mis à jour');
-        }
-        
-        // Fermer la modale et rafraîchir les données
-        setTastingModalVisible(false);
-        setSelectedWineForTasting(null);
-        await fetchWines();
-        await fetchTastedWines();
-        await fetchHistory();
-        await loadViewerData(); // Recharger les données du viewer
+        console.log('✅ handleConfirmTasting: Dégustation enregistrée');
       } else {
-        Alert.alert('Erreur', 'Impossible d\'enregistrer la dégustation');
+        console.error('❌ handleConfirmTasting: Erreur lors de l\'enregistrement de la dégustation');
       }
+      
+      // Fermer la modale et rafraîchir les données
+      setTastingModalVisible(false);
+      setSelectedWineForTasting(null);
+      await fetchWines();
+      await fetchTastedWines();
+      await fetchHistory();
+      await loadViewerData(); // Recharger les données du viewer
     } catch (error) {
       console.error('Erreur lors de la dégustation:', error);
       Alert.alert('Erreur', 'Une erreur est survenue lors de la dégustation');
@@ -1372,16 +1377,24 @@ export default function WineDetailsScreenV2({
           >
             {/* Image du vin */}
             <View style={styles.imageContainer}>
-            <ExpoImage
-              source={
-                safeWine.imageUri
-                  ? { uri: `${safeWine.imageUri}?t=${Date.now()}` }
-                  : require('../assets/images/default-wine.png')
-              }
-              style={styles.wineImage}
-              contentFit="cover"
-            />
-          </View>
+              <ExpoImage
+                source={
+                  safeWine.imageUri
+                    ? { uri: `${safeWine.imageUri}?t=${Date.now()}` }
+                    : require('../assets/images/default-wine.png')
+                }
+                style={styles.wineImage}
+                contentFit="cover"
+              />
+              {/* Bouton favori en haut à droite de l'image */}
+              <TouchableOpacity onPress={handleToggleFavorite} style={styles.likeButton}>
+                <Ionicons 
+                  name={safeWine.favorite ? 'heart' : 'heart-outline'} 
+                  size={20} 
+                  color={safeWine.favorite ? VeeniColors.wine.red : '#FFFFFF'} 
+                />
+              </TouchableOpacity>
+            </View>
 
           {/* Informations principales */}
           <View style={styles.mainInfo}>
@@ -1412,14 +1425,6 @@ export default function WineDetailsScreenV2({
                 autoCorrect={false}
                 autoCapitalize="words"
               />
-              {/* Bouton favori */}
-              <TouchableOpacity onPress={handleToggleFavorite} style={styles.favoriteButton}>
-                <Ionicons 
-                  name={safeWine.favorite ? 'heart' : 'heart-outline'} 
-                  size={24} 
-                  color={safeWine.favorite ? VeeniColors.wine.red : '#FFFFFF'} 
-                />
-              </TouchableOpacity>
             </View>
           </View>
 
@@ -2768,11 +2773,19 @@ const styles = StyleSheet.create({
   domainRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
   },
-  favoriteButton: {
-    padding: 8,
-    marginLeft: 12,
+  likeButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 16,
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
   },
   moreButton: {
     padding: 8,

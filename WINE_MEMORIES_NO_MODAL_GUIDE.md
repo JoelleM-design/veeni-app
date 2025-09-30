@@ -81,3 +81,4 @@ J'ai modifié la fiche souvenir pour **afficher tout directement dans la fiche**
 
 La fiche souvenir affiche maintenant **tout directement dans la fiche**, sans modales, exactement comme la fiche vin détaillée ! 🍷✨
 
+

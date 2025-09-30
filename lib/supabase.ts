@@ -1,6 +1,10 @@
 // Définition des constantes Supabase
-export const SUPABASE_URL = "https://yzdyepdejftgqpnwitcq.supabase.co";
-export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6ZHllcGRlamZ0Z3FwbndpdGNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAwODAwOTksImV4cCI6MjA2NTY1NjA5OX0.wGFjpAAoYtcLlk6o1_lgZb0EhX3NB9SoYQ_D1rOc2E0";
+export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "https://yzdyepdejftgqpnwitcq.supabase.co";
+export const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_ANON_KEY) {
+  throw new Error('EXPO_PUBLIC_SUPABASE_ANON_KEY manquante dans les variables d\'environnement');
+}
 
 import { createClient } from '@supabase/supabase-js';
 

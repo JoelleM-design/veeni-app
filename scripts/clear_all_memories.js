@@ -8,8 +8,13 @@
 const { createClient } = require('@supabase/supabase-js');
 
 // Configuration Supabase
-const SUPABASE_URL = "https://yzdyepdejftgqpnwitcq.supabase.co";
-const SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6ZHllcGRlamZ0Z3FwbndpdGNxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImiaWF0IjoxNzAwMDgwMDk5LCJleHAiOjIwNjU2NTYwOTl9.wGFjpAAoYtcLlk6o1_lgZb0EhX3NB9SoYQ_D1rOc2E0";
+const SUPABASE_URL = process.env.SUPABASE_URL || "https://yzdyepdejftgqpnwitcq.supabase.co";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('❌ SUPABASE_SERVICE_ROLE_KEY manquante dans les variables d\'environnement');
+  process.exit(1);
+}
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 

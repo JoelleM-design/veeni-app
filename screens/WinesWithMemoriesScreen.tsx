@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { WineCard } from '../components/WineCard';
+import WineDetailsModal from '../components/WineDetailsModal';
 import { useUser } from '../hooks/useUser';
 import { useWinesWithMemories } from '../hooks/useWinesWithMemories';
 import { WineWithMemory } from '../types/memory';
@@ -17,6 +18,10 @@ export default function WinesWithMemoriesScreen({ userId, viewerId }: WinesWithM
   const { user: currentUser } = useUser();
   const { winesWithMemories, loading, error } = useWinesWithMemories(userId, viewerId);
   const [filter, setFilter] = useState<'all' | 'created' | 'mentioned'>('all');
+  
+  // État pour la modale de fiche de vin
+  const [wineModalVisible, setWineModalVisible] = useState(false);
+  const [selectedWine, setSelectedWine] = useState<WineWithMemory | null>(null);
 
   // Déterminer si l'utilisateur peut modifier (propre profil)
   const canModify = currentUser?.id === userId;
@@ -35,40 +40,22 @@ export default function WinesWithMemoriesScreen({ userId, viewerId }: WinesWithM
   });
 
   const handleWinePress = (wineWithMemory: WineWithMemory) => {
-    const { wine, memory } = wineWithMemory;
-    
-    // Déterminer qui est le propriétaire du vin et qui regarde
-    const wineOwnerId = memory.user_id; // Le créateur du souvenir est le propriétaire du vin
-    const isViewingOwnWines = viewerId === wineOwnerId;
-    
-    console.log('🍷 Navigation vers fiche vin:', {
-      wineId: wine.id,
-      wineName: wine.name,
+    console.log('🍷 Ouverture modale fiche vin:', {
+      wineId: wineWithMemory.wine.id,
+      wineName: wineWithMemory.wine.name,
       userId, // ID de la personne dont on regarde les souvenirs
       viewerId, // ID de la personne qui regarde
-      wineOwnerId, // ID du propriétaire du vin
-      isViewingOwnWines,
-      memoryId: memory.id
+      memoryId: wineWithMemory.memory.id
     });
     
-    try {
-      // Navigation vers la fiche de vin avec l'onglet souvenir actif
-      router.push({
-        pathname: '/wine/[id]',
-        params: {
-          id: wine.id,
-          tab: 'memories',
-          // Si on regarde les vins d'un ami, passer en mode lecture seule avec l'ID du propriétaire du vin
-          ...(viewerId && !isViewingOwnWines && { 
-            readOnly: 'true', 
-            friendId: wineOwnerId 
-          })
-        }
-      });
-      console.log('✅ Navigation lancée');
-    } catch (error) {
-      console.error('❌ Erreur navigation:', error);
-    }
+    // Ouvrir la modale avec le vin sélectionné
+    setSelectedWine(wineWithMemory);
+    setWineModalVisible(true);
+  };
+
+  const handleCloseWineModal = () => {
+    setWineModalVisible(false);
+    setSelectedWine(null);
   };
 
   const renderWineCard = ({ item }: { item: WineWithMemory }) => {
@@ -86,27 +73,6 @@ export default function WinesWithMemoriesScreen({ userId, viewerId }: WinesWithM
           memoryCount={1} // Chaque vin a exactement 1 souvenir ici
         />
         
-        {/* Indicateur de type de souvenir */}
-        <View style={styles.memoryTypeIndicator}>
-          {isCreator && (
-            <View style={[styles.typeBadge, styles.createdBadge]}>
-              <Ionicons name="create" size={12} color="#FFFFFF" />
-              <Text style={styles.badgeText}>Créé</Text>
-            </View>
-          )}
-          {isMentioned && !isCreator && (
-            <View style={[styles.typeBadge, styles.mentionedBadge]}>
-              <Ionicons name="person" size={12} color="#FFFFFF" />
-              <Text style={styles.badgeText}>Mentionné</Text>
-            </View>
-          )}
-          {isCreator && isMentioned && (
-            <View style={[styles.typeBadge, styles.bothBadge]}>
-              <Ionicons name="people" size={12} color="#FFFFFF" />
-              <Text style={styles.badgeText}>Créé + Mentionné</Text>
-            </View>
-          )}
-        </View>
       </TouchableOpacity>
     );
   };
@@ -174,6 +140,20 @@ export default function WinesWithMemoriesScreen({ userId, viewerId }: WinesWithM
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
       />
+
+      {/* Modale pour la fiche de vin détaillée */}
+      {selectedWine && (
+        <WineDetailsModal
+          visible={wineModalVisible}
+          onClose={handleCloseWineModal}
+          wineId={selectedWine.wine.id}
+          viewerUserId={viewerId}
+          contextOwnerUserId={selectedWine.memory.user_id}
+          context={viewerId && viewerId !== selectedWine.memory.user_id ? 'friend' : 'user'}
+          wineData={undefined}
+          returnToOcr={undefined}
+        />
+      )}
     </View>
   );
 }
@@ -225,7 +205,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#333',
   },
   filterButtonActive: {
-    backgroundColor: '#F6A07A',
+    backgroundColor: '#555',
   },
   filterButtonText: {
     color: '#999',
@@ -233,7 +213,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   filterButtonTextActive: {
-    color: '#FFF',
+    color: '#ccc',
   },
   listContainer: {
     padding: 16,
@@ -241,23 +221,6 @@ const styles = StyleSheet.create({
   wineCardContainer: {
     marginBottom: 16,
     position: 'relative',
-  },
-  memoryTypeIndicator: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    zIndex: 1,
-  },
-  typeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  createdBadge: {
-    backgroundColor: '#4CAF50',
   },
   mentionedBadge: {
     backgroundColor: '#2196F3',

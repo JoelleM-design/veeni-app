@@ -1,7 +1,9 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useProfileStats } from '../hooks/useProfileStats';
 import { useUser } from '../hooks/useUser';
+import WinesWithMemoriesModal from './WinesWithMemoriesModal';
 
 interface ProfileStatsBarProps {
   style?: any; // No longer takes stats as prop
@@ -14,6 +16,9 @@ export default function ProfileStatsBar({ style, userId, viewerId }: ProfileStat
   const { user } = useUser();
   const targetUserId = userId || user?.id || null;
   const { stats: profileStats } = useProfileStats(targetUserId, viewerId);
+  
+  // État pour la modale des souvenirs
+  const [memoriesModalVisible, setMemoriesModalVisible] = useState(false);
 
   return (
     <View style={[styles.container, style]}>
@@ -22,13 +27,7 @@ export default function ProfileStatsBar({ style, userId, viewerId }: ProfileStat
           style={styles.statCard}
           onPress={() => {
             if (targetUserId) {
-              router.push({
-                pathname: '/wines-with-memories',
-                params: {
-                  userId: targetUserId,
-                  viewerId: viewerId || user?.id
-                }
-              });
+              setMemoriesModalVisible(true);
             }
           }}
         >
@@ -48,6 +47,16 @@ export default function ProfileStatsBar({ style, userId, viewerId }: ProfileStat
           <Text style={styles.statLabel}>Favoris</Text>
         </View>
       </View>
+
+      {/* Modale pour la liste des souvenirs */}
+      {targetUserId && (
+        <WinesWithMemoriesModal
+          visible={memoriesModalVisible}
+          onClose={() => setMemoriesModalVisible(false)}
+          userId={targetUserId}
+          viewerId={viewerId || user?.id}
+        />
+      )}
     </View>
   );
 }

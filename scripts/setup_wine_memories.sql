@@ -135,3 +135,4 @@ CREATE POLICY "Users can delete their own wine memory images" ON storage.objects
         auth.uid()::text = (storage.foldername(name))[1]
     );
 
+

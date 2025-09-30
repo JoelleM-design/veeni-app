@@ -80,3 +80,4 @@ La fiche souvenir est maintenant **plus épurée** sans header, avec plus d'espa
 - ✅ Liste des souvenirs
 - ✅ Navigation via les onglets
 
+

@@ -231,3 +231,4 @@ Si vous rencontrez des problèmes :
 
 **Note** : Cette implémentation respecte toutes vos contraintes et ne casse aucune fonctionnalité existante. [[memory:255004]]
 
+

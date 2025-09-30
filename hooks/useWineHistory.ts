@@ -287,7 +287,7 @@ export function useWineHistory(userId?: string | null) {
       };
 
   // Ajouter une dégustation
-  const addTasting = async (wineId: string, note?: string) => {
+  const addTasting = async (wineId: string, rating?: number) => {
     if (!targetUserId || !effectiveCaveId) return;
     
     try {
@@ -308,16 +308,19 @@ export function useWineHistory(userId?: string | null) {
 
       if (wineError) throw wineError;
 
+      // Pas besoin de vérifier le stock ici, on décrémente simplement
+
       const newAmount = wineData.amount - 1;
 
-      // Créer un événement stock_change dans l'historique (avec la note de dégustation)
+      // Créer un événement stock_change dans l'historique (avec la note étoilée)
       const stockChangeData: any = {
         wine_id: wineId,
         event_type: 'stock_change',
         event_date: new Date().toISOString(),
         previous_amount: wineData.amount,
         new_amount: newAmount,
-        notes: note || null
+        rating: typeof rating === 'number' ? rating : null,
+        notes: null,
       };
 
       // Utiliser le bon champ selon le mode

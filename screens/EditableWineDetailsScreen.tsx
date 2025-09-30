@@ -790,34 +790,29 @@ export default function EditableWineDetailsScreen({
   };
 
   // Fonction pour confirmer la dégustation
-  const handleConfirmTasting = async (rating: number, notes?: string) => {
+  const handleConfirmTasting = async (rating: number) => {
     if (!selectedWineForTasting) return;
 
     try {
       console.log('🔄 handleConfirmTasting: Vin sélectionné:', selectedWineForTasting);
       
-      // Utiliser addTasting pour créer l'entrée dans wine_history avec la note
-      const result = await addTasting(selectedWineForTasting.id, notes);
+      // Pas de vérification de stock côté client, addTasting gère tout
+      
+      // addTasting gère la mise à jour du stock et la création de l'entrée historique
+      const result = await addTasting(selectedWineForTasting.id, rating);
       
       if (result && result.success) {
-        // Supprimer une bouteille après la dégustation
-        const currentStock = selectedWineForTasting.stock || selectedWineForTasting.amount || 0;
-        console.log('🔄 handleConfirmTasting: Stock actuel:', currentStock, 'Nouveau stock:', currentStock - 1);
-        
-        if (currentStock > 0) {
-          await updateWine(selectedWineForTasting.id, { stock: currentStock - 1 });
-          console.log('✅ handleConfirmTasting: Stock mis à jour');
-        }
-        
-        // Fermer la modale et rafraîchir les données
-        setTastingModalVisible(false);
-        setSelectedWineForTasting(null);
-        await fetchWines();
-        await fetchTastedWines();
-        await fetchHistory();
+        console.log('✅ handleConfirmTasting: Dégustation enregistrée');
       } else {
-        Alert.alert('Erreur', 'Impossible d\'enregistrer la dégustation');
+        console.error('❌ handleConfirmTasting: Erreur lors de l\'enregistrement de la dégustation');
       }
+      
+      // Fermer la modale et rafraîchir les données
+      setTastingModalVisible(false);
+      setSelectedWineForTasting(null);
+      await fetchWines();
+      await fetchTastedWines();
+      await fetchHistory();
     } catch (error) {
       console.error('Erreur lors de la dégustation:', error);
       Alert.alert('Erreur', 'Une erreur est survenue lors de la dégustation');

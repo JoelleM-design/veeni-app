@@ -72,3 +72,4 @@ L'écran des souvenirs est maintenant accessible via l'onglet "Souvenirs" dans l
 
 La fonctionnalité "Souvenirs" est maintenant **100% conforme** à vos spécifications et reprend exactement le style et l'UX de la fiche vin détaillée !
 
+

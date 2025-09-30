@@ -41,3 +41,4 @@ J'ai implémenté la sauvegarde automatique et supprimé le bouton "Sauvegarder"
 - ✅ **Feedback visuel** : L'utilisateur sait que ses données sont sauvegardées
 - ✅ **Interface épurée** : Moins de boutons, plus d'espace pour le contenu
 
+

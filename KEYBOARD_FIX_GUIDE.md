@@ -90,3 +90,4 @@ Le crash était effectivement causé par un problème de gestion du clavier ! Vo
 
 Testez maintenant la saisie de données ! Le clavier devrait fonctionner parfaitement. 🍷✨
 
+

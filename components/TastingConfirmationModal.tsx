@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
     KeyboardAvoidingView,
@@ -6,7 +7,6 @@ import {
     ScrollView,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
@@ -15,7 +15,7 @@ interface TastingConfirmationModalProps {
   visible: boolean;
   wineName: string;
   onCancel: () => void;
-  onConfirm: (note?: string) => void;
+  onConfirm: (rating: number) => void;
 }
 
 export default function TastingConfirmationModal({
@@ -24,15 +24,17 @@ export default function TastingConfirmationModal({
   onCancel,
   onConfirm
 }: TastingConfirmationModalProps) {
-  const [note, setNote] = useState('');
+  const [rating, setRating] = useState(0);
 
   const handleConfirm = () => {
-    onConfirm(note.trim() || undefined);
-    setNote(''); // Reset note for next use
+    if (rating > 0) {
+      onConfirm(rating);
+      setRating(0);
+    }
   };
 
   const handleCancel = () => {
-    setNote(''); // Reset note
+    setRating(0);
     onCancel();
   };
 
@@ -54,31 +56,42 @@ export default function TastingConfirmationModal({
           >
             <View style={styles.modal}>
               <View style={styles.header}>
-                <Text style={styles.title}>Avez-vous dégusté ce vin ?</Text>
+                <Text style={styles.title}>As-tu aimé le vin ?</Text>
               </View>
-              
+
               <Text style={styles.wineName}>{wineName}</Text>
-              
-              <View style={styles.noteContainer}>
-                <TextInput
-                  style={styles.noteInput}
-                  placeholder="Vos impressions sur ce vin..."
-                  placeholderTextColor="#666666"
-                  value={note}
-                  onChangeText={setNote}
-                  multiline
-                  numberOfLines={3}
-                  maxLength={500}
-                  textAlignVertical="top"
-                />
+
+              <View style={styles.ratingSection}>
+                <View style={styles.starsContainer}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity
+                      key={star}
+                      style={styles.starButton}
+                      onPress={() => setRating(star)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Noter ${star} étoile${star > 1 ? 's' : ''}`}
+                    >
+                      <Ionicons
+                        name={star <= rating ? 'star' : 'star-outline'}
+                        size={28}
+                        color={star <= rating ? '#FFFFFF' : '#666666'}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={styles.ratingText}>{rating > 0 ? `${rating}/5` : ' '}</Text>
               </View>
-              
+
               <View style={styles.buttons}>
                 <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
                   <Text style={styles.cancelButtonText} numberOfLines={1}>Annuler</Text>
                 </TouchableOpacity>
-                
-                <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
+
+                <TouchableOpacity
+                  style={[styles.confirmButton, rating === 0 && styles.confirmButtonDisabled]}
+                  onPress={handleConfirm}
+                  disabled={rating === 0}
+                >
                   <Text style={styles.confirmButtonText} numberOfLines={1}>Confirmer</Text>
                 </TouchableOpacity>
               </View>
@@ -136,28 +149,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     alignSelf: 'center',
   },
-  noteContainer: {
-    marginBottom: 24,
-    marginRight: -24,
-    paddingRight: 24,
+  ratingSection: {
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  noteLabel: {
-    fontSize: 14,
-    color: '#CCCCCC',
+  starsContainer: {
+    flexDirection: 'row',
+    gap: 12,
     marginBottom: 8,
   },
-  noteInput: {
-    backgroundColor: '#2a2a2a',
-    borderRadius: 8,
-    color: '#FFFFFF',
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: '#444444',
-    minHeight: 80,
-    textAlignVertical: 'top',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    width: '100%',
+  starButton: {
+    padding: 4,
+  },
+  ratingText: {
+    fontSize: 12,
+    color: '#AAAAAA',
   },
   buttons: {
     flexDirection: 'row',
@@ -193,6 +199,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 56,
+  },
+  confirmButtonDisabled: {
+    backgroundColor: '#CCCCCC',
   },
   confirmButtonText: {
     color: '#000000',

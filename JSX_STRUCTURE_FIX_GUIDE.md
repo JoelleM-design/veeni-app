@@ -65,3 +65,4 @@ ERROR  SyntaxError: /Users/joellemartin/veeni-app/screens/WineMemoriesScreenV2.t
 
 L'app ne devrait plus crasher avec cette erreur JSX ! 🍷✨
 
+
