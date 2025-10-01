@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
@@ -214,6 +213,7 @@ export default function AddScreen() {
     }
 
     try {
+      const ImagePicker = await import('expo-image-picker');
       // Demander les permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
@@ -253,6 +253,7 @@ export default function AddScreen() {
 
   const openImagePicker = async (maxImages: number) => {
     try {
+      const ImagePicker = await import('expo-image-picker');
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,

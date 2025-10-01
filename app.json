@@ -10,9 +10,8 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.veeni.app",
-      "buildNumber": "35",
+      "buildNumber": "39",
       "supportsTablet": true,
-      "jsEngine": "jsc",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Cette application nécessite l'accès à votre bibliothèque de photos pour vous permettre de changer votre photo de profil.",
         "NSCameraUsageDescription": "Cette application nécessite l'accès à votre caméra pour scanner les étiquettes de vin et ajouter des vins à votre cave.",
@@ -68,15 +67,12 @@
       ],
       "expo-font"
     ],
-    "experiments": {
-      "typedRoutes": true
-    },
     "extra": {
       "router": {},
       "eas": {
         "projectId": "00154f31-ab8f-46b0-9bf6-30dcf0cbc966"
       }
     },
-    "newArchEnabled": false
+    "newArchEnabled": true
   }
 }
