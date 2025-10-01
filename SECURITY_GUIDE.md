@@ -94,3 +94,5 @@ git log --all --full-history -- "*.env" "*.key" "*.p8"
 
 **⚠️ IMPORTANT :** Ce guide doit être suivi pour tous les futurs développements. Les clés secrètes ne doivent JAMAIS être commitées dans le code source.
 
+
+

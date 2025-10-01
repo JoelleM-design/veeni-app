@@ -54,3 +54,5 @@ echo "3. Informez votre équipe du changement d'historique"
 echo ""
 echo "⚠️  IMPORTANT: Tous les développeurs devront refaire un clone du repo"
 
+
+

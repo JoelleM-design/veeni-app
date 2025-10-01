@@ -72,18 +72,19 @@ export default function RootLayout() {
           setIsLoading(false);
         }
       } catch (e) {
-        console.error('RootLayout: Erreur lors de getSession', e);
+        const err = e as Error;
+        console.error('RootLayout: Erreur lors de getSession', err);
         clearTimeout(timeout);
         
         if (isMounted) {
           // Retry automatique pour les erreurs réseau
-          if (e.message?.includes('Network') && retryCount < 2) {
+          if ((err as any).message?.includes('Network') && retryCount < 2) {
             console.log(`RootLayout: Retry ${retryCount + 1}/2 dans 2 secondes...`);
             setTimeout(() => attemptSessionRecovery(retryCount + 1), 2000);
             return;
           }
           
-          setError(`Erreur de connexion à Supabase: ${e.message}`);
+          setError(`Erreur de connexion à Supabase: ${err.message}`);
           setIsLoading(false);
         }
       }

@@ -42,3 +42,5 @@ J'ai implémenté la sauvegarde automatique et supprimé le bouton "Sauvegarder"
 - ✅ **Interface épurée** : Moins de boutons, plus d'espace pour le contenu
 
 
+
+

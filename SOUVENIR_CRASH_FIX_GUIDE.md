@@ -83,3 +83,5 @@ LOG  💾 Sauvegarde automatique: {"text": "T'es", ...}
 Testez maintenant la fiche souvenir ! Elle ne devrait plus crasher. 🍷✨
 
 
+
+

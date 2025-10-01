@@ -10,11 +10,13 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.veeni.app",
-      "buildNumber": "20",
+      "buildNumber": "34",
       "supportsTablet": true,
+      "jsEngine": "jsc",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Cette application nécessite l'accès à votre bibliothèque de photos pour vous permettre de changer votre photo de profil.",
         "NSCameraUsageDescription": "Cette application nécessite l'accès à votre caméra pour scanner les étiquettes de vin et ajouter des vins à votre cave.",
+        "NSPhotoLibraryAddUsageDescription": "Veeni ajoute des images de vin à votre galerie si vous le souhaitez.",
         "ITSAppUsesNonExemptEncryption": false,
         "NSContactsUsageDescription": "Cette application peut utiliser vos contacts uniquement pour vous permettre de partager des fiches de vin avec vos amis."
       }
@@ -28,8 +30,13 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "package": "com.veeni.app"
     },
     "web": {
       "bundler": "metro",
@@ -59,7 +66,7 @@
           "cameraPermission": "Cette application nécessite l'accès à votre caméra pour scanner les étiquettes de vin et ajouter des vins à votre cave."
         }
       ],
-      "expo-font",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
@@ -69,6 +76,7 @@
       "eas": {
         "projectId": "00154f31-ab8f-46b0-9bf6-30dcf0cbc966"
       }
-    }
+    },
+    "newArchEnabled": false
   }
 }

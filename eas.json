@@ -21,7 +21,11 @@
       "ios": {
         "resourceClass": "m-medium",
         "simulator": false,
-        "image": "latest"
+        "image": "latest",
+        "buildConfiguration": "Release",
+        "env": {
+          "EXPO_NO_HERMES": "1"
+        }
       }
     }
   },

@@ -38,3 +38,5 @@ L'application devrait maintenant fonctionner sans erreurs PGRST200 dans les logs
 4. **Interface utilisateur** : Sans erreurs de rendu
 
 
+
+
