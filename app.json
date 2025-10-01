@@ -10,7 +10,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.veeni.app",
-      "buildNumber": "34",
+      "buildNumber": "35",
       "supportsTablet": true,
       "jsEngine": "jsc",
       "infoPlist": {
