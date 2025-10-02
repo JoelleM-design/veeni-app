@@ -46,7 +46,7 @@ export default function WineDetailsTabs({
               styles.tabText,
               activeTab === 'memories' && styles.activeTabText
             ]}>
-              Souvenir
+              {memoriesCount > 0 ? `Souvenir (${memoriesCount})` : 'Souvenir'}
             </Text>
           </TouchableOpacity>
         )}
@@ -82,7 +82,7 @@ export default function WineDetailsTabs({
           styles.tabText,
           activeTab === 'memories' && styles.activeTabText
         ]}>
-          Souvenir
+          {memoriesCount > 0 ? `Souvenir (${memoriesCount})` : 'Souvenir'}
         </Text>
       </TouchableOpacity>
     </View>

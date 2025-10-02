@@ -367,6 +367,7 @@ export default function WineDetailsScreenV2({
   const [tastingModalVisible, setTastingModalVisible] = useState(false);
   const [selectedWineForTasting, setSelectedWineForTasting] = useState<any>(null);
   const [description, setDescription] = useState('');
+  const [personalComment, setPersonalComment] = useState('');
   const [socialData, setSocialData] = useState<SocialData>({
     alsoInCave: [],
     alsoInWishlist: [],
@@ -1620,75 +1621,75 @@ export default function WineDetailsScreenV2({
           {!isVisitedReadOnly && (
             <View style={styles.tastingSection}>
               <Text style={styles.sectionTitle}>Profil de dégustation</Text>
-            <View style={styles.tastingCriteria}>
-              <Text style={styles.criteriaLabel}>Puissance</Text>
-              <View style={styles.criteriaStars}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <TouchableOpacity
-                    key={star}
-                    onPress={() => handleSetTastingCriteria('power', star)}
-                  >
-                    <Ionicons
-                      name={star <= tastingProfile.power ? 'star' : 'star-outline'}
-                      size={24}
-                      color={star <= tastingProfile.power ? '#FFD700' : '#CCC'}
-                    />
-                  </TouchableOpacity>
-                ))}
+              <View style={styles.tastingCriteria}>
+                <Text style={styles.criteriaLabel}>Puissance</Text>
+                <View style={styles.criteriaStars}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity
+                      key={star}
+                      onPress={() => handleSetTastingCriteria('power', star)}
+                    >
+                      <Ionicons
+                        name={star <= tastingProfile.power ? 'star' : 'star-outline'}
+                        size={24}
+                        color={star <= tastingProfile.power ? '#FFD700' : '#CCC'}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.tastingCriteria}>
+                <Text style={styles.criteriaLabel}>Tanin</Text>
+                <View style={styles.criteriaStars}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity
+                      key={star}
+                      onPress={() => handleSetTastingCriteria('tannin', star)}
+                    >
+                      <Ionicons
+                        name={star <= tastingProfile.tannin ? 'star' : 'star-outline'}
+                        size={24}
+                        color={star <= tastingProfile.tannin ? '#FFD700' : '#CCC'}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.tastingCriteria}>
+                <Text style={styles.criteriaLabel}>Acidité</Text>
+                <View style={styles.criteriaStars}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity
+                      key={star}
+                      onPress={() => handleSetTastingCriteria('acidity', star)}
+                    >
+                      <Ionicons
+                        name={star <= tastingProfile.acidity ? 'star' : 'star-outline'}
+                        size={24}
+                        color={star <= tastingProfile.acidity ? '#FFD700' : '#CCC'}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <View style={[styles.tastingCriteria, styles.tastingCriteriaLast]}>
+                <Text style={styles.criteriaLabel}>Sucré</Text>
+                <View style={styles.criteriaStars}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity
+                      key={star}
+                      onPress={() => handleSetTastingCriteria('sweetness', star)}
+                    >
+                      <Ionicons
+                        name={star <= tastingProfile.sweetness ? 'star' : 'star-outline'}
+                        size={24}
+                        color={star <= tastingProfile.sweetness ? '#FFD700' : '#CCC'}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             </View>
-            <View style={styles.tastingCriteria}>
-              <Text style={styles.criteriaLabel}>Tanin</Text>
-              <View style={styles.criteriaStars}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <TouchableOpacity
-                    key={star}
-                    onPress={() => handleSetTastingCriteria('tannin', star)}
-                  >
-                    <Ionicons
-                      name={star <= tastingProfile.tannin ? 'star' : 'star-outline'}
-                      size={24}
-                      color={star <= tastingProfile.tannin ? '#FFD700' : '#CCC'}
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-            <View style={styles.tastingCriteria}>
-              <Text style={styles.criteriaLabel}>Acidité</Text>
-              <View style={styles.criteriaStars}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <TouchableOpacity
-                    key={star}
-                    onPress={() => handleSetTastingCriteria('acidity', star)}
-                  >
-                    <Ionicons
-                      name={star <= tastingProfile.acidity ? 'star' : 'star-outline'}
-                      size={24}
-                      color={star <= tastingProfile.acidity ? '#FFD700' : '#CCC'}
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-            <View style={[styles.tastingCriteria, styles.tastingCriteriaLast]}>
-              <Text style={styles.criteriaLabel}>Sucré</Text>
-              <View style={styles.criteriaStars}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <TouchableOpacity
-                    key={star}
-                    onPress={() => handleSetTastingCriteria('sweetness', star)}
-                  >
-                    <Ionicons
-                      name={star <= tastingProfile.sweetness ? 'star' : 'star-outline'}
-                      size={24}
-                      color={star <= tastingProfile.sweetness ? '#FFD700' : '#CCC'}
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </View>
           )}
 
           {/* Descriptif */}
@@ -1707,35 +1708,34 @@ export default function WineDetailsScreenV2({
             />
           </View>
 
-          {/* Mon avis */}
-          {!isVisitedReadOnly && (
-            <View style={styles.commentSection}>
-              <Text style={styles.sectionTitle}>Mon avis</Text>
-              
-              {/* Notes existantes */}
-              {allTastingNotes.map((noteItem, index) => (
-                <NoteItem key={noteItem.id} noteItem={noteItem} />
-              ))}
+          {/* Mon avis - simplifié */}
+          <View style={styles.commentSection}>
+            <Text style={styles.sectionTitle}>Mon avis</Text>
+            <TextInput
+              style={styles.textArea}
+              value={personalComment}
+              onChangeText={setPersonalComment}
+              placeholder="Ajoutez votre avis..."
+              placeholderTextColor="#999"
+              multiline
+              numberOfLines={4}
+              onBlur={async () => {
+                if (isOcrWine) {
+                  setEditedWine((prev: any) => ({ ...(prev || {}), personalComment }));
+                } else {
+                  setLocalWineUpdates(prev => ({ ...prev, personalComment }));
+                  await updateWine(wineId, { personalComment });
+                }
+              }}
+              editable={!isVisitedReadOnly}
+            />
+          </View>
 
-              {/* Champ pour ajouter une nouvelle note */}
-              <TextInput
-                style={styles.addNoteInput}
-                value={newManualNote}
-                onChangeText={setNewManualNote}
-                onBlur={handleSaveManualNote}
-                placeholder="Ajoutez une note personnelle..."
-                placeholderTextColor="#999"
-                multiline
-                numberOfLines={2}
-              />
-            </View>
-          )}
+          {/* Section Social */}
+          {renderSocialSection()}
 
-            {/* Section Social */}
-            {renderSocialSection()}
-
-            {/* Historique */}
-            {renderHistorySection()}
+          {/* Historique */}
+          {renderHistorySection()}
           </ScrollView>
         </KeyboardAvoidingView>
       )}

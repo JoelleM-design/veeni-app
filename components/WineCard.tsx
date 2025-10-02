@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image as ExpoImage } from 'expo-image';
+import { Image as ExpoImage, Image as ExpoImg } from 'expo-image';
 import React from 'react';
 import {
     Dimensions,
@@ -9,6 +9,7 @@ import {
     View,
 } from 'react-native';
 import { VeeniColors } from '../constants/Colors';
+import { useWineMemory } from '../hooks/useWineMemory';
 
 const { width } = Dimensions.get('window');
 
@@ -94,6 +95,8 @@ export const WineCard: React.FC<WineCardProps> = ({
     sourceUser: wine.sourceUser,
     commonFriends: wine.commonFriends || [],
   };
+
+  const { hasMemory, memory } = useWineMemory(safeWine.id);
 
   const getWineTypeColor = (color: string) => {
     switch (color) {
@@ -258,6 +261,26 @@ export const WineCard: React.FC<WineCardProps> = ({
               </Text>
             )}
             
+          {/* Badge souvenir */}
+          {hasMemory && (
+            <View style={styles.memoryBadge}>
+              {memory?.tagged_friends && memory.tagged_friends.length > 0 ? (
+                <>
+                  {memory.tagged_friends[0]?.avatar ? (
+                    <ExpoImg source={{ uri: memory.tagged_friends[0].avatar }} style={styles.memoryAvatar} />
+                  ) : (
+                    <View style={styles.memoryAvatarPlaceholder}>
+                      <Text style={styles.memoryAvatarInitial}>{(memory.tagged_friends[0]?.first_name || '?').charAt(0).toUpperCase()}</Text>
+                    </View>
+                  )}
+                  <Text style={styles.memoryBadgeText}>Dégusté avec {memory.tagged_friends[0]?.first_name || 'un ami'}</Text>
+                </>
+              ) : (
+                <Text style={styles.memoryBadgeText}>📸 Souvenir</Text>
+              )}
+            </View>
+          )}
+
             {/* Information spécifique aux vins dégustés */}
             {safeWine.origin === 'tasted' && (
               <View style={styles.tastedInfo}>
@@ -609,6 +632,41 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginTop: 6,
     marginBottom: 6,
+  },
+  memoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#333',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  memoryBadgeText: {
+    color: '#FFF',
+    fontSize: 12,
+  },
+  memoryAvatar: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    marginRight: 6,
+  },
+  memoryAvatarPlaceholder: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    marginRight: 6,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  memoryAvatarInitial: {
+    color: '#000',
+    fontSize: 10,
+    fontWeight: '700',
   },
   ratingContainer: {
     flexDirection: 'row',
