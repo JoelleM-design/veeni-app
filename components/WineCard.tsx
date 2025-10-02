@@ -197,6 +197,37 @@ export const WineCard: React.FC<WineCardProps> = ({
                 />
               </TouchableOpacity>
             )}
+            {/* Emplacement boutons stock alignés avec avatars (taille 40) */}
+            {/* Rien à changer ici visuellement, mais on harmonise la taille dans styles.stockButton si besoin futur */}
+            {/* Avatars souvenirs en overlay sur la photo */}
+            {hasMemory && (
+              <>
+                {memory?.tagged_friends && memory.tagged_friends.length > 0 ? (
+                  <View style={styles.memoryOverlayRow}>
+                    {memory.tagged_friends.slice(0, 3).map((f, idx) => (
+                      <View key={f.id || idx} style={styles.memoryOverlayAvatarWrap}>
+                        {f?.avatar ? (
+                          <ExpoImg source={{ uri: f.avatar }} style={styles.memoryOverlayAvatar} />
+                        ) : (
+                          <View style={[styles.memoryOverlayAvatar, styles.memoryOverlayAvatarPlaceholder]}>
+                            <Text style={styles.memoryOverlayAvatarInitial}>{(f?.first_name || '?').charAt(0).toUpperCase()}</Text>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                    {memory.tagged_friends.length > 3 && (
+                      <View style={[styles.memoryOverlayAvatarWrap, styles.memoryMore]}>
+                        <Text style={styles.memoryOverlayMoreText}>+{memory.tagged_friends.length - 3}</Text>
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <View style={styles.memoryOverlayCount}>
+                    <Text style={styles.memoryOverlayCountText}>({count}) souvenir{(count || 0) > 1 ? 's' : ''}</Text>
+                  </View>
+                )}
+              </>
+            )}
             
           </View>
         </View>
@@ -260,36 +291,7 @@ export const WineCard: React.FC<WineCardProps> = ({
                 {safeWine.priceRange}
               </Text>
             )}
-            
-          {/* Indicateur souvenir SUR LA PHOTO: avatars en bas overlay; sinon (n) souvenir */}
-          {hasMemory && (
-            <>
-              {memory?.tagged_friends && memory.tagged_friends.length > 0 ? (
-                <View style={styles.memoryOverlayRow}>
-                  {memory.tagged_friends.slice(0, 3).map((f, idx) => (
-                    <View key={f.id || idx} style={styles.memoryOverlayAvatarWrap}>
-                      {f?.avatar ? (
-                        <ExpoImg source={{ uri: f.avatar }} style={styles.memoryOverlayAvatar} />
-                      ) : (
-                        <View style={[styles.memoryOverlayAvatar, styles.memoryOverlayAvatarPlaceholder]}>
-                          <Text style={styles.memoryOverlayAvatarInitial}>{(f?.first_name || '?').charAt(0).toUpperCase()}</Text>
-                        </View>
-                      )}
-                    </View>
-                  ))}
-                  {memory.tagged_friends.length > 3 && (
-                    <View style={[styles.memoryOverlayAvatarWrap, styles.memoryMore]}>
-                      <Text style={styles.memoryOverlayMoreText}>+{memory.tagged_friends.length - 3}</Text>
-                    </View>
-                  )}
-                </View>
-              ) : (
-                <View style={styles.memoryOverlayCount}>
-                  <Text style={styles.memoryOverlayCountText}>({count}) souvenir{(count || 0) > 1 ? 's' : ''}</Text>
-                </View>
-              )}
-            </>
-          )}
+
 
             {/* Information spécifique aux vins dégustés */}
             {safeWine.origin === 'tasted' && (
@@ -547,7 +549,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'stretch',
     width: '100%',
-    height: 300, // Même hauteur que l'image
     backgroundColor: '#2A2A2A',
     borderRadius: 16,
     overflow: 'hidden',
@@ -559,8 +560,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   imageCol: {
-    width: 200, // Largeur fixe comme la fiche détaillée
-    height: 300, // Hauteur fixe comme la fiche détaillée
+    width: 200,
+    alignSelf: 'stretch',
     backgroundColor: '#222',
     borderTopLeftRadius: 16,
     borderBottomLeftRadius: 16,
@@ -581,6 +582,9 @@ const styles = StyleSheet.create({
     height: '100%',
     borderTopLeftRadius: 16,
     borderBottomLeftRadius: 16,
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
   likeButton: {
     position: 'absolute',
@@ -601,18 +605,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
     zIndex: 2,
   },
   memoryOverlayAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     overflow: 'hidden',
   },
   memoryOverlayAvatarWrap: {
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 18,
-    padding: 2,
+    padding: 0,
   },
   memoryOverlayAvatarPlaceholder: {
     justifyContent: 'center',
