@@ -197,26 +197,22 @@ export const WineCard: React.FC<WineCardProps> = ({
                 />
               </TouchableOpacity>
             )}
-            {/* Emplacement boutons stock alignés avec avatars (taille 40) */}
-            {/* Rien à changer ici visuellement, mais on harmonise la taille dans styles.stockButton si besoin futur */}
             {/* Avatars souvenirs en overlay sur la photo */}
             {hasMemory && (
               <>
                 {memory?.tagged_friends && memory.tagged_friends.length > 0 ? (
                   <View style={styles.memoryOverlayRow}>
                     {memory.tagged_friends.slice(0, 3).map((f, idx) => (
-                      <View key={f.id || idx} style={styles.memoryOverlayAvatarWrap}>
-                        {f?.avatar ? (
-                          <ExpoImg source={{ uri: f.avatar }} style={styles.memoryOverlayAvatar} />
-                        ) : (
-                          <View style={[styles.memoryOverlayAvatar, styles.memoryOverlayAvatarPlaceholder]}>
-                            <Text style={styles.memoryOverlayAvatarInitial}>{(f?.first_name || '?').charAt(0).toUpperCase()}</Text>
-                          </View>
-                        )}
-                      </View>
+                      f?.avatar ? (
+                        <ExpoImg key={f.id || idx} source={{ uri: f.avatar }} style={styles.memoryOverlayAvatar} />
+                      ) : (
+                        <View key={f.id || idx} style={[styles.memoryOverlayAvatar, styles.memoryOverlayAvatarPlaceholder]}>
+                          <Text style={styles.memoryOverlayAvatarInitial}>{(f?.first_name || '?').charAt(0).toUpperCase()}</Text>
+                        </View>
+                      )
                     ))}
                     {memory.tagged_friends.length > 3 && (
-                      <View style={[styles.memoryOverlayAvatarWrap, styles.memoryMore]}>
+                      <View style={styles.memoryMore}>
                         <Text style={styles.memoryOverlayMoreText}>+{memory.tagged_friends.length - 3}</Text>
                       </View>
                     )}
@@ -549,6 +545,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'stretch',
     width: '100%',
+    height: 300, // Même hauteur que l'image
     backgroundColor: '#2A2A2A',
     borderRadius: 16,
     overflow: 'hidden',
@@ -560,8 +557,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   imageCol: {
-    width: 200,
-    alignSelf: 'stretch',
+    width: 200, // Largeur fixe comme la fiche détaillée
+    height: 300, // Hauteur fixe comme la fiche détaillée
     backgroundColor: '#222',
     borderTopLeftRadius: 16,
     borderBottomLeftRadius: 16,
@@ -601,24 +598,22 @@ const styles = StyleSheet.create({
   memoryOverlayRow: {
     position: 'absolute',
     bottom: 8,
-    left: 8,
+    left: '50%',
+    transform: [{ translateX: -60 }],
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 20,
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     zIndex: 2,
   },
   memoryOverlayAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     overflow: 'hidden',
-  },
-  memoryOverlayAvatarWrap: {
-    padding: 0,
   },
   memoryOverlayAvatarPlaceholder: {
     justifyContent: 'center',
@@ -858,9 +853,9 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   stockButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: '#393C40',
     justifyContent: 'center',
     alignItems: 'center',
