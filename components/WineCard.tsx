@@ -267,16 +267,18 @@ export const WineCard: React.FC<WineCardProps> = ({
               {memory?.tagged_friends && memory.tagged_friends.length > 0 ? (
                 <View style={styles.memoryOverlayRow}>
                   {memory.tagged_friends.slice(0, 3).map((f, idx) => (
-                    f?.avatar ? (
-                      <ExpoImg key={f.id || idx} source={{ uri: f.avatar }} style={styles.memoryOverlayAvatar} />
-                    ) : (
-                      <View key={f.id || idx} style={[styles.memoryOverlayAvatar, styles.memoryOverlayAvatarPlaceholder]}>
-                        <Text style={styles.memoryOverlayAvatarInitial}>{(f?.first_name || '?').charAt(0).toUpperCase()}</Text>
-                      </View>
-                    )
+                    <View key={f.id || idx} style={styles.memoryOverlayAvatarWrap}>
+                      {f?.avatar ? (
+                        <ExpoImg source={{ uri: f.avatar }} style={styles.memoryOverlayAvatar} />
+                      ) : (
+                        <View style={[styles.memoryOverlayAvatar, styles.memoryOverlayAvatarPlaceholder]}>
+                          <Text style={styles.memoryOverlayAvatarInitial}>{(f?.first_name || '?').charAt(0).toUpperCase()}</Text>
+                        </View>
+                      )}
+                    </View>
                   ))}
                   {memory.tagged_friends.length > 3 && (
-                    <View style={[styles.memoryOverlayAvatar, styles.memoryMore]}>
+                    <View style={[styles.memoryOverlayAvatarWrap, styles.memoryMore]}>
                       <Text style={styles.memoryOverlayMoreText}>+{memory.tagged_friends.length - 3}</Text>
                     </View>
                   )}
@@ -605,9 +607,12 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
+    overflow: 'hidden',
+  },
+  memoryOverlayAvatarWrap: {
     backgroundColor: 'rgba(0,0,0,0.5)',
-    borderWidth: 1,
-    borderColor: '#fff',
+    borderRadius: 18,
+    padding: 2,
   },
   memoryOverlayAvatarPlaceholder: {
     justifyContent: 'center',
