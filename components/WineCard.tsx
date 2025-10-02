@@ -96,7 +96,7 @@ export const WineCard: React.FC<WineCardProps> = ({
     commonFriends: wine.commonFriends || [],
   };
 
-  const { hasMemory, memory } = useWineMemory(safeWine.id);
+  const { hasMemory, memory, count } = useWineMemory(safeWine.id);
 
   const getWineTypeColor = (color: string) => {
     switch (color) {
@@ -261,24 +261,32 @@ export const WineCard: React.FC<WineCardProps> = ({
               </Text>
             )}
             
-          {/* Badge souvenir */}
+          {/* Indicateur souvenir SUR LA PHOTO: avatars en bas overlay; sinon (n) souvenir */}
           {hasMemory && (
-            <View style={styles.memoryBadge}>
+            <>
               {memory?.tagged_friends && memory.tagged_friends.length > 0 ? (
-                <>
-                  {memory.tagged_friends[0]?.avatar ? (
-                    <ExpoImg source={{ uri: memory.tagged_friends[0].avatar }} style={styles.memoryAvatar} />
-                  ) : (
-                    <View style={styles.memoryAvatarPlaceholder}>
-                      <Text style={styles.memoryAvatarInitial}>{(memory.tagged_friends[0]?.first_name || '?').charAt(0).toUpperCase()}</Text>
+                <View style={styles.memoryOverlayRow}>
+                  {memory.tagged_friends.slice(0, 3).map((f, idx) => (
+                    f?.avatar ? (
+                      <ExpoImg key={f.id || idx} source={{ uri: f.avatar }} style={styles.memoryOverlayAvatar} />
+                    ) : (
+                      <View key={f.id || idx} style={[styles.memoryOverlayAvatar, styles.memoryOverlayAvatarPlaceholder]}>
+                        <Text style={styles.memoryOverlayAvatarInitial}>{(f?.first_name || '?').charAt(0).toUpperCase()}</Text>
+                      </View>
+                    )
+                  ))}
+                  {memory.tagged_friends.length > 3 && (
+                    <View style={[styles.memoryOverlayAvatar, styles.memoryMore]}>
+                      <Text style={styles.memoryOverlayMoreText}>+{memory.tagged_friends.length - 3}</Text>
                     </View>
                   )}
-                  <Text style={styles.memoryBadgeText}>Dégusté avec {memory.tagged_friends[0]?.first_name || 'un ami'}</Text>
-                </>
+                </View>
               ) : (
-                <Text style={styles.memoryBadgeText}>📸 Souvenir</Text>
+                <View style={styles.memoryOverlayCount}>
+                  <Text style={styles.memoryOverlayCountText}>({count}) souvenir{(count || 0) > 1 ? 's' : ''}</Text>
+                </View>
               )}
-            </View>
+            </>
           )}
 
             {/* Information spécifique aux vins dégustés */}
@@ -584,6 +592,56 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 2,
   },
+  memoryOverlayRow: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    zIndex: 2,
+  },
+  memoryOverlayAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderWidth: 1,
+    borderColor: '#fff',
+  },
+  memoryOverlayAvatarPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  memoryOverlayAvatarInitial: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  memoryMore: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  memoryOverlayMoreText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  memoryOverlayCount: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 12,
+    zIndex: 2,
+  },
+  memoryOverlayCountText: {
+    color: '#fff',
+    fontSize: 12,
+  },
   vintageText: {
     color: '#FFFFFF',
     fontSize: 16,
@@ -633,18 +691,26 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 6,
   },
-  memoryBadge: {
+  memoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: '#333',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 12,
+    gap: 8,
     marginTop: 4,
     marginBottom: 6,
   },
-  memoryBadgeText: {
+  memoryPrefix: {
+    color: '#FFF',
+    fontSize: 12,
+  },
+  memoryTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#333',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  memoryTagText: {
     color: '#FFF',
     fontSize: 12,
   },
