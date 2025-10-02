@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
@@ -43,6 +45,7 @@ export default function AddScreen() {
   console.log('🎯 AddScreen chargé - Nouveau système OCR actif');
   
   const [photos, setPhotos] = useState<string[]>([]);
+  const [photoBase64Map, setPhotoBase64Map] = useState<Record<string, string>>({});
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -99,11 +102,19 @@ export default function AddScreen() {
         console.log(`📸 Traitement photo ${i + 1}/${photos.length}:`, photoUri);
         
         try {
-          // Lire le fichier et l'encoder en base64
-          console.log('📄 Encodage image en base64...');
-          const base64 = await FileSystem.readAsStringAsync(photoUri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
+          // Conversion FORCÉE en JPEG base64 pour éviter HEIC → Vision
+          let base64 = '';
+          try {
+            const result = await manipulateAsync(
+              photoUri,
+              [],
+              { compress: 0.9, format: SaveFormat.JPEG, base64: true }
+            );
+            base64 = result.base64 || '';
+          } catch (manipErr) {
+            console.warn('⚠️ manipulateAsync a échoué, fallback FileSystem:', manipErr);
+            base64 = await FileSystem.readAsStringAsync(photoUri, { encoding: 'base64' });
+          }
           console.log('✅ Image encodée, taille:', base64.length);
 
           // Appeler la fonction edge Supabase avec l'image base64
@@ -213,7 +224,6 @@ export default function AddScreen() {
     }
 
     try {
-      const ImagePicker = await import('expo-image-picker');
       // Demander les permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
@@ -253,16 +263,26 @@ export default function AddScreen() {
 
   const openImagePicker = async (maxImages: number) => {
     try {
-      const ImagePicker = await import('expo-image-picker');
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
         quality: 0.8,
+        base64: true,
         selectionLimit: maxImages,
       });
 
       if (!result.canceled && result.assets) {
         const newPhotos = result.assets.map(asset => asset.uri);
+        // Mettre à jour la map base64 pour les assets qui la fournissent
+        const newMapEntries: Record<string, string> = {};
+        for (const asset of result.assets) {
+          if (asset.base64) {
+            newMapEntries[asset.uri] = asset.base64;
+          }
+        }
+        if (Object.keys(newMapEntries).length > 0) {
+          setPhotoBase64Map(prev => ({ ...prev, ...newMapEntries }));
+        }
         setPhotos(prev => [...prev, ...newPhotos]);
         setError(null);
         console.log(`${newPhotos.length} photos ajoutées depuis la bibliothèque`);
@@ -274,7 +294,18 @@ export default function AddScreen() {
   };
 
   const removePhoto = (index: number) => {
-    setPhotos(prev => prev.filter((_, i) => i !== index));
+    setPhotos(prev => {
+      const uriToRemove = prev[index];
+      const next = prev.filter((_, i) => i !== index);
+      if (uriToRemove && photoBase64Map[uriToRemove]) {
+        setPhotoBase64Map(current => {
+          const copy = { ...current };
+          delete copy[uriToRemove];
+          return copy;
+        });
+      }
+      return next;
+    });
     setError(null); // Effacer les erreurs quand on modifie les photos
   };
 

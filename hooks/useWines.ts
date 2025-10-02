@@ -412,6 +412,7 @@ export function useWines() {
                 country: updates.country !== undefined ? updates.country : wine.country,
                 color: updates.color !== undefined ? updates.color : wine.color,
                 priceRange: updates.priceRange !== undefined ? updates.priceRange : wine.priceRange,
+                appellation: (updates as any).appellation !== undefined ? (updates as any).appellation as any : (wine as any).appellation,
                 grapes: updates.grapes !== undefined ? updates.grapes : wine.grapes,
                 updatedAt: new Date().toISOString(),
                 // Propager éventuellement le sourceUser si on déplace/ajoute depuis un ami
@@ -734,6 +735,10 @@ export function useWines() {
           region: wine.region,
           producer_id: producerId,
           country_id: countryId,
+          appellation: (() => {
+            const a = (wine as any).appellation as string | undefined;
+            return a && a.trim().length > 0 ? a.trim() : null;
+          })(),
           image_uri: await (async () => {
             console.log('🖼️ Upload image pour vin:', wineId, 'URI:', wine.imageUri);
             const result = await uploadWineImage(wineId, wine.imageUri || '');
@@ -954,6 +959,10 @@ export function useWines() {
             region: wine.region,
             producer_id: producerId,
             country_id: countryId,
+            appellation: (() => {
+              const a = (wine as any).appellation as string | undefined;
+              return a && a.trim().length > 0 ? a.trim() : null;
+            })(),
             image_uri: await uploadWineImage(wineId, wine.imageUri || ''),
             grapes: wine.grapes
           });

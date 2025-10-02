@@ -347,6 +347,12 @@ export default function WineDetailsScreenV2({
   const [showRegionPicker, setShowRegionPicker] = useState(false);
   const [showAppellationPicker, setShowAppellationPicker] = useState(false);
   const [showGrapesPicker, setShowGrapesPicker] = useState(false);
+  const [appellationText, setAppellationText] = useState('');
+  const [grapesText, setGrapesText] = useState('');
+  const [appellationItems, setAppellationItems] = useState<string[]>([]);
+  const [appellationInput, setAppellationInput] = useState('');
+  const [grapeItems, setGrapeItems] = useState<string[]>([]);
+  const [grapeInput, setGrapeInput] = useState('');
   const [rating, setRating] = useState(0);
   const [tastingProfile, setTastingProfile] = useState({
     power: 0,
@@ -587,17 +593,24 @@ export default function WineDetailsScreenV2({
 
   const openAppellationPicker = () => {
     // Autoriser l'ouverture même sans région. Charger si possible.
-    if (safeWine?.region) {
-      loadAppellationsByRegion(safeWine.region);
-    }
+    // Initialiser les items à partir de la valeur existante (séparée par virgules)
+    const current = (editingFields as any)?.appellation ?? (safeWine?.appellation || '');
+    const items = String(current)
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    setAppellationItems(items);
+    setAppellationInput('');
     setShowAppellationPicker(true);
   };
 
   const openGrapesPicker = () => {
     // Autoriser l'ouverture même sans appellation. Charger si possible.
-    if (safeWine?.appellation) {
-      loadGrapesByAppellation(safeWine.appellation);
-    }
+    const currentGrapes = Array.isArray((editingFields as any)?.grapes)
+      ? (editingFields as any).grapes
+      : (Array.isArray(safeWine?.grapes) ? safeWine?.grapes : []);
+    setGrapeItems(currentGrapes || []);
+    setGrapeInput('');
     setShowGrapesPicker(true);
   };
 
@@ -1521,9 +1534,21 @@ export default function WineDetailsScreenV2({
               style={styles.detailValue}
               onPress={openAppellationPicker}
             >
-                <Text style={styles.detailValueText}>
-                  {safeWine.appellation || 'Sélectionner'}
-                </Text>
+                {safeWine.appellation && safeWine.appellation.trim().length > 0 ? (
+                  <View style={styles.tagsRow}>
+                    {safeWine.appellation
+                      .split(',')
+                      .map(s => s.trim())
+                      .filter(Boolean)
+                      .map((tag, idx) => (
+                        <View key={idx} style={styles.tag}>
+                          <Text style={styles.tagText}>{tag}</Text>
+                        </View>
+                      ))}
+                  </View>
+                ) : (
+                  <Text style={styles.detailValueText}>Sélectionner</Text>
+                )}
                 <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
               </TouchableOpacity>
             </View>
@@ -1535,12 +1560,17 @@ export default function WineDetailsScreenV2({
               style={styles.detailValue}
               onPress={openGrapesPicker}
             >
-                <Text style={styles.detailValueText}>
-                  {Array.isArray(safeWine?.grapes) && safeWine.grapes.length > 0 
-                    ? safeWine.grapes.join(', ') 
-                    : 'Sélectionner'
-                  }
-                </Text>
+                {Array.isArray(safeWine?.grapes) && safeWine.grapes.length > 0 ? (
+                  <View style={styles.tagsRow}>
+                    {safeWine.grapes.map((g, idx) => (
+                      <View key={idx} style={styles.tag}>
+                        <Text style={styles.tagText}>{g}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.detailValueText}>Sélectionner</Text>
+                )}
                 <Ionicons name="chevron-down" size={16} color="#CCCCCC" />
               </TouchableOpacity>
             </View>
@@ -2231,416 +2261,146 @@ export default function WineDetailsScreenV2({
         </TouchableOpacity>
       </Modal>
 
-      {/* Modal sélection appellation */}
-      <Modal
-        visible={showAppellationPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowAppellationPicker(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowAppellationPicker(false)}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={[
-                styles.pickerModal,
-                { height: getModalHeight(Math.max(appellations.length, 1), appellations.length > 5, true, keyboardHeight) }
-              ]}
-            >
-              <View style={styles.modalHeader}>
-                <Text style={styles.pickerTitle}>Sélectionner l'appellation</Text>
+{/* Modal Appellation: saisie + ajout par + puis Valider */}
+<Modal visible={showAppellationPicker} transparent animationType="slide" onRequestClose={() => setShowAppellationPicker(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAppellationPicker(false)}>
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={[styles.pickerModal, { paddingBottom: 16 }]}>
+              <View style={[styles.modalHeader, styles.modalHeaderNoDivider]}>
+                <Text style={styles.pickerTitle}>Appellation(s)</Text>
                 <TouchableOpacity onPress={() => setShowAppellationPicker(false)} style={styles.closeButton}>
                   <Ionicons name="close" size={24} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
-              
-              {/* Champ de recherche */}
-              {appellations.length > 5 && (
-                <View style={styles.searchContainer}>
-                  <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
-                  <TextInput
-                    style={styles.searchInput}
-                    placeholder="Rechercher une appellation..."
-                    placeholderTextColor="#666"
-                    value={appellationSearchText}
-                    onChangeText={setAppellationSearchText}
-                    autoCorrect={false}
-                    autoCapitalize="words"
-                    onFocus={() => setKeyboardVisible(true)}
-                    onBlur={() => setKeyboardVisible(false)}
-                  />
-                </View>
-              )}
-              
-              <View style={styles.pickerContentContainer}>
-                {appellations.length === 0 ? (
-                  <View style={styles.loadingContainer}>
-                    <Text style={styles.loadingText}>Chargement des appellations...</Text>
-                  </View>
-                ) : getFilteredAppellations().length === 0 ? (
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>Aucune appellation trouvée</Text>
-                  </View>
-                ) : (
-                  <FlatList
-                    data={getFilteredAppellations()}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item, index }) => (
-                      <TouchableOpacity
-                        style={index === getFilteredAppellations().length - 1 ? styles.pickerItemLast : styles.pickerItem}
-                        onPress={async () => {
-                          if (isOcrWine) {
-                            setEditedWine((prev: any) => ({ ...(prev || {}), appellation: item.name }));
-                            setShowAppellationPicker(false);
-                            await loadGrapesByAppellation(item.name);
-                          } else {
-                            // Mise à jour optimiste immédiate
-                            console.log('🔄 Mise à jour optimiste appellation:', item.name);
-                            setLocalWineUpdates(prev => {
-                              const newUpdates = { ...prev, appellation: item.name };
-                              console.log('🔄 localWineUpdates mis à jour:', newUpdates);
-                              return newUpdates;
-                            });
-                            setShowAppellationPicker(false);
-                            await loadGrapesByAppellation(item.name);
-                            try {
-                              await updateWine(wineId, { appellation: item.name });
-                              console.log('✅ updateWine réussi pour appellation');
-                              // Ne pas nettoyer immédiatement, laisser la synchronisation se faire naturellement
-                            } catch (error) {
-                              console.error('Erreur sauvegarde appellation:', error);
-                              Alert.alert('Erreur', 'Impossible de sauvegarder l\'appellation');
-                              // Revenir à la valeur précédente en cas d'erreur
-                              setLocalWineUpdates(prev => {
-                                const { appellation: _, ...rest } = prev;
-                                return rest;
-                              });
-                            }
-                          }
-                        }}
-                      >
-                        <Text style={styles.pickerItemText}>{item.name}</Text>
-                      </TouchableOpacity>
-                    )}
-                    style={styles.pickerList}
-                  />
-                )}
-                
-                {/* Champ de saisie libre pour ajouter une nouvelle appellation */}
-                <View style={styles.addNewItemContainer}>
-                  <Text style={styles.addNewItemLabel}>Ajouter une nouvelle appellation :</Text>
-                  <TextInput
-                    style={styles.addNewItemInput}
-                    placeholder="Nom de l'appellation"
-                    placeholderTextColor="#666"
-                    value={newAppellationName}
-                    onChangeText={setNewAppellationName}
-                    autoCorrect={false}
-                    autoCapitalize="words"
-                    onFocus={() => setKeyboardVisible(true)}
-                    onBlur={() => setKeyboardVisible(false)}
-                  />
-                  <TouchableOpacity
-                    style={styles.addNewItemButton}
-                    onPress={async () => {
-                      if (newAppellationName.trim()) {
-                        try {
-                          // Vérifier si l'appellation existe déjà (insensible à la casse)
-                          const existingAppellation = appellations.find(a => 
-                            a.name.toLowerCase() === newAppellationName.trim().toLowerCase()
-                          );
-                          
-                          if (existingAppellation) {
-                            Alert.alert('Appellation existante', 'Cette appellation existe déjà dans la liste');
-                            return;
-                          }
-                          
-                          // Trouver l'ID de la région
-                          const regionId = regions.find(r => r.name === safeWine?.region)?.id;
-                          if (!regionId && isOcrWine) {
-                            setEditedWine((prev: any) => ({ ...(prev || {}), appellation: newAppellationName.trim() }));
-                            setShowAppellationPicker(false);
-                            setNewAppellationName('');
-                            return;
-                          }
-                          if (!regionId) {
-                            Alert.alert('Erreur', 'Région non trouvée. Veuillez d\'abord sélectionner une région.');
-                            return;
-                          }
-                          
-                          // Ajouter la nouvelle appellation à la base de données
-                          const { data, error } = await supabase
-                            .from('wine_appellations')
-                            .insert({
-                              name: newAppellationName.trim(),
-                              region_id: regionId
-                            })
-                            .select()
-                            .single();
-                          
-                          if (error) throw error;
-                          
-                          // Mettre à jour la liste locale
-                          setAppellations(prev => [...prev, data]);
-                          
-                          // Sélectionner la nouvelle appellation
-                          if (isOcrWine) {
-                            setEditedWine((prev: any) => ({ ...(prev || {}), appellation: data.name }));
-                          } else {
-                            await updateWine(wineId, { appellation: data.name });
-                          }
-                          setShowAppellationPicker(false);
-                          setNewAppellationName('');
-                          
-                          Alert.alert('Succès', 'Nouvelle appellation ajoutée et sélectionnée');
-                        } catch (error) {
-                          console.error('Erreur ajout appellation:', error);
-                          Alert.alert('Erreur', 'Impossible d\'ajouter l\'appellation');
-                        }
-                      }
-                    }}
-                  >
-                    <Text style={styles.addNewItemButtonText}>Ajouter</Text>
+        <View style={styles.pickerBody}>
+          <View style={styles.inlineAddRow}>
+            <TextInput
+              style={[styles.addNewItemInput, styles.inlineAddInput]}
+              placeholder="Ajouter une appellation"
+              placeholderTextColor="#666"
+              value={appellationInput}
+              onChangeText={setAppellationInput}
+              autoCorrect={false}
+              autoCapitalize="sentences"
+            />
+            <TouchableOpacity
+              style={[styles.addNewItemButton, styles.inlineAddButton]}
+              onPress={() => {
+                const v = (appellationInput || '').trim();
+                if (!v) return;
+                if (!appellationItems.includes(v)) setAppellationItems(prev => [...prev, v]);
+                setAppellationInput('');
+              }}
+            >
+              <Ionicons name="add" size={20} color="#000" />
+            </TouchableOpacity>
+          </View>
+          {appellationItems.length > 0 && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {appellationItems.map((it, idx) => (
+                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6 }}>
+                  <Text style={{ color: '#000' }}>{it}</Text>
+                  <TouchableOpacity onPress={() => setAppellationItems(prev => prev.filter(x => x !== it))} style={{ marginLeft: 6 }}>
+                    <Ionicons name="close-circle" size={18} color="#000" />
                   </TouchableOpacity>
                 </View>
-              </View>
-            </KeyboardAvoidingView>
+              ))}
+            </View>
+          )}
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={async () => {
+              const value = appellationItems.join(', ');
+              try {
+                if (isOcrWine) {
+                  setEditedWine((prev: any) => ({ ...(prev || {}), appellation: value }));
+                } else {
+                  await updateWine(wineId, { appellation: value });
+                }
+                // Update optimiste local pour affichage immédiat
+                setLocalWineUpdates(prev => ({ ...prev, appellation: value }));
+                setShowAppellationPicker(false);
+              } catch (e) {
+                Alert.alert('Erreur', 'Impossible de sauvegarder');
+              }
+            }}
+          >
+            <Text style={styles.addNewItemButtonText}>Enregistrer</Text>
+          </TouchableOpacity>
+        </View>
+            </View>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
 
-      {/* Modal sélection cépages */}
-      <Modal
-        visible={showGrapesPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowGrapesPicker(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowGrapesPicker(false)}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={[
-                styles.pickerModal,
-                { height: getModalHeight(Math.max(grapeVarieties.length, 1), grapeVarieties.length > 5, true, keyboardHeight) }
-              ]}
-            >
-              <View style={styles.modalHeader}>
-                <Text style={styles.pickerTitle}>Sélectionner les cépages</Text>
+{/* Modal Cépages: saisie + ajout par + puis Valider */}
+<Modal visible={showGrapesPicker} transparent animationType="slide" onRequestClose={() => setShowGrapesPicker(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowGrapesPicker(false)}>
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={[styles.pickerModal, { paddingBottom: 16 }]}>
+              <View style={[styles.modalHeader, styles.modalHeaderNoDivider]}>
+                <Text style={styles.pickerTitle}>Cépage(s)</Text>
                 <TouchableOpacity onPress={() => setShowGrapesPicker(false)} style={styles.closeButton}>
                   <Ionicons name="close" size={24} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
-              
-              {/* Champ de recherche */}
-              {grapeVarieties.length > 5 && (
-                <View style={styles.searchContainer}>
-                  <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
-                  <TextInput
-                    style={styles.searchInput}
-                    placeholder="Rechercher un cépage..."
-                    placeholderTextColor="#666"
-                    value={grapeSearchText}
-                    onChangeText={setGrapeSearchText}
-                    autoCorrect={false}
-                    autoCapitalize="words"
-                    onFocus={() => setKeyboardVisible(true)}
-                    onBlur={() => setKeyboardVisible(false)}
-                  />
-                </View>
-              )}
-              
-              <View style={styles.pickerContentContainer}>
-                {grapeVarieties.length === 0 ? (
-                  <View style={styles.loadingContainer}>
-                    <Text style={styles.loadingText}>Chargement des cépages...</Text>
-                  </View>
-                ) : getFilteredGrapes().length === 0 ? (
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>Aucun cépage trouvé</Text>
-                  </View>
-                ) : (
-                  <FlatList
-                    data={getFilteredGrapes()}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item, index }) => {
-                      const currentGrapes = Array.isArray(safeWine?.grapes) ? safeWine.grapes : [];
-                      const isSelected = currentGrapes.includes(item.name);
-                      
-                      return (
-                        <TouchableOpacity
-                          style={[
-                            index === getFilteredGrapes().length - 1 ? styles.pickerItemLast : styles.pickerItem,
-                            isSelected && styles.pickerItemSelected
-                          ]}
-                          onPress={async () => {
-                            const newGrapes = currentGrapes.includes(item.name) 
-                              ? currentGrapes.filter(g => g !== item.name)
-                              : [...currentGrapes, item.name];
-                            if (isOcrWine) {
-                              setEditedWine((prev: any) => ({ ...(prev || {}), grapes: newGrapes }));
-                            } else {
-                              // Mise à jour optimiste immédiate
-                              console.log('🔄 Mise à jour optimiste cépages:', newGrapes);
-                              setLocalWineUpdates(prev => {
-                                const newUpdates = { ...prev, grapes: newGrapes };
-                                console.log('🔄 localWineUpdates mis à jour:', newUpdates);
-                                return newUpdates;
-                              });
-                              try {
-                                await updateWine(wineId, { grapes: newGrapes });
-                                console.log('✅ updateWine réussi pour cépages');
-                                // Ne pas nettoyer immédiatement, laisser la synchronisation se faire naturellement
-                              } catch (error) {
-                                console.error('Erreur sauvegarde cépages:', error);
-                                Alert.alert('Erreur', 'Impossible de sauvegarder les cépages');
-                                // Revenir à la valeur précédente en cas d'erreur
-                                setLocalWineUpdates(prev => {
-                                  const { grapes: _, ...rest } = prev;
-                                  return rest;
-                                });
-                              }
-                            }
-                          }}
-                        >
-                          <View style={styles.pickerItemWithIcon}>
-                            <Ionicons 
-                              name={isSelected ? "checkmark-circle" : "ellipse-outline"} 
-                              size={20} 
-                              color={isSelected ? VeeniColors.accent : "#CCCCCC"}
-                              style={styles.pickerItemIcon}
-                            />
-                            <Text style={[
-                              styles.pickerItemText,
-                              isSelected && styles.pickerItemTextSelected
-                            ]}>
-                              {item.name}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    }}
-                    style={styles.pickerList}
-                  />
-                )}
-                
-                {/* Champ de saisie libre pour ajouter un nouveau cépage */}
-                <View style={styles.addNewItemContainer}>
-                  <Text style={styles.addNewItemLabel}>Ajouter un nouveau cépage :</Text>
-                  <TextInput
-                    style={styles.addNewItemInput}
-                    placeholder="Nom du cépage"
-                    placeholderTextColor="#666"
-                    value={newGrapeName}
-                    onChangeText={setNewGrapeName}
-                    autoCorrect={false}
-                    autoCapitalize="words"
-                    onFocus={() => setKeyboardVisible(true)}
-                    onBlur={() => setKeyboardVisible(false)}
-                  />
-                  <TouchableOpacity
-                    style={styles.addNewItemButton}
-                    onPress={async () => {
-                      if (newGrapeName.trim()) {
-                        try {
-                          // Vérifier si le cépage existe déjà (insensible à la casse)
-                          const existingGrape = grapeVarieties.find(g => 
-                            g.name.toLowerCase() === newGrapeName.trim().toLowerCase()
-                          );
-                          
-                          if (existingGrape) {
-                            Alert.alert('Cépage existant', 'Ce cépage existe déjà dans la liste');
-                            return;
-                          }
-                          
-                          // Trouver l'ID de l'appellation (optionnel)
-                          const appellationId = appellations.find(a => a.name === safeWine?.appellation)?.id;
-                          
-                          // Pour les vins OCR, ajouter directement au state local
-                          if (isOcrWine) {
-                            const currentGrapes = Array.isArray(safeWine?.grapes) ? safeWine.grapes : [];
-                            setEditedWine((prev: any) => ({ ...(prev || {}), grapes: [...currentGrapes, newGrapeName.trim()] }));
-                            setNewGrapeName('');
-                            setShowGrapesPicker(false);
-                            return;
-                          }
-                          
-                          // Ajouter le nouveau cépage à la base de données (avec ou sans appellation)
-                          const insertData: any = {
-                            name: newGrapeName.trim()
-                          };
-                          if (appellationId) {
-                            insertData.appellation_id = appellationId;
-                          }
-                          
-                          const { data, error } = await supabase
-                            .from('grape_variety')
-                            .insert(insertData)
-                            .select()
-                            .single();
-                          
-                          if (error) throw error;
-                          
-                          // Mettre à jour la liste locale
-                          setGrapeVarieties(prev => [...prev, data]);
-                          
-                          // Ajouter le nouveau cépage à la sélection
-                          const currentGrapes = Array.isArray(safeWine?.grapes) ? safeWine.grapes : [];
-                          if (isOcrWine) {
-                            setEditedWine((prev: any) => ({ ...(prev || {}), grapes: [...currentGrapes, data.name] }));
-                          } else {
-                            // Mise à jour optimiste immédiate
-                            const newGrapes = [...currentGrapes, data.name];
-                            console.log('🔄 Mise à jour optimiste nouveau cépage:', newGrapes);
-                            setLocalWineUpdates(prev => {
-                              const newUpdates = { ...prev, grapes: newGrapes };
-                              console.log('🔄 localWineUpdates mis à jour:', newUpdates);
-                              return newUpdates;
-                            });
-                            try {
-                              await updateWine(wineId, { grapes: newGrapes });
-                              console.log('✅ updateWine réussi pour nouveau cépage');
-                              // Ne pas nettoyer immédiatement, laisser la synchronisation se faire naturellement
-                            } catch (error) {
-                              console.error('Erreur sauvegarde cépages:', error);
-                              Alert.alert('Erreur', 'Impossible de sauvegarder les cépages');
-                              // Revenir à la valeur précédente en cas d'erreur
-                              setLocalWineUpdates(prev => {
-                                const { grapes: _, ...rest } = prev;
-                                return rest;
-                              });
-                            }
-                          }
-                          setNewGrapeName('');
-                          setShowGrapesPicker(false);
-                          
-                          Alert.alert('Succès', 'Nouveau cépage ajouté et sélectionné');
-                        } catch (error) {
-                          console.error('Erreur ajout cépage:', error);
-                          Alert.alert('Erreur', 'Impossible d\'ajouter le cépage');
-                        }
-                      }
-                    }}
-                  >
-                    <Text style={styles.addNewItemButtonText}>Ajouter</Text>
+        <View style={styles.pickerBody}>
+          <View style={styles.inlineAddRow}>
+            <TextInput
+              style={[styles.addNewItemInput, styles.inlineAddInput]}
+              placeholder="Ajouter un cépage"
+              placeholderTextColor="#666"
+              value={grapeInput}
+              onChangeText={setGrapeInput}
+              autoCorrect={false}
+              autoCapitalize="sentences"
+            />
+            <TouchableOpacity
+              style={[styles.addNewItemButton, styles.inlineAddButton]}
+              onPress={() => {
+                const v = (grapeInput || '').trim();
+                if (!v) return;
+                if (!grapeItems.includes(v)) setGrapeItems(prev => [...prev, v]);
+                setGrapeInput('');
+              }}
+            >
+              <Ionicons name="add" size={20} color="#000" />
+            </TouchableOpacity>
+          </View>
+          {grapeItems.length > 0 && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {grapeItems.map((it, idx) => (
+                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6 }}>
+                  <Text style={{ color: '#000' }}>{it}</Text>
+                  <TouchableOpacity onPress={() => setGrapeItems(prev => prev.filter(x => x !== it))} style={{ marginLeft: 6 }}>
+                    <Ionicons name="close-circle" size={18} color="#000" />
                   </TouchableOpacity>
                 </View>
-              </View>
-            </KeyboardAvoidingView>
+              ))}
+            </View>
+          )}
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={async () => {
+              const list = [...grapeItems];
+              try {
+                if (isOcrWine) {
+                  setEditedWine((prev: any) => ({ ...(prev || {}), grapes: list }));
+                } else {
+                  await updateWine(wineId, { grapes: list });
+                }
+                // Update optimiste local pour affichage immédiat
+                setLocalWineUpdates(prev => ({ ...prev, grapes: list }));
+                setShowGrapesPicker(false);
+              } catch (e) {
+                Alert.alert('Erreur', 'Impossible de sauvegarder');
+              }
+            }}
+          >
+            <Text style={styles.addNewItemButtonText}>Enregistrer</Text>
+          </TouchableOpacity>
+        </View>
+            </View>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -2890,6 +2650,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     marginRight: 8,
+  },
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'flex-end',
+    marginRight: 8,
+  },
+  tag: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  tagText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: '600',
   },
   wineTypeContainer: {
     flexDirection: 'row',
@@ -3190,6 +2968,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
   },
+  pickerBody: {
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
   pickerTitle: {
     fontSize: 18,
     fontWeight: '600',
@@ -3199,6 +2982,10 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 4,
+  },
+  modalHeaderNoDivider: {
+    borderBottomWidth: 0,
+    paddingBottom: 16,
   },
   pickerContentContainer: {
     flex: 1,
@@ -3294,11 +3081,32 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 12,
   },
+  inlineAddRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  inlineAddInput: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  inlineAddButton: {
+    paddingHorizontal: 12,
+  },
   addNewItemButton: {
     backgroundColor: '#FFFFFF',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
+    alignItems: 'center',
+  },
+  primaryButton: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignSelf: 'center',
+    minWidth: 160,
     alignItems: 'center',
   },
   addNewItemButtonText: {
