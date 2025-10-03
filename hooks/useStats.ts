@@ -24,10 +24,26 @@ export const useStats = () => {
     ([, caveId, caveMode]) => fetchStats(caveId, caveMode)
   );
 
+  // Optimistic local updater: permettre aux écrans d’appliquer un delta immédiat
+  const applyLocalDelta = (delta: Partial<{ total_bottles_in_cellar: number; red_wines_count: number; white_wines_count: number; rose_wines_count: number; sparkling_wines_count: number }>) => {
+    mutate((current: any) => {
+      if (!current) return current;
+      const next = { ...current } as any;
+      for (const [k, v] of Object.entries(delta)) {
+        const key = k as keyof typeof delta;
+        if (typeof v === 'number') {
+          next[key] = Math.max(0, (Number(next[key]) || 0) + v);
+        }
+      }
+      return next;
+    }, false);
+  };
+
   return {
     stats: data,
     isLoading: !data && !error,
     error,
     refreshStats: () => mutate(),
+    applyLocalDelta,
   };
 }; 

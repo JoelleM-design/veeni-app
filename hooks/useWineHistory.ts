@@ -248,6 +248,12 @@ export function useWineHistory(userId?: string | null) {
           if (!entry.wine) continue; // sécurité
 
           const wineId = entry.wine.id;
+          const isDecrease = entry.event_type === 'stock_change' && Number(entry.previous_amount) > Number(entry.new_amount);
+          // Ne créer/compter le groupe que s'il y a bien une baisse de stock
+          if (!isDecrease) {
+            continue;
+          }
+
           if (!map.has(wineId)) {
             map.set(wineId, {
               wine: { ...entry.wine, origin: 'tasted' },
@@ -259,25 +265,18 @@ export function useWineHistory(userId?: string | null) {
           }
 
           const group = map.get(wineId);
-          
-          // Pour les stock_change, vérifier si c'est une réduction de stock
-          if (entry.event_type === 'stock_change') {
-            // Compter seulement si c'est une réduction (bouteille bue)
-            if (entry.previous_amount > entry.new_amount) {
-              group.tastings.push({
-                id: entry.id,
-                date: entry.event_date,
-                note: entry.notes,
-                rating: entry.rating,
-                eventType: 'stock_change',
-                previousAmount: entry.previous_amount,
-                newAmount: entry.new_amount
-              });
-              group.tastingCount += 1;
-            }
-          }
+          group.tastings.push({
+            id: entry.id,
+            date: entry.event_date,
+            note: entry.notes,
+            rating: entry.rating,
+            eventType: 'stock_change',
+            previousAmount: entry.previous_amount,
+            newAmount: entry.new_amount
+          });
+          group.tastingCount += 1;
 
-          // mettre à jour la date la plus récente
+          // mettre à jour la date la plus récente (sur un événement valide)
           if (new Date(entry.event_date) > new Date(group.lastTastedAt)) {
             group.lastTastedAt = entry.event_date;
           }

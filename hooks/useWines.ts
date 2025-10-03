@@ -5,6 +5,7 @@ import { checkWineDuplicate, getDuplicateErrorMessage, getSimilarWineMessage } f
 import { getWinesStore, setWinesStore, subscribeWines } from '../lib/winesStore';
 import { Wine } from '../types/wine';
 import { useActiveCave } from './useActiveCave';
+import { useStats } from './useStats';
 
 // Génère un UUID v4 vraiment aléatoire
 function generateId(): string {
@@ -30,6 +31,7 @@ export function useWines() {
   const lastFetchRef = useRef(0);
   const isFetchingRef = useRef(false);
   const { caveMode, caveId } = useActiveCave();
+  const { applyLocalDelta, refreshStats } = useStats();
 
   // Fonction pour s'abonner aux mises à jour
   const subscribeToUpdates = useCallback((callback: () => void) => {
@@ -426,6 +428,25 @@ export function useWines() {
       // Notifier immédiatement pour rafraîchir les abonnés (cartes, listes, etc.)
       notifyUpdate();
 
+      // Appliquer un delta local immédiat pour les stats si couleur ou stock changent
+      try {
+        const before = wines.find(w => w.id === wineId);
+        const afterColor = updates.color ?? before?.color;
+        if (before) {
+          // Changement de type
+          if (updates.color && updates.color !== before.color) {
+            const decKey = `${before.color}_wines_count` as any;
+            const incKey = `${updates.color}_wines_count` as any;
+            applyLocalDelta({ [decKey]: -1, [incKey]: 1 } as any);
+          }
+          // Changement de stock
+          if (typeof updates.stock === 'number' && updates.stock !== before.stock) {
+            const delta = (updates.stock || 0) - (before.stock || 0);
+            applyLocalDelta({ total_bottles_in_cellar: delta } as any);
+          }
+        }
+      } catch {}
+
       // Mettre à jour dans user_wine (champs spécifiques à l'utilisateur)
       const userWineUpdates: any = {};
       
@@ -441,23 +462,8 @@ export function useWines() {
         const currentStock = currentWine?.amount || 0;
         const newStock = updates.stock;
         
-        // Si le stock diminue, créer une entrée de dégustation
-        if (newStock < currentStock) {
-          console.log('🍷 Création d\'une dégustation:', {
-            wineId,
-            currentStock,
-            newStock,
-            reduction: currentStock - newStock
-          });
-          await addHistoryEvent(wineId, 'tasted', {
-            previous_amount: currentStock,
-            new_amount: newStock,
-            notes: 'Dégustation via réduction de stock'
-          });
-          
-          // Rafraîchir les vins pour mettre à jour l'UI
-          await fetchWines();
-        }
+        // Si le stock diminue, on laisse la création de l'événement stock_change plus bas gérer cela
+        // pour éviter la duplication d'événements
         
         userWineUpdates.amount = updates.stock;
       }

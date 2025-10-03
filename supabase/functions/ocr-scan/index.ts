@@ -148,7 +148,8 @@ async function callGoogleVisionAPI(images: string[], apiKey: string): Promise<Go
     
     const visionRequests = images.map((base64Image: string) => ({
       image: { content: base64Image },
-      features: [{ type: 'TEXT_DETECTION', maxResults: 10 }]
+      features: [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 10 }],
+      imageContext: { languageHints: ['fr', 'it', 'es', 'en', 'de'] }
     }));
 
     console.log('📤 Envoi de la requête à Google Vision...');
@@ -245,7 +246,20 @@ function parseWineOcrLocal(rawText: string): ParsedWine {
   const words = text.split(/\s+/);
 
   // 4. Extraction année
-  const yearMatch = text.match(/\b(19[8-9]\d|20[0-3]\d)\b/);
+  let yearMatch = text.match(/\b(19[8-9]\d|20[0-3]\d)\b/);
+  // Recomposer "20" + "24" -> 2024 si séparés
+  if (!yearMatch) {
+    const tokens = text.split(/\s+/);
+    for (let i = 0; i < tokens.length - 1; i++) {
+      if (tokens[i] === '20' && /^\d{2}$/.test(tokens[i + 1])) {
+        const yy = parseInt(tokens[i + 1], 10);
+        if (yy >= 10 && yy <= 39) {
+          yearMatch = [`20${tokens[i + 1]}` as any] as any;
+          break;
+        }
+      }
+    }
+  }
   const année = yearMatch ? yearMatch[0] : '';
 
   // 5. Extraction type de vin
@@ -386,6 +400,16 @@ function parseWineOcrLocal(rawText: string): ParsedWine {
   let nom = lines
     .filter(l => l !== producteur && !l.includes(année) && !l.includes(région))
     .sort((a, b) => b.length - a.length)[0] || '';
+
+  // Si nom vide, tenter un candidat en MAJ ≥4 hors stoplist
+  if (!nom) {
+    const stop = new Set(['IGP','AOP','APPELLATION','MÉDITERRANÉE','ROSE','ROSÉ','BLANC','ROUGE','VIN','BIO','DOMAINE','CAVE','CUVÉE']);
+    const candidate = lines
+      .map(l => l.trim())
+      .filter(l => l.length >= 4 && l === l.toUpperCase())
+      .find(l => !stop.has(l.replace(/[^A-ZÉÈÎÂÔÙÇ]/g, '')));
+    if (candidate) nom = candidate;
+  }
 
   // 10. NOUVEAU SYSTÈME DE SCORING HYBRIDE UX-DRIVEN
   
@@ -599,6 +623,7 @@ async function processWineImages(images: string[]): Promise<ParsedWine[]> {
     // Nouvelle logique stricte : fallback IA si nom ou producteur non identifié, ou confiance < 65
     const shouldUseAI =
       nom === "Vin non identifié" ||
+      !nom ||
       producteur === "Domaine inconnu" ||
       confiance < 65;
 
@@ -607,6 +632,11 @@ async function processWineImages(images: string[]): Promise<ParsedWine[]> {
     if (shouldUseAI) {
       try {
         const aiResult = await parseWithGPT(ocrText, detectedLanguage);
+        // Si l'IA ne fournit pas de nom, utiliser le nom local/candidat
+        if (!aiResult.nom || aiResult.nom === 'Vin non identifié') {
+          aiResult.nom = localParsed.nom && localParsed.nom !== 'Vin non identifié' ? localParsed.nom : (nom || 'Vin non identifié');
+          aiResult.confiance = Math.min(aiResult.confiance || 60, 70);
+        }
         parsedWines.push(aiResult);
       } catch (err) {
         console.error("[OCR] Échec IA:", err.message);

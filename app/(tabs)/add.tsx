@@ -117,10 +117,21 @@ export default function AddScreen() {
           }
           console.log('✅ Image encodée, taille:', base64.length);
 
-          // Appeler la fonction edge Supabase avec l'image base64
+          // Préparer une variante optimisée pour OCR (resize + JPEG)
+          let variantBase64: string | undefined;
+          try {
+            const manipulated = await manipulateAsync(
+              photoUri,
+              [{ resize: { width: 1800 } }],
+              { compress: 0.95, format: SaveFormat.JPEG, base64: true }
+            );
+            variantBase64 = manipulated.base64 || undefined;
+          } catch {}
+
+          // Appeler la fonction edge Supabase avec l'image base64 (+ variante si dispo)
           console.log('🤖 Appel fonction ocr-scan...');
           const { data: result, error: ocrError } = await supabase.functions.invoke('ocr-scan', {
-            body: { images: [base64] }
+            body: { images: variantBase64 ? [base64, variantBase64] : [base64] }
           });
 
           console.log('📡 Réponse ocr-scan reçue');

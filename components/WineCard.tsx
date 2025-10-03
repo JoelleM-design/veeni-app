@@ -97,7 +97,9 @@ export const WineCard: React.FC<WineCardProps> = ({
     commonFriends: wine.commonFriends || [],
   };
 
-  const { hasMemory, memory, count } = useWineMemory(safeWine.id);
+  // Ne pas interroger les souvenirs pour les vins OCR temporaires
+  const shouldFetchMemory = typeof safeWine.id === 'string' && !safeWine.id.startsWith('ocr-');
+  const { hasMemory, memory, count } = useWineMemory(shouldFetchMemory ? safeWine.id : null);
 
   const getWineTypeColor = (color: string) => {
     switch (color) {

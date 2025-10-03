@@ -188,17 +188,16 @@ export default function OcrResultsScreen() {
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.title}>Vins détectés</Text>
-        <Text style={styles.counter}>{detectedWines.length}</Text>
+        <Text style={styles.title}>
+          {detectedWines.length === 1 
+            ? '1 vin détecté' 
+            : `${detectedWines.length} vins détectés`}
+        </Text>
+        <View style={{ width: 24 }} />
       </View>
       
       <View style={styles.content}>
-        <Text style={styles.subtitle}>
-          {detectedWines.length === 1 
-            ? '1 vin détecté' 
-            : `${detectedWines.length} vins détectés`
-          }
-        </Text>
+        <Text style={styles.subtitle}>Tu pourras modifier le vin plus tard</Text>
       </View>
       
       <ScrollView style={styles.winesList} showsVerticalScrollIndicator={false}>
@@ -271,21 +270,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  counter: {
-    fontSize: 16,
-    color: '#CCCCCC',
-    fontWeight: '500',
-  },
+  counter: {},
   winesList: {
     flex: 1,
     paddingHorizontal: 20,
   },
   wineCardContainer: {
-    marginBottom: 20,
+    marginBottom: 40,
   },
   actionButtons: {
     flexDirection: 'row',
-    marginTop: 15,
+    marginTop: 8,
     gap: 12,
   },
   actionButton: {
@@ -343,5 +338,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#CCCCCC',
     marginBottom: 10,
+    textAlign: 'center',
   },
 }); 

@@ -22,10 +22,15 @@ export function useWineMemory(wineId: string | null): UseWineMemoryResult {
       try {
         setLoading(true);
 
-        if (!wineId) {
+        // Ignorer les IDs temporaires OCR et les IDs non UUID
+        const isTempOcr = typeof wineId === 'string' && wineId.startsWith('ocr-');
+        const isUuid = typeof wineId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(wineId);
+
+        if (!wineId || isTempOcr || !isUuid) {
           if (!cancelled) {
             setHasMemory(false);
             setMemory(undefined);
+            setCount(0);
           }
           return;
         }
@@ -36,6 +41,7 @@ export function useWineMemory(wineId: string | null): UseWineMemoryResult {
           if (!cancelled) {
             setHasMemory(false);
             setMemory(undefined);
+            setCount(0);
           }
           return;
         }
@@ -64,6 +70,7 @@ export function useWineMemory(wineId: string | null): UseWineMemoryResult {
           if (!cancelled) {
             setHasMemory(false);
             setMemory(undefined);
+            setCount(0);
           }
           return;
         }
@@ -101,6 +108,7 @@ export function useWineMemory(wineId: string | null): UseWineMemoryResult {
         if (!cancelled) {
           setHasMemory(false);
           setMemory(undefined);
+          setCount(0);
         }
       } finally {
         if (!cancelled) setLoading(false);
