@@ -241,6 +241,7 @@ export function useWines() {
       
       for (const userWine of userWines || []) {
         // Ignorer les vins avec stock = 0 SAUF s'ils sont dans la wishlist
+        // Les vins dégustés (stock = 0) seront gérés par useWineHistory
         if (userWine.amount === 0 && userWine.origin !== 'wishlist') {
           continue;
         }
@@ -592,22 +593,22 @@ export function useWines() {
           // Vérifier si cette modification de stock est déjà en cours
           if (pendingStockChanges.current.has(stockChangeKey)) {
             console.log('🛡️ Protection doublon: modification de stock déjà en cours pour', wineId);
-            return;
-          }
-          
-          // Marquer cette modification comme en cours
-          pendingStockChanges.current.add(stockChangeKey);
-          
-          try {
-            await addHistoryEvent(wineId, 'stock_change', {
-              previous_amount: currentWine.stock || 0,
-              new_amount: updates.stock
-            });
-          } finally {
-            // Retirer la protection après 1 seconde (au cas où)
-            setTimeout(() => {
-              pendingStockChanges.current.delete(stockChangeKey);
-            }, 1000);
+            // Ne pas créer d'événement mais continuer la fonction
+          } else {
+            // Marquer cette modification comme en cours
+            pendingStockChanges.current.add(stockChangeKey);
+            
+            try {
+              await addHistoryEvent(wineId, 'stock_change', {
+                previous_amount: currentWine.stock || 0,
+                new_amount: updates.stock
+              });
+            } finally {
+              // Retirer la protection après 1 seconde (au cas où)
+              setTimeout(() => {
+                pendingStockChanges.current.delete(stockChangeKey);
+              }, 1000);
+            }
           }
         }
         

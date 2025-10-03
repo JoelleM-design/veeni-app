@@ -348,41 +348,22 @@ export function useWineHistory(userId?: string | null) {
 
       if (stockChangeError) throw stockChangeError;
 
-      if (newAmount === 0) {
-        // Si stock = 0, supprimer de user_wine
-        let deleteQuery = supabase
-          .from('user_wine')
-          .delete()
-          .eq('wine_id', wineId);
+      // Toujours mettre à jour le stock (ne jamais supprimer l'entrée user_wine)
+      let updateQuery = supabase
+        .from('user_wine')
+        .update({ amount: newAmount })
+        .eq('wine_id', wineId);
 
-        // Filtrer selon le mode actif
-        if (effectiveCaveMode === 'user') {
-          deleteQuery = deleteQuery.eq('user_id', effectiveCaveId);
-        } else {
-          deleteQuery = deleteQuery.eq('household_id', caveId);
-        }
-
-        const { error: deleteError } = await deleteQuery;
-
-        if (deleteError) throw deleteError;
+      // Filtrer selon le mode actif
+      if (effectiveCaveMode === 'user') {
+        updateQuery = updateQuery.eq('user_id', effectiveCaveId);
       } else {
-        // Sinon, mettre à jour le stock
-        let updateQuery = supabase
-          .from('user_wine')
-          .update({ amount: newAmount })
-          .eq('wine_id', wineId);
-
-        // Filtrer selon le mode actif
-        if (effectiveCaveMode === 'user') {
-          updateQuery = updateQuery.eq('user_id', effectiveCaveId);
-        } else {
-          updateQuery = updateQuery.eq('household_id', caveId);
-        }
-
-        const { error: updateError } = await updateQuery;
-
-        if (updateError) throw updateError;
+        updateQuery = updateQuery.eq('household_id', caveId);
       }
+
+      const { error: updateError } = await updateQuery;
+
+      if (updateError) throw updateError;
 
       // 2. Rafraîchir les données
       await fetchHistory();

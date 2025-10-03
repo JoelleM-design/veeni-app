@@ -131,7 +131,7 @@ async function analyzeWineEvents(wine) {
 }
 
 async function debugWineHistory() {
-  console.log('🔍 Debug des événements wine_history pour le vin Batti...\n');
+  console.log('🔍 Debug des événements wine_history pour le vin Moulin Neuf...\n');
 
   try {
     // 1. Lister tous les vins récents
@@ -151,29 +151,29 @@ async function debugWineHistory() {
       console.log(`${index + 1}. ${wine.name} (ID: ${wine.id}) - ${wine.created_at}`);
     });
 
-    // Chercher spécifiquement Batti
-    const battiWines = allWines?.filter(w => w.name.toLowerCase().includes('batti'));
+    // Chercher spécifiquement Moulin Neuf
+    const moulinNeufWines = allWines?.filter(w => w.name.toLowerCase().includes('moulin'));
     
-    if (!battiWines || battiWines.length === 0) {
-      console.log('\n❌ Aucun vin "Batti" trouvé dans les vins récents');
+    if (!moulinNeufWines || moulinNeufWines.length === 0) {
+      console.log('\n❌ Aucun vin "Moulin" trouvé dans les vins récents');
       console.log('🔍 Recherche dans tous les vins...\n');
       
       const { data: allWines2, error: wineError2 } = await supabase
         .from('wine')
         .select('id, name, created_at')
-        .ilike('name', '%batti%');
+        .ilike('name', '%moulin%');
 
       if (wineError2) {
-        console.error('❌ Erreur recherche Batti:', wineError2);
+        console.error('❌ Erreur recherche Moulin:', wineError2);
         return;
       }
 
       if (!allWines2 || allWines2.length === 0) {
-        console.log('❌ Aucun vin trouvé avec "Batti" dans le nom');
+        console.log('❌ Aucun vin trouvé avec "Moulin" dans le nom');
         return;
       }
 
-      console.log('🍷 Vins "Batti" trouvés:');
+      console.log('🍷 Vins "Moulin" trouvés:');
       allWines2.forEach((wine, index) => {
         console.log(`${index + 1}. ${wine.name} (ID: ${wine.id}) - ${wine.created_at}`);
       });
@@ -185,32 +185,16 @@ async function debugWineHistory() {
       return;
     }
 
-    console.log(`\n🍷 ${battiWines.length} vins "Batti" trouvés:`);
-    battiWines.forEach((wine, index) => {
+    console.log(`\n🍷 ${moulinNeufWines.length} vins "Moulin" trouvés:`);
+    moulinNeufWines.forEach((wine, index) => {
       console.log(`${index + 1}. ${wine.name} (ID: ${wine.id}) - ${wine.created_at}`);
     });
 
     // Analyser le plus récent d'abord
-    const mostRecentBatti = battiWines[0];
-    console.log(`\n🍷 Analyse du vin le plus récent: ${mostRecentBatti.name} (ID: ${mostRecentBatti.id})\n`);
+    const mostRecentMoulin = moulinNeufWines[0];
+    console.log(`\n🍷 Analyse du vin le plus récent: ${mostRecentMoulin.name} (ID: ${mostRecentMoulin.id})\n`);
     
-    await analyzeWineEvents(mostRecentBatti);
-
-    // Si pas d'événements, analyser l'ancien
-    const { data: events, error: eventsError } = await supabase
-      .from('wine_history')
-      .select('*')
-      .eq('wine_id', mostRecentBatti.id)
-      .limit(1);
-
-    if (!events || events.length === 0) {
-      console.log('\n🔄 Aucun événement pour le vin récent, analyse de l\'ancien...\n');
-      const olderBatti = battiWines[1];
-      if (olderBatti) {
-        console.log(`🍷 Analyse de l'ancien vin: ${olderBatti.name} (ID: ${olderBatti.id})\n`);
-        await analyzeWineEvents(olderBatti);
-      }
-    }
+    await analyzeWineEvents(mostRecentMoulin);
 
   } catch (error) {
     console.error('❌ Erreur générale:', error);
