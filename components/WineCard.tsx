@@ -175,11 +175,20 @@ export const WineCard: React.FC<WineCardProps> = ({
                   onLoad={() => {}}
                   onError={() => {}}
                 />
-                {/* Dégradé vers la zone texte */}
+                {/* Dégradé vers la zone texte (plus doux et progressif) */}
                 <LinearGradient
-                  colors={['transparent', 'rgba(42,42,42,0.6)', 'rgba(42,42,42,1)']}
-                  locations={[0.6, 0.85, 1]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  colors={[
+                    'rgba(0,0,0,0)',
+                    'rgba(0,0,0,0.15)',
+                    'rgba(0,0,0,0.35)',
+                    'rgba(42,42,42,0.85)',
+                    '#2A2A2A'
+                  ]}
+                  locations={[0.35, 0.6, 0.8, 0.92, 1]}
                   style={styles.imageToTextGradient}
+                  pointerEvents="none"
                 />
               </>
             ) : (
@@ -584,8 +593,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: -1, // chevauchement pour fondu parfait
-    height: 80,
+    bottom: -4, // léger chevauchement pour un fondu sans cassure
+    height: 120,
   },
   likeButton: {
     position: 'absolute',

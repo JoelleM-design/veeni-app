@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Modal, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ProfileStatsBar from '../../components/ProfileStatsBar';
 import { StatsBar } from '../../components/StatsBar';
-import { WineCardCompact } from '../../components/WineCardCompact';
+import { WineCard } from '../../components/WineCard';
 import { WinePreferenceDisplay } from '../../components/WinePreferenceDisplay';
 import { ActiveFiltersBar } from '../../components/ui/ActiveFiltersBar';
 import { FilterModal } from '../../components/ui/FilterModal';
@@ -81,6 +81,8 @@ export default function FriendDetailScreen() {
   const [search, setSearch] = useState('');
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  // Contrôle d'affichage de la barre de recherche (temporaire)
+  const showSearchBar = false;
   
   // États pour le menu
   const [menuVisible, setMenuVisible] = useState(false);
@@ -629,26 +631,28 @@ export default function FriendDetailScreen() {
           />
 
           {/* Barre de recherche et filtres */}
-          <SearchFilterBar
-            value={search}
-            onChange={setSearch}
-            onFilterPress={() => setFilterModalVisible(true)}
-            placeholder={
-              tab === 'cellar' ? 'Cherchez un vin dans sa cave ...' :
-              tab === 'wishlist' ? 'Cherchez un vin dans ses envies ...' :
-              'Cherchez un vin dans ses dégustations ...'
-            }
-            filterActive={activeFilters.length > 0}
-          >
-            <ActiveFiltersBar
-              selectedFilters={activeFilters}
-              options={FILTER_OPTIONS}
-              onRemoveFilter={(filterKey) => {
-                setActiveFilters(prev => prev.filter(f => f !== filterKey));
-              }}
-              onClearAll={() => setActiveFilters([])}
-            />
-          </SearchFilterBar>
+          {showSearchBar && (
+            <SearchFilterBar
+              value={search}
+              onChange={setSearch}
+              onFilterPress={() => setFilterModalVisible(true)}
+              placeholder={
+                tab === 'cellar' ? 'Cherchez un vin dans sa cave ...' :
+                tab === 'wishlist' ? 'Cherchez un vin dans ses envies ...' :
+                'Cherchez un vin dans ses dégustations ...'
+              }
+              filterActive={activeFilters.length > 0}
+            >
+              <ActiveFiltersBar
+                selectedFilters={activeFilters}
+                options={FILTER_OPTIONS}
+                onRemoveFilter={(filterKey) => {
+                  setActiveFilters(prev => prev.filter(f => f !== filterKey));
+                }}
+                onClearAll={() => setActiveFilters([])}
+              />
+            </SearchFilterBar>
+          )}
 
           {/* Liste des vins */}
           {winesLoading ? (
@@ -659,10 +663,12 @@ export default function FriendDetailScreen() {
             <View style={styles.winesGrid}>
               {filteredWines.map((wine, index) => (
                 <View key={`${wine.id}-${index}`} style={styles.wineCardContainer}>
-                  <WineCardCompact
+                  <WineCard
                     wine={wine}
                     readOnly={true}
-                    alsoOwnedByCurrentUser={myWineIdSet.has(String(wine.id)) ? { id: user?.id || '', first_name: user?.first_name, avatar: user?.avatar } : null}
+                    showActions={false}
+                    showStockButtons={false}
+                    showStock={tab === 'cellar'}
                     onPress={() => {
                       console.log('[FriendProfile] Click carte', { wineId: wine.id, friendId: friend?.id });
                       router.push({ pathname: '/wine/[id]', params: { id: wine.id, readOnly: 'true', friendId: friend?.id || '' } });

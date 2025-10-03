@@ -346,6 +346,9 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
     return matchesSearch && matchesFilters;
   });
 
+  // Contrôle d'affichage de la barre de recherche + filtre (temporaire)
+  const showSearchBar = false;
+
   return (
     <SafeAreaView style={styles.safeContainer}>
       {/* Barre de navigation fixe */}
@@ -388,27 +391,32 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
                 />
               );
             })()}
-            <View style={{ marginTop: 10 }} />
-            <SearchFilterBar
-              value={search}
-              onChange={setSearch}
-              onFilterPress={() => setFilterModalVisible(true)}
-              placeholder={
-                tab === 'cellar' ? 'Cherchez un vin dans votre cave ...' :
-                tab === 'wishlist' ? 'Cherchez un vin dans vos envies ...' :
-                'Cherchez un vin dans vos dégustations ...'
-              }
-              filterActive={activeFilters.length > 0}
-            >
-              <ActiveFiltersBar
-                selectedFilters={activeFilters}
-                options={FILTER_OPTIONS}
-                onRemoveFilter={(filterKey) => {
-                  setActiveFilters(prev => prev.filter(f => f !== filterKey));
-                }}
-                onClearAll={() => setActiveFilters([])}
-              />
-            </SearchFilterBar>
+            {/* TODO: Réactiver la barre de recherche plus tard */}
+            {showSearchBar && (
+              <>
+                <View style={{ marginTop: 10 }} />
+                <SearchFilterBar
+                  value={search}
+                  onChange={setSearch}
+                  onFilterPress={() => setFilterModalVisible(true)}
+                  placeholder={
+                    tab === 'cellar' ? 'Cherchez un vin dans votre cave ...' :
+                    tab === 'wishlist' ? 'Cherchez un vin dans vos envies ...' :
+                    'Cherchez un vin dans vos dégustations ...'
+                  }
+                  filterActive={activeFilters.length > 0}
+                >
+                  <ActiveFiltersBar
+                    selectedFilters={activeFilters}
+                    options={FILTER_OPTIONS}
+                    onRemoveFilter={(filterKey) => {
+                      setActiveFilters(prev => prev.filter(f => f !== filterKey));
+                    }}
+                    onClearAll={() => setActiveFilters([])}
+                  />
+                </SearchFilterBar>
+              </>
+            )}
             
             <View style={styles.listContainer}>
               {filteredWines.length === 0 ? (
