@@ -181,20 +181,8 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
       const result = await addTasting(selectedWineForTasting.id, rating);
       
       if (result.success) {
-        // Supprimer une bouteille après la dégustation
-        const currentStock = selectedWineForTasting.stock || selectedWineForTasting.amount || 0;
-        console.log('🔄 handleConfirmTasting: Stock actuel:', currentStock, 'Nouveau stock:', currentStock - 1);
-        
-        if (currentStock > 0) {
-          await supabase
-            .from('user_wine')
-            .update({ amount: currentStock - 1 })
-            .eq('wine_id', selectedWineForTasting.id)
-            .eq('user_id', (await supabase.auth.getUser()).data.user?.id as any);
-          console.log('✅ handleConfirmTasting: Stock décrémenté');
-        }
-        
-        // Plus de note personnelle à enregistrer ici
+        // Le stock est déjà géré par addTasting() - pas besoin de le faire manuellement
+        console.log('✅ handleConfirmTasting: Dégustation enregistrée avec succès');
         
         // La mise à jour des données se fait automatiquement via le hook
         setTastingModalVisible(false);
