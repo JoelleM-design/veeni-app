@@ -77,6 +77,8 @@ export const WineCard: React.FC<WineCardProps> = ({
   compact = false,
   friendsWithWine = [],
 }) => {
+  // Protection contre les clics rapides
+  const [isProcessingStockChange, setIsProcessingStockChange] = React.useState(false);
   // Fonction de nettoyage pour s'assurer que tous les champs sont des primitifs
   const safeWine = {
     id: String(wine.id || ''),
@@ -372,14 +374,44 @@ export const WineCard: React.FC<WineCardProps> = ({
               <View style={styles.stockRow}>
                 <TouchableOpacity
                   style={styles.stockButton}
-                  onPress={onRemoveBottle}
-                  disabled={safeWine.stock <= 0}
+                  onPress={async () => {
+                    if (isProcessingStockChange) return;
+                    setIsProcessingStockChange(true);
+                    try {
+                      await onRemoveBottle?.();
+                    } finally {
+                      // Réactiver après 1 seconde
+                      setTimeout(() => setIsProcessingStockChange(false), 1000);
+                    }
+                  }}
+                  disabled={safeWine.stock <= 0 || isProcessingStockChange}
                 >
-                  <Ionicons name="remove" size={20} color={safeWine.stock > 0 ? '#FFFFFF' : '#999'} />
+                  <Ionicons 
+                    name="remove" 
+                    size={20} 
+                    color={safeWine.stock > 0 && !isProcessingStockChange ? '#FFFFFF' : '#999'} 
+                  />
                 </TouchableOpacity>
                 <Text style={styles.stockText}>{String(safeWine.stock)}</Text>
-                <TouchableOpacity style={styles.stockButton} onPress={onAddBottle}>
-                  <Ionicons name="add" size={20} color="#FFFFFF" />
+                <TouchableOpacity 
+                  style={styles.stockButton} 
+                  onPress={async () => {
+                    if (isProcessingStockChange) return;
+                    setIsProcessingStockChange(true);
+                    try {
+                      await onAddBottle?.();
+                    } finally {
+                      // Réactiver après 1 seconde
+                      setTimeout(() => setIsProcessingStockChange(false), 1000);
+                    }
+                  }}
+                  disabled={isProcessingStockChange}
+                >
+                  <Ionicons 
+                    name="add" 
+                    size={20} 
+                    color={!isProcessingStockChange ? '#FFFFFF' : '#999'} 
+                  />
                 </TouchableOpacity>
               </View>
             )}

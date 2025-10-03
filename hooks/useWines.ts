@@ -32,6 +32,9 @@ export function useWines() {
   const isFetchingRef = useRef(false);
   const { caveMode, caveId } = useActiveCave();
   const { applyLocalDelta, refreshStats } = useStats();
+  
+  // Protection contre les doublons d'événements
+  const pendingStockChanges = useRef<Set<string>>(new Set());
 
   // Fonction pour s'abonner aux mises à jour
   const subscribeToUpdates = useCallback((callback: () => void) => {
@@ -582,12 +585,30 @@ export function useWines() {
       // Ajouter des événements d'historique pour les modifications importantes
       const currentWine = wines.find(w => w.id === wineId);
       if (currentWine) {
-        // Ajouter un événement pour le changement de stock
+        // Ajouter un événement pour le changement de stock (avec protection contre les doublons)
         if (updates.stock !== undefined && updates.stock !== (currentWine.stock || 0)) {
-          await addHistoryEvent(wineId, 'stock_change', {
-            previous_amount: currentWine.stock || 0,
-            new_amount: updates.stock
-          });
+          const stockChangeKey = `${wineId}-${currentWine.stock || 0}-${updates.stock}`;
+          
+          // Vérifier si cette modification de stock est déjà en cours
+          if (pendingStockChanges.current.has(stockChangeKey)) {
+            console.log('🛡️ Protection doublon: modification de stock déjà en cours pour', wineId);
+            return;
+          }
+          
+          // Marquer cette modification comme en cours
+          pendingStockChanges.current.add(stockChangeKey);
+          
+          try {
+            await addHistoryEvent(wineId, 'stock_change', {
+              previous_amount: currentWine.stock || 0,
+              new_amount: updates.stock
+            });
+          } finally {
+            // Retirer la protection après 1 seconde (au cas où)
+            setTimeout(() => {
+              pendingStockChanges.current.delete(stockChangeKey);
+            }, 1000);
+          }
         }
         
         // Ajouter un événement pour le changement de note

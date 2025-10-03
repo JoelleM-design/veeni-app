@@ -51,6 +51,9 @@ export function useWineHistory(userId?: string | null) {
   const lastFetchTastedRef = useRef(0);
   const isFetchingHistoryRef = useRef(false);
   const isFetchingTastedRef = useRef(false);
+  
+  // Protection contre les doublons de dégustation
+  const pendingTastings = useRef<Set<string>>(new Set());
 
   // Récupérer l'historique des dégustations
   const fetchHistory = async () => {
@@ -289,6 +292,16 @@ export function useWineHistory(userId?: string | null) {
   const addTasting = async (wineId: string, rating?: number) => {
     if (!targetUserId || !effectiveCaveId) return;
     
+    // Protection contre les doublons de dégustation
+    const tastingKey = `${wineId}-${targetUserId}`;
+    if (pendingTastings.current.has(tastingKey)) {
+      console.log('🛡️ Protection doublon: dégustation déjà en cours pour', wineId);
+      return { success: false, error: 'Dégustation déjà en cours' };
+    }
+    
+    // Marquer cette dégustation comme en cours
+    pendingTastings.current.add(tastingKey);
+    
     try {
       // 1. Décrémenter le stock dans user_wine
       let wineQuery = supabase
@@ -379,6 +392,11 @@ export function useWineHistory(userId?: string | null) {
     } catch (error) {
       console.error('Erreur lors de l\'ajout de la dégustation:', error);
       return { success: false, error };
+    } finally {
+      // Retirer la protection après 2 secondes (au cas où)
+      setTimeout(() => {
+        pendingTastings.current.delete(tastingKey);
+      }, 2000);
     }
   };
 
