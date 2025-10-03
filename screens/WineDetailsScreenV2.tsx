@@ -288,7 +288,7 @@ export default function WineDetailsScreenV2({
         .select('id, notes, event_date')
         .eq('wine_id', wineId)
         .eq('user_id', viewerUserId)
-        .eq('event_type', 'stock_change')
+        .eq('event_type', 'noted')
         .not('notes', 'is', null)
         .order('event_date', { ascending: false });
 
@@ -783,11 +783,9 @@ export default function WineDetailsScreenV2({
         .insert({
           wine_id: wineId,
           user_id: viewerUserId,
-          event_type: 'stock_change',
+          event_type: 'noted',
           notes: newManualNote.trim(),
-          event_date: new Date().toISOString(),
-          previous_amount: 1,
-          new_amount: 1
+          event_date: new Date().toISOString()
         })
         .select()
         .single();
