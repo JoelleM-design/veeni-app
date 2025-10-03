@@ -1476,7 +1476,7 @@ export default function WineDetailsScreenV2({
                     {safeWine.color === 'red' ? 'Rouge' : 
                      safeWine.color === 'white' ? 'Blanc' : 
                      safeWine.color === 'rose' ? 'Rosé' : 
-                     safeWine.color === 'sparkling' ? 'Effervescent' : 'Vin'}
+                     safeWine.color === 'sparkling' ? 'Pétillant' : 'Vin'}
                   </Text>
                   <Ionicons name="chevron-down" size={16} color="#CCCCCC" style={styles.chevronIcon} />
                 </View>
@@ -1953,7 +1953,7 @@ export default function WineDetailsScreenV2({
                   { value: 'red', label: 'Rouge', color: VeeniColors.wine.red },
                   { value: 'white', label: 'Blanc', color: VeeniColors.wine.white },
                   { value: 'rose', label: 'Rosé', color: VeeniColors.wine.rose },
-                  { value: 'sparkling', label: 'Effervescent', color: VeeniColors.wine.sparkling }
+                  { value: 'sparkling', label: 'Pétillant', color: VeeniColors.wine.sparkling }
                 ].map((item, index) => (
                   <TouchableOpacity
                     key={item.value}

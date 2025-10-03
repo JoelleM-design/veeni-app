@@ -570,7 +570,7 @@ export default function WineDetailsScreenV2({
               {safeWine.color === 'red' ? 'Rouge' : 
                safeWine.color === 'white' ? 'Blanc' : 
                safeWine.color === 'rose' ? 'Rosé' : 
-               safeWine.color === 'sparkling' ? 'Effervescent' : 'Vin'}
+               safeWine.color === 'sparkling' ? 'Pétillant' : 'Vin'}
             </Text>
           </View>
         </View>

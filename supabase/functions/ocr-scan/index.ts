@@ -20,7 +20,7 @@ interface ParsedWine {
   producteur: string;
   année: string;
   cépages: string[];
-  type: 'Rouge' | 'Blanc' | 'Rosé' | 'Effervescent' | '';
+  type: 'Rouge' | 'Blanc' | 'Rosé' | 'Pétillant' | '';
   région: string;
   appellation: string;
   pays: string;
@@ -258,7 +258,7 @@ function parseWineOcrLocal(rawText: string): ParsedWine {
     type = 'Rosé';
   } else if (text.toUpperCase().includes('EFFERVESCENT') || text.toUpperCase().includes('SPARKLING') || 
              text.toUpperCase().includes('MOUSSEUX') || text.toUpperCase().includes('CHAMPAGNE')) {
-    type = 'Effervescent';
+    type = 'Pétillant';
   }
 
   // 6. Extraction cépages
@@ -464,7 +464,7 @@ async function parseWithGPT(text: string): Promise<ParsedWine> {
 Texte OCR: "${text}"
 
 Instructions:
-- Extrais le nom du vin, le producteur, l'année, les cépages, le type (Rouge/Blanc/Rosé/Effervescent), et la région
+- Extrais le nom du vin, le producteur, l'année, les cépages, le type (Rouge/Blanc/Rosé/Pétillant), et la région
 - Si une information n'est pas claire, utilise une chaîne vide
 - Pour les cépages, retourne un tableau des cépages identifiés
 - Sois précis et ne devine pas

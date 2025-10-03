@@ -14,7 +14,7 @@ export async function parseWithGPT(text: string, detectedLanguage?: string) {
   "nom": "Nom du vin (ex: Syrah, Château Roquefort, Merlot, ou le nom principal du vin)",
   "producteur": "Nom du producteur/domaine (ex: Dominio de Punctum, Famille Bellanger, Château Margaux)",
   "année": "Année du millésime (ex: 2024) ou chaîne vide si non trouvée",
-  "type": "Rouge, Blanc, Rosé ou Effervescent",
+  "type": "Rouge, Blanc, Rosé ou Pétillant",
   "région": "Région viticole (ex: Bordeaux, Bourgogne, Rioja, Jumilla)",
   "cépages": ["cépage1", "cépage2"] (liste des cépages identifiés)
 }

@@ -181,7 +181,7 @@ export const WineCardCompact: React.FC<WineCardCompactProps> = ({
               <Text style={styles.wineTypeText}>
                 {safeWine.color === 'red' ? 'Rouge' : 
                  safeWine.color === 'white' ? 'Blanc' : 
-                 safeWine.color === 'rose' ? 'Rosé' : 'Effervescent'}
+                 safeWine.color === 'rose' ? 'Rosé' : 'Pétillant'}
               </Text>
             </View>
             

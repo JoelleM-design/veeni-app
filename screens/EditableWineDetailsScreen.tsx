@@ -1473,7 +1473,7 @@ export default function EditableWineDetailsScreen({
                   {safeWine.color === 'red' ? 'Rouge' : 
                    safeWine.color === 'white' ? 'Blanc' : 
                    safeWine.color === 'rose' ? 'Rosé' : 
-                   safeWine.color === 'sparkling' ? 'Effervescent' : 'Vin'}
+                   safeWine.color === 'sparkling' ? 'Pétillant' : 'Vin'}
                 </Text>
                 {!isVisitedReadOnly && (
                   <Ionicons name="chevron-down" size={16} color="#CCCCCC" style={styles.chevronIcon} />
@@ -1961,7 +1961,7 @@ export default function EditableWineDetailsScreen({
                   { key: 'red', label: 'Rouge', color: VeeniColors.wine.red },
                   { key: 'white', label: 'Blanc', color: VeeniColors.wine.white },
                   { key: 'rose', label: 'Rosé', color: VeeniColors.wine.rose },
-                  { key: 'sparkling', label: 'Effervescent', color: VeeniColors.wine.sparkling },
+                  { key: 'sparkling', label: 'Pétillant', color: VeeniColors.wine.sparkling },
                 ]}
                 keyExtractor={(item) => item.key}
                 renderItem={({ item, index }) => (

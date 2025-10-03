@@ -24,7 +24,7 @@ const FILTER_OPTIONS = [
   { key: 'red', label: 'Rouge', icon: 'wine', color: '#FF4F8B' },
   { key: 'white', label: 'Blanc', icon: 'wine', color: '#FFF8DC' },
   { key: 'rose', label: 'Rosé', icon: 'wine', color: '#FFB6C1' },
-  { key: 'sparkling', label: 'Effervescent', icon: 'wine', color: '#FFD700' },
+  { key: 'sparkling', label: 'Pétillant', icon: 'wine', color: '#FFD700' },
 ];
 
 const TABS = [

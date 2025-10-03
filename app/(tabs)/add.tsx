@@ -163,9 +163,9 @@ export default function AddScreen() {
               grapes: wine.cépages || [],
               imageUri: photoUri, // Garder l'URI locale pour l'instant, upload dans useWines
               color: wine.type === 'Rouge' ? 'red' : 
-                     wine.type === 'Blanc' ? 'white' : 
-                     wine.type === 'Rosé' ? 'rose' : 
-                     wine.type === 'Effervescent' ? 'sparkling' : 'red',
+                    wine.type === 'Blanc' ? 'white' : 
+                    wine.type === 'Rosé' ? 'rose' : 
+                    wine.type === 'Pétillant' ? 'sparkling' : 'red',
               rawText: wine.rawText || '',
             };
             detectedWines.push(detectedWine);

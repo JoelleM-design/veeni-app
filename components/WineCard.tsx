@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import {
     Dimensions,
@@ -160,10 +161,10 @@ export const WineCard: React.FC<WineCardProps> = ({
       activeOpacity={0.8}
       disabled={readOnly}
     >
-      {/* Layout principal en row */}
+      {/* Layout principal: image horizontale en haut + texte en bas */}
       <View style={[styles.rowContainer, compact && styles.compactRowContainer]}>
-        {/* Image du vin à gauche */}
-        <View style={[styles.imageCol, compact && styles.compactImageCol]}>
+        {/* Image du vin en haut */}
+        <View style={styles.imageCol}>
           <View style={styles.imageWrapper}>
             {safeWine.imageUri ? (
               <>
@@ -173,6 +174,12 @@ export const WineCard: React.FC<WineCardProps> = ({
                   contentFit="cover"
                   onLoad={() => {}}
                   onError={() => {}}
+                />
+                {/* Dégradé vers la zone texte */}
+                <LinearGradient
+                  colors={['transparent', 'rgba(42,42,42,0.6)', 'rgba(42,42,42,1)']}
+                  locations={[0.6, 0.85, 1]}
+                  style={styles.imageToTextGradient}
                 />
               </>
             ) : (
@@ -197,37 +204,27 @@ export const WineCard: React.FC<WineCardProps> = ({
                 />
               </TouchableOpacity>
             )}
-            {/* Contrôles de stock en overlay (sur la photo) */}
-            {showStockButtons && !readOnly && safeWine.origin !== 'tasted' && (
-              <View style={styles.stockOverlayRow}>
-                <TouchableOpacity
-                  style={styles.stockButton}
-                  onPress={onRemoveBottle}
-                  disabled={safeWine.stock <= 0}
-                >
-                  <Ionicons
-                    name="remove"
-                    size={20}
-                    color={safeWine.stock > 0 ? '#FFFFFF' : '#999'}
-                  />
-                </TouchableOpacity>
-                <Text style={styles.stockOverlayText}>{String(safeWine.stock)}</Text>
-                <TouchableOpacity
-                  style={styles.stockButton}
-                  onPress={onAddBottle}
-                >
-                  <Ionicons
-                    name="add"
-                    size={20}
-                    color="#FFFFFF"
-                  />
-                </TouchableOpacity>
+            {/* Indicateur souvenirs aligné à gauche et sur la même baseline */}
+            {hasMemory && (
+              <View style={styles.memoryLeftRow}>
+                <Text style={styles.memoryLeftText}>Souvenir</Text>
+                {memory?.tagged_friends && memory.tagged_friends.length > 0 && (
+                  memory.tagged_friends.slice(0, 3).map((f, idx) => (
+                    f?.avatar ? (
+                      <ExpoImage key={f.id || idx} source={{ uri: f.avatar }} style={styles.socialAvatar} />
+                    ) : (
+                      <View key={f.id || idx} style={styles.socialAvatarPlaceholder}>
+                        <Text style={styles.socialAvatarInitial}>{(f?.first_name || '?').charAt(0).toUpperCase()}</Text>
+                      </View>
+                    )
+                  ))
+                )}
               </View>
             )}
             
           </View>
         </View>
-        {/* Bloc infos à droite */}
+        {/* Bloc infos en bas */}
         <View style={styles.infoCol}>
           {/* Section supérieure : nom */}
           <View style={styles.headerRow}>
@@ -246,18 +243,18 @@ export const WineCard: React.FC<WineCardProps> = ({
               <Text style={styles.vintageText}>{String(safeWine.vintage)}</Text>
             )}
             
-            {/* 3. Type de vin avec icône */}
-            <View style={styles.wineTypeRow}>
+            {/* 3. Type de vin en label (style filtre) */}
+            <View style={styles.typeChip}>
               <Ionicons 
                 name={getWineTypeIcon(safeWine.color)} 
-                size={16} 
+                size={12} 
                 color={getWineTypeColor(safeWine.color)}
-                style={styles.wineTypeIcon}
+                style={styles.typeChipIcon}
               />
-              <Text style={styles.wineTypeText}>
+              <Text style={styles.typeChipText}>
                 {safeWine.color === 'red' ? 'Rouge' : 
                  safeWine.color === 'white' ? 'Blanc' : 
-                 safeWine.color === 'rose' ? 'Rosé' : 'Effervescent'}
+                 safeWine.color === 'rose' ? 'Rosé' : 'Pétillant'}
               </Text>
             </View>
             
@@ -357,25 +354,22 @@ export const WineCard: React.FC<WineCardProps> = ({
             )}
           </View>
           
-          {/* Section inférieure : actions et footer (avatars déplacés ici) */}
+          {/* Section inférieure : actions et footer */}
           <View style={styles.bottomSection}>
-            {/* Avatars souvenirs dans la zone des boutons (échange d'emplacement) */}
-            {hasMemory && (
-              <View style={styles.avatarsRowInBottom}>
-                <Text style={[styles.regionCountryText, styles.souvenirLabel]}>Souvenir</Text>
-                {memory?.tagged_friends && memory.tagged_friends.length > 0 ? (
-                  memory.tagged_friends.slice(0, 3).map((f, idx) => (
-                    f?.avatar ? (
-                      <ExpoImage key={f.id || idx} source={{ uri: f.avatar }} style={styles.bottomAvatar} />
-                    ) : (
-                      <View key={f.id || idx} style={styles.bottomAvatarPlaceholder}>
-                        <Text style={styles.socialAvatarInitial}>{(f?.first_name || '?').charAt(0).toUpperCase()}</Text>
-                      </View>
-                    )
-                  ))
-                ) : (
-                  <Text style={styles.socialText}>({count}) souvenir{(count || 0) > 1 ? 's' : ''}</Text>
-                )}
+            {/* Boutons stock (dans la zone texte) */}
+            {showStockButtons && !readOnly && safeWine.origin !== 'tasted' && (
+              <View style={styles.stockRow}>
+                <TouchableOpacity
+                  style={styles.stockButton}
+                  onPress={onRemoveBottle}
+                  disabled={safeWine.stock <= 0}
+                >
+                  <Ionicons name="remove" size={20} color={safeWine.stock > 0 ? '#FFFFFF' : '#999'} />
+                </TouchableOpacity>
+                <Text style={styles.stockText}>{String(safeWine.stock)}</Text>
+                <TouchableOpacity style={styles.stockButton} onPress={onAddBottle}>
+                  <Ionicons name="add" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
               </View>
             )}
 
@@ -537,10 +531,10 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   rowContainer: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'stretch',
     width: '100%',
-    height: 300, // Même hauteur que l'image
+    height: 440, // Hauteur globale selon Figma
     backgroundColor: '#2A2A2A',
     borderRadius: 16,
     overflow: 'hidden',
@@ -553,11 +547,11 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   imageCol: {
-    width: '50%',
-    height: '100%',
+    width: '100%',
+    height: '50%',
     backgroundColor: 'transparent',
     borderTopLeftRadius: 16,
-    borderBottomLeftRadius: 16,
+    borderBottomLeftRadius: 0,
     padding: 0,
     overflow: 'hidden',
     justifyContent: 'flex-start',
@@ -568,7 +562,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderTopLeftRadius: 16,
-    borderBottomLeftRadius: 16,
+    borderBottomLeftRadius: 0,
     overflow: 'hidden',
     position: 'relative',
     flex: 1,
@@ -578,13 +572,20 @@ const styles = StyleSheet.create({
     height: '100%',
     flex: 1,
     borderTopLeftRadius: 16,
-    borderBottomLeftRadius: 16,
+    borderBottomLeftRadius: 0,
     alignSelf: 'stretch',
     position: 'absolute',
     top: 0,
     bottom: 0,
     left: 0,
     right: 0,
+  },
+  imageToTextGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: -1, // chevauchement pour fondu parfait
+    height: 80,
   },
   likeButton: {
     position: 'absolute',
@@ -623,18 +624,53 @@ const styles = StyleSheet.create({
   },
   memoryOverlayRow: {
     position: 'absolute',
-    bottom: 8,
+    top: 8,
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    zIndex: 2,
+  },
+  memoryTopLeft: {
+    position: 'absolute',
+    top: 8,
     left: 0,
     right: 0,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    zIndex: 2,
+  },
+  memoryLeftRow: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 16,
+    paddingLeft: 8,
+    paddingRight: 4,
+    paddingVertical: 4,
+    zIndex: 2,
+  },
+  memoryLeftText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginRight: 2,
+  },
+  memoryCenteredRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    zIndex: 2,
   },
   memoryOverlayAvatar: {
     width: 40,
@@ -680,60 +716,72 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '400',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   infoCol: {
-    width: '50%',
-    padding: 6,
+    width: '100%',
+    padding: 14,
     justifyContent: 'flex-start',
-    height: '100%',
+    height: '50%',
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   wineName: {
     color: '#FFF',
     fontSize: 18,
     fontWeight: 'bold',
     flex: 1,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   domaine: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 12,
+    marginBottom: 8,
+  },
+  wineTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  wineTypeText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '400',
+    marginLeft: 4,
+    marginBottom: 8,
   },
   regionCountryText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '400',
-    marginBottom: 10,
+    marginBottom: 8,
     lineHeight: 22,
   },
   grapesText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '400',
-    marginTop: 10,
-    marginBottom: 10,
+    marginTop: 8,
+    marginBottom: 8,
     lineHeight: 22,
   },
   priceRange: {
     fontSize: 16,
     color: '#FFD700',
     fontWeight: 'bold',
-    marginTop: 10,
-    marginBottom: 10,
+    marginTop: 8,
+    marginBottom: 8,
   },
   memoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-    marginBottom: 6,
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 8,
   },
   memoryPrefix: {
     color: '#FFF',
@@ -791,24 +839,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 16,
+    marginTop: 8,
   },
   stockText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    minWidth: 20,
+    fontSize: 18,
+    fontWeight: '700',
+    minWidth: 24,
     textAlign: 'center',
-    marginHorizontal: 6,
   },
   wineInfoSection: {
     flex: 1,
     justifyContent: 'flex-start',
   },
   bottomSection: {
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    
   },
   avatarsRowInBottom: {
     flexDirection: 'row',
@@ -866,7 +916,7 @@ const styles = StyleSheet.create({
     height: 24, // multiple de 8
     borderRadius: 12,
     overflow: 'hidden',
-    marginHorizontal: 8, // multiple de 8
+    marginHorizontal: 4, // plus serré
   },
   // Avatars en bas (alignés avec les boutons, même taille)
   bottomAvatar: {
@@ -937,5 +987,24 @@ const styles = StyleSheet.create({
   compactImageCol: {
     width: 80, // Largeur réduite
     height: 120, // Hauteur réduite
+  },
+  typeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#393C40', borderWidth: 0,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  typeChipIcon: {
+    marginRight: 4,
+    marginTop: -1,
+  },
+  typeChipText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
 }); 

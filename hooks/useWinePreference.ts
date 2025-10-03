@@ -21,7 +21,7 @@ export function useWinePreference(wines: any[] | null | undefined): WinePreferen
     red: 'rouge',
     white: 'blanc',
     rose: 'rosé',
-    sparkling: 'effervescent',
+    sparkling: 'pétillant',
   };
 
   // Calculer la préférence basée sur les vins de cave
