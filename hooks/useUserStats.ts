@@ -57,11 +57,12 @@ export function useUserStats(userId: string | null) {
           return;
         }
 
-        // Récupérer les dégustations
+        // Récupérer les dégustations (uniquement les stock_change qui réduisent le stock)
         const { data: tastedWines, error: tastedError } = await supabase
           .from('wine_history')
-          .select('wine_id')
-          .eq('user_id', userId);
+          .select('wine_id, previous_amount, new_amount')
+          .eq('user_id', userId)
+          .eq('event_type', 'stock_change');
 
         if (tastedError) {
           console.error('❌ Erreur récupération dégustations:', tastedError);
@@ -86,7 +87,11 @@ export function useUserStats(userId: string | null) {
         const roseBottles = roseWines.reduce((sum, w) => sum + (w.amount || 0), 0);
         const sparklingBottles = sparklingWines.reduce((sum, w) => sum + (w.amount || 0), 0);
 
-        const uniqueTastedWines = new Set(tastedWines?.map(t => t.wine_id) || []).size;
+        // Filtrer uniquement les événements avec réduction de stock
+        const validTastedEvents = (tastedWines || []).filter((event: any) => {
+          return Number(event.previous_amount) > Number(event.new_amount);
+        });
+        const uniqueTastedWines = new Set(validTastedEvents.map(t => t.wine_id)).size;
 
         const stats: UserStats = {
           total_wines: wines.length,
