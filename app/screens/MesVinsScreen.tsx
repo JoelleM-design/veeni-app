@@ -388,7 +388,7 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
                 />
               );
             })()}
-            <View style={{ marginTop: 24 }} />
+            <View style={{ marginTop: 10 }} />
             <SearchFilterBar
               value={search}
               onChange={setSearch}
@@ -478,9 +478,9 @@ const styles = StyleSheet.create({
   },
   fixedHeader: {
     backgroundColor: '#222',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
     zIndex: 10,
     position: 'relative',
   },
@@ -490,15 +490,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#2A2A2A',
     borderRadius: 16,
-    padding: 4,
+    padding: 2,
   },
   tabBtn: {
     flex: 1,
     backgroundColor: 'transparent',
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginHorizontal: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginHorizontal: 1,
     alignItems: 'center',
   },
   tabBtnActive: {
@@ -517,11 +517,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 140,
+    paddingHorizontal: 12,
+    paddingBottom: 80,
   },
   listContainer: {
-    marginTop: 8,
+    marginTop: 6,
   },
   emptyText: {
     color: '#B0B0B0',

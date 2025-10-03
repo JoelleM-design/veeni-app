@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image as ExpoImage, Image as ExpoImg } from 'expo-image';
+import { Image as ExpoImage } from 'expo-image';
 import React from 'react';
 import {
     Dimensions,
@@ -197,32 +197,32 @@ export const WineCard: React.FC<WineCardProps> = ({
                 />
               </TouchableOpacity>
             )}
-            {/* Avatars souvenirs en overlay sur la photo */}
-            {hasMemory && (
-              <>
-                {memory?.tagged_friends && memory.tagged_friends.length > 0 ? (
-                  <View style={styles.memoryOverlayRow}>
-                    {memory.tagged_friends.slice(0, 3).map((f, idx) => (
-                      f?.avatar ? (
-                        <ExpoImg key={f.id || idx} source={{ uri: f.avatar }} style={styles.memoryOverlayAvatar} />
-                      ) : (
-                        <View key={f.id || idx} style={[styles.memoryOverlayAvatar, styles.memoryOverlayAvatarPlaceholder]}>
-                          <Text style={styles.memoryOverlayAvatarInitial}>{(f?.first_name || '?').charAt(0).toUpperCase()}</Text>
-                        </View>
-                      )
-                    ))}
-                    {memory.tagged_friends.length > 3 && (
-                      <View style={styles.memoryMore}>
-                        <Text style={styles.memoryOverlayMoreText}>+{memory.tagged_friends.length - 3}</Text>
-                      </View>
-                    )}
-                  </View>
-                ) : (
-                  <View style={styles.memoryOverlayCount}>
-                    <Text style={styles.memoryOverlayCountText}>({count}) souvenir{(count || 0) > 1 ? 's' : ''}</Text>
-                  </View>
-                )}
-              </>
+            {/* Contrôles de stock en overlay (sur la photo) */}
+            {showStockButtons && !readOnly && safeWine.origin !== 'tasted' && (
+              <View style={styles.stockOverlayRow}>
+                <TouchableOpacity
+                  style={styles.stockButton}
+                  onPress={onRemoveBottle}
+                  disabled={safeWine.stock <= 0}
+                >
+                  <Ionicons
+                    name="remove"
+                    size={20}
+                    color={safeWine.stock > 0 ? '#FFFFFF' : '#999'}
+                  />
+                </TouchableOpacity>
+                <Text style={styles.stockOverlayText}>{String(safeWine.stock)}</Text>
+                <TouchableOpacity
+                  style={styles.stockButton}
+                  onPress={onAddBottle}
+                >
+                  <Ionicons
+                    name="add"
+                    size={20}
+                    color="#FFFFFF"
+                  />
+                </TouchableOpacity>
+              </View>
             )}
             
           </View>
@@ -357,8 +357,28 @@ export const WineCard: React.FC<WineCardProps> = ({
             )}
           </View>
           
-          {/* Section inférieure : actions et footer */}
+          {/* Section inférieure : actions et footer (avatars déplacés ici) */}
           <View style={styles.bottomSection}>
+            {/* Avatars souvenirs dans la zone des boutons (échange d'emplacement) */}
+            {hasMemory && (
+              <View style={styles.avatarsRowInBottom}>
+                <Text style={[styles.regionCountryText, styles.souvenirLabel]}>Souvenir</Text>
+                {memory?.tagged_friends && memory.tagged_friends.length > 0 ? (
+                  memory.tagged_friends.slice(0, 3).map((f, idx) => (
+                    f?.avatar ? (
+                      <ExpoImage key={f.id || idx} source={{ uri: f.avatar }} style={styles.bottomAvatar} />
+                    ) : (
+                      <View key={f.id || idx} style={styles.bottomAvatarPlaceholder}>
+                        <Text style={styles.socialAvatarInitial}>{(f?.first_name || '?').charAt(0).toUpperCase()}</Text>
+                      </View>
+                    )
+                  ))
+                ) : (
+                  <Text style={styles.socialText}>({count}) souvenir{(count || 0) > 1 ? 's' : ''}</Text>
+                )}
+              </View>
+            )}
+
             {/* Affichage du stock en mode lecture */}
             {showStock && readOnly && (
               <View style={styles.stockDisplay}>
@@ -367,32 +387,7 @@ export const WineCard: React.FC<WineCardProps> = ({
             )}
             
             {/* Boutons stock (seulement sur Ma cave, pas pour les dégustés) */}
-            {showStockButtons && !readOnly && safeWine.origin !== 'tasted' && (
-              <View style={styles.stockRow}>
-                <TouchableOpacity
-                  style={styles.stockButton}
-                  onPress={onRemoveBottle}
-                  disabled={safeWine.stock <= 0}
-                >
-                  <Ionicons
-                    name="remove"
-                    size={20}
-                    color={safeWine.stock > 0 ? '#FFFFFF' : '#999'}
-                  />
-                </TouchableOpacity>
-                <Text style={styles.stockText}>{String(safeWine.stock)}</Text>
-                <TouchableOpacity
-                  style={styles.stockButton}
-                  onPress={onAddBottle}
-                >
-                  <Ionicons
-                    name="add"
-                    size={20}
-                    color="#FFFFFF"
-                  />
-                </TouchableOpacity>
-              </View>
-            )}
+            {/* Boutons stock retirés d'ici (désormais sur la photo) */}
             {/* Footer personnalisé */}
             {footer && (
               <View style={styles.footer}>{footer}</View>
@@ -549,22 +544,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#2A2A2A',
     borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 12,
+    marginBottom: 0,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    position: 'relative',
   },
   imageCol: {
-    width: 200, // Largeur fixe comme la fiche détaillée
-    height: 300, // Hauteur fixe comme la fiche détaillée
-    backgroundColor: '#222',
+    width: '50%',
+    height: '100%',
+    backgroundColor: 'transparent',
     borderTopLeftRadius: 16,
     borderBottomLeftRadius: 16,
+    padding: 0,
     overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
+    position: 'relative',
   },
   imageWrapper: {
     width: '100%',
@@ -573,15 +571,20 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 16,
     overflow: 'hidden',
     position: 'relative',
+    flex: 1,
   },
   wineImage: {
     width: '100%',
     height: '100%',
+    flex: 1,
     borderTopLeftRadius: 16,
     borderBottomLeftRadius: 16,
+    alignSelf: 'stretch',
     position: 'absolute',
     top: 0,
+    bottom: 0,
     left: 0,
+    right: 0,
   },
   likeButton: {
     position: 'absolute',
@@ -595,13 +598,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 2,
   },
+  stockOverlayRow: {
+    position: 'absolute',
+    bottom: 8,
+    left: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 0,
+    height: 48,
+    zIndex: 2,
+  },
+  stockOverlayText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    minWidth: 24,
+    textAlign: 'center',
+  },
   memoryOverlayRow: {
     position: 'absolute',
     bottom: 8,
-    left: '50%',
-    transform: [{ translateX: -60 }],
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 20,
@@ -610,14 +637,15 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   memoryOverlayAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     overflow: 'hidden',
   },
   memoryOverlayAvatarPlaceholder: {
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#888',
   },
   memoryOverlayAvatarInitial: {
     color: '#fff',
@@ -655,9 +683,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   infoCol: {
-    flex: 1,
+    width: '50%',
     padding: 6,
     justifyContent: 'flex-start',
+    height: '100%',
   },
   headerRow: {
     flexDirection: 'row',
@@ -681,21 +710,23 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '400',
-    marginBottom: 6,
+    marginBottom: 10,
+    lineHeight: 22,
   },
   grapesText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '400',
-    marginTop: 6,
-    marginBottom: 6,
+    marginTop: 10,
+    marginBottom: 10,
+    lineHeight: 22,
   },
   priceRange: {
     fontSize: 16,
     color: '#FFD700',
     fontWeight: 'bold',
-    marginTop: 6,
-    marginBottom: 6,
+    marginTop: 10,
+    marginBottom: 10,
   },
   memoryRow: {
     flexDirection: 'row',
@@ -775,12 +806,27 @@ const styles = StyleSheet.create({
   },
   bottomSection: {
     justifyContent: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  avatarsRowInBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'absolute',
+    right: 12,
+    bottom: 8,
+    zIndex: 3,
+    backgroundColor: 'transparent',
+  },
+  souvenirLabel: {
+    marginRight: 6,
   },
   // Nouveaux styles pour les informations ajoutées
   wineTypeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 14,
   },
   wineTypeIcon: {
     marginTop: -2, // Ajustement pour aligner l'icône avec le texte
@@ -790,7 +836,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '400',
     marginLeft: 4,
-    marginBottom: 6,
+    marginBottom: 10,
   },
   regionRow: {
     flexDirection: 'row',
@@ -821,6 +867,23 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     marginHorizontal: 8, // multiple de 8
+  },
+  // Avatars en bas (alignés avec les boutons, même taille)
+  bottomAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginHorizontal: 3,
+  },
+  bottomAvatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#888',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 3,
   },
   socialAvatarPlaceholder: {
     width: 24,
@@ -853,9 +916,9 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   stockButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#393C40',
     justifyContent: 'center',
     alignItems: 'center',

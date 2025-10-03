@@ -56,9 +56,9 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
   },
   statsOutlineBox: {
-    marginTop: 18,
-    marginBottom: 8,
-    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 4,
+    marginHorizontal: 12,
     backgroundColor: 'transparent',
     paddingVertical: 6,
     paddingHorizontal: 0,
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 8,
   },
   totalValueOutline: {
     fontWeight: 'bold',

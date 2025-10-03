@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   wineCardContainer: {
-    marginBottom: 16,
+    marginBottom: 0,
     position: 'relative',
   },
   mentionedBadge: {
