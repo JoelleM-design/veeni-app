@@ -388,6 +388,19 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
                   key={`stats-${tab}-${refreshKey}-${JSON.stringify(statsToUse)}`}
                   values={statsToUse} 
                   totalLabel={tab === 'cellar' ? 'bouteilles' : tab === 'tasted' ? 'dégustations' : 'vins'}
+                  onColorPress={(color) => {
+                    // Toggle simple: un seul filtre couleur à la fois
+                    setActiveFilters((prev) => {
+                      if (prev.length === 1 && prev[0] === color) return [];
+                      return [color];
+                    });
+                    // Remonter en haut pour feedback immédiat
+                    setTimeout(() => {
+                      try {
+                        // no-op si non disponible
+                      } catch {}
+                    }, 0);
+                  }}
                 />
               );
             })()}

@@ -6,9 +6,10 @@ interface StatsBarProps {
   labels?: { red: string; white: string; rose: string; sparkling: string };
   totalLabel?: string;
   style?: any;
+  onColorPress?: (color: 'red' | 'white' | 'rose' | 'sparkling') => void;
 }
 
-export const StatsBar: React.FC<StatsBarProps> = ({ values, labels, totalLabel = 'vins', style }) => {
+export const StatsBar: React.FC<StatsBarProps> = ({ values, labels, totalLabel = 'vins', style, onColorPress }) => {
   console.log('🔄 StatsBar: Re-rendu avec valeurs:', values); // Debug log
   const defaultLabels = {
     red: 'rouges',
@@ -21,22 +22,22 @@ export const StatsBar: React.FC<StatsBarProps> = ({ values, labels, totalLabel =
     <View style={[styles.container, style]}>
       <View style={[styles.statsOutlineBox, style]}>
         <View style={styles.statsRowOutline}>
-          <View style={styles.statItemOutline}>
+          <View style={styles.statItemOutline} onStartShouldSetResponder={() => !!onColorPress} onResponderRelease={() => onColorPress && onColorPress('red')}>
             <Text style={styles.statValueOutline}>{values.red}</Text>
             <Text style={styles.statLabelOutline}>{l.red}</Text>
           </View>
           <View style={styles.separator} />
-          <View style={styles.statItemOutline}>
+          <View style={styles.statItemOutline} onStartShouldSetResponder={() => !!onColorPress} onResponderRelease={() => onColorPress && onColorPress('white')}>
             <Text style={styles.statValueOutline}>{values.white}</Text>
             <Text style={styles.statLabelOutline}>{l.white}</Text>
           </View>
           <View style={styles.separator} />
-          <View style={styles.statItemOutline}>
+          <View style={styles.statItemOutline} onStartShouldSetResponder={() => !!onColorPress} onResponderRelease={() => onColorPress && onColorPress('rose')}>
             <Text style={styles.statValueOutline}>{values.rose}</Text>
             <Text style={styles.statLabelOutline}>{l.rose}</Text>
           </View>
           <View style={styles.separator} />
-          <View style={styles.statItemOutline}>
+          <View style={styles.statItemOutline} onStartShouldSetResponder={() => !!onColorPress} onResponderRelease={() => onColorPress && onColorPress('sparkling')}>
             <Text style={styles.statValueOutline}>{values.sparkling}</Text>
             <Text style={styles.statLabelOutline}>{l.sparkling}</Text>
           </View>

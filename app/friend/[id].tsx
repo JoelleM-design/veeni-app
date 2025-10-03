@@ -628,6 +628,12 @@ export default function FriendDetailScreen() {
           <StatsBar 
             values={localStats} 
             totalLabel={tab === 'cellar' ? 'bouteilles' : tab === 'tasted' ? 'dégustations' : 'vins'}
+            onColorPress={(color) => {
+              setActiveFilters((prev) => {
+                if (prev.length === 1 && prev[0] === color) return [];
+                return [color];
+              });
+            }}
           />
 
           {/* Barre de recherche et filtres */}
