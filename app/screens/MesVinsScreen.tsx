@@ -388,6 +388,7 @@ export default function MesVinsScreen({ onWinePress }: MesVinsScreenProps) {
                   key={`stats-${tab}-${refreshKey}-${JSON.stringify(statsToUse)}`}
                   values={statsToUse} 
                   totalLabel={tab === 'cellar' ? 'bouteilles' : tab === 'tasted' ? 'dégustations' : 'vins'}
+                  selectedColor={activeFilters.length === 1 ? (activeFilters[0] as any) : null}
                   onColorPress={(color) => {
                     // Toggle simple: un seul filtre couleur à la fois
                     setActiveFilters((prev) => {

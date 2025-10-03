@@ -7,9 +7,10 @@ interface StatsBarProps {
   totalLabel?: string;
   style?: any;
   onColorPress?: (color: 'red' | 'white' | 'rose' | 'sparkling') => void;
+  selectedColor?: 'red' | 'white' | 'rose' | 'sparkling' | null;
 }
 
-export const StatsBar: React.FC<StatsBarProps> = ({ values, labels, totalLabel = 'vins', style, onColorPress }) => {
+export const StatsBar: React.FC<StatsBarProps> = ({ values, labels, totalLabel = 'vins', style, onColorPress, selectedColor }) => {
   console.log('🔄 StatsBar: Re-rendu avec valeurs:', values); // Debug log
   const defaultLabels = {
     red: 'rouges',
@@ -18,28 +19,29 @@ export const StatsBar: React.FC<StatsBarProps> = ({ values, labels, totalLabel =
     sparkling: 'pétillants',
   };
   const l = labels || defaultLabels;
+  const isDim = (c: 'red' | 'white' | 'rose' | 'sparkling') => !!selectedColor && selectedColor !== c;
   return (
     <View style={[styles.container, style]}>
       <View style={[styles.statsOutlineBox, style]}>
         <View style={styles.statsRowOutline}>
           <View style={styles.statItemOutline} onStartShouldSetResponder={() => !!onColorPress} onResponderRelease={() => onColorPress && onColorPress('red')}>
-            <Text style={styles.statValueOutline}>{values.red}</Text>
-            <Text style={styles.statLabelOutline}>{l.red}</Text>
+            <Text style={[styles.statValueOutline, isDim('red') && styles.dimmedValueOutline]}>{values.red}</Text>
+            <Text style={[styles.statLabelOutline, isDim('red') && styles.dimmedLabelOutline]}>{l.red}</Text>
           </View>
           <View style={styles.separator} />
           <View style={styles.statItemOutline} onStartShouldSetResponder={() => !!onColorPress} onResponderRelease={() => onColorPress && onColorPress('white')}>
-            <Text style={styles.statValueOutline}>{values.white}</Text>
-            <Text style={styles.statLabelOutline}>{l.white}</Text>
+            <Text style={[styles.statValueOutline, isDim('white') && styles.dimmedValueOutline]}>{values.white}</Text>
+            <Text style={[styles.statLabelOutline, isDim('white') && styles.dimmedLabelOutline]}>{l.white}</Text>
           </View>
           <View style={styles.separator} />
           <View style={styles.statItemOutline} onStartShouldSetResponder={() => !!onColorPress} onResponderRelease={() => onColorPress && onColorPress('rose')}>
-            <Text style={styles.statValueOutline}>{values.rose}</Text>
-            <Text style={styles.statLabelOutline}>{l.rose}</Text>
+            <Text style={[styles.statValueOutline, isDim('rose') && styles.dimmedValueOutline]}>{values.rose}</Text>
+            <Text style={[styles.statLabelOutline, isDim('rose') && styles.dimmedLabelOutline]}>{l.rose}</Text>
           </View>
           <View style={styles.separator} />
           <View style={styles.statItemOutline} onStartShouldSetResponder={() => !!onColorPress} onResponderRelease={() => onColorPress && onColorPress('sparkling')}>
-            <Text style={styles.statValueOutline}>{values.sparkling}</Text>
-            <Text style={styles.statLabelOutline}>{l.sparkling}</Text>
+            <Text style={[styles.statValueOutline, isDim('sparkling') && styles.dimmedValueOutline]}>{values.sparkling}</Text>
+            <Text style={[styles.statLabelOutline, isDim('sparkling') && styles.dimmedLabelOutline]}>{l.sparkling}</Text>
           </View>
         </View>
       </View>
@@ -99,6 +101,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
     textAlign: 'center',
     lineHeight: 16,
+  },
+  dimmedValueOutline: {
+    color: '#777',
+  },
+  dimmedLabelOutline: {
+    color: '#777',
   },
   totalRowOutline: {
     flexDirection: 'row',
