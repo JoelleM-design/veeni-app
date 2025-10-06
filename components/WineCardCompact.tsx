@@ -158,9 +158,9 @@ export const WineCardCompact: React.FC<WineCardCompactProps> = ({
             <Text style={styles.wineName} numberOfLines={2}>{truncateText(safeWine.name || 'Nom inconnu', 30)}</Text>
           </View>
           
-          {/* Section centrale : informations du vin */}
+          {/* Section centrale : informations du vin - EXACTEMENT 5 LIGNES MAX */}
           <View style={styles.wineInfoSection}>
-            {/* 1. Domaine/Producteur */}
+            {/* 1. Domaine/Producteur (seulement si différent de "Domaine inconnu") */}
             {safeWine.domaine && safeWine.domaine !== 'Domaine inconnu' && (
               <Text style={styles.domaine} numberOfLines={1}>{truncateText(safeWine.domaine, 25)}</Text>
             )}
@@ -185,7 +185,7 @@ export const WineCardCompact: React.FC<WineCardCompactProps> = ({
               </Text>
             </View>
             
-            {/* 4. Région et Pays sur la même ligne */}
+            {/* 4. Région et Pays */}
             {(safeWine.region || safeWine.country) && (
               <Text style={styles.regionCountryText} numberOfLines={1}>
                 {safeWine.region && safeWine.country ? 
@@ -194,14 +194,6 @@ export const WineCardCompact: React.FC<WineCardCompactProps> = ({
                     safeWine.region :
                     `${getCountryFlag(safeWine.country)} ${safeWine.country}`
                 }
-              </Text>
-            )}
-            
-            {/* 5. Cépages */}
-            {safeWine.grapes.length > 0 && (
-              <Text style={styles.grapesText} numberOfLines={1}>
-                {safeWine.grapes.slice(0, 2).join(', ')}
-                {safeWine.grapes.length > 2 && '...'}
               </Text>
             )}
 
@@ -345,6 +337,24 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     marginLeft: 4,
     marginBottom: 6,
+  },
+  vintageTypeRegionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  regionText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    flex: 1,
+    minWidth: 0,
+  },
+  ratingText: {
+    color: '#FFD700',
+    fontSize: 16,
+    fontWeight: '600',
   },
   regionCountryText: {
     color: '#FFFFFF',

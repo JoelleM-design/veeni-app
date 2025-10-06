@@ -244,9 +244,9 @@ export const WineCard: React.FC<WineCardProps> = ({
             <Text style={styles.wineName} numberOfLines={2}>{truncateText(safeWine.name || 'Nom inconnu', 40)}</Text>
           </View>
           
-          {/* Section centrale : informations du vin - ordre spécifique */}
+          {/* Section centrale : informations du vin - EXACTEMENT 5 LIGNES MAX */}
           <View style={styles.wineInfoSection}>
-            {/* 1. Domaine/Producteur */}
+            {/* 1. Domaine/Producteur (seulement si différent de "Domaine inconnu") */}
             {safeWine.domaine && safeWine.domaine !== 'Domaine inconnu' && (
               <Text style={styles.domaine} numberOfLines={1}>{truncateText(safeWine.domaine, 35)}</Text>
             )}
@@ -271,7 +271,7 @@ export const WineCard: React.FC<WineCardProps> = ({
               </Text>
             </View>
             
-            {/* 4. Région et Pays sur la même ligne */}
+            {/* 4. Région et Pays */}
             {(safeWine.region || safeWine.country) && (
               <Text style={styles.regionCountryText} numberOfLines={1}>
                 {safeWine.region && safeWine.country ? 
@@ -283,20 +283,6 @@ export const WineCard: React.FC<WineCardProps> = ({
               </Text>
             )}
             
-            {/* 6. Cépages */}
-            {safeWine.grapes.length > 0 && (
-              <Text style={styles.grapesText} numberOfLines={1}>
-                {safeWine.grapes.slice(0, 3).join(', ')}
-                {safeWine.grapes.length > 3 && '...'}
-              </Text>
-            )}
-            
-            {/* Prix */}
-            {safeWine.priceRange && (
-              <Text style={styles.priceRange}>
-                {safeWine.priceRange}
-              </Text>
-            )}
 
 
             {/* Information spécifique aux vins dégustés */}
@@ -358,13 +344,6 @@ export const WineCard: React.FC<WineCardProps> = ({
               </View>
             )}
             
-            {/* Note personnelle */}
-            {safeWine.note && safeWine.note > 0 && (
-              <View style={styles.ratingContainer}>
-                <Ionicons name="star" size={14} color="#FFD700" />
-                <Text style={styles.rating}>{String(safeWine.note)}/5</Text>
-              </View>
-            )}
           </View>
           
           {/* Section inférieure : actions et footer */}
@@ -513,6 +492,35 @@ const styles = StyleSheet.create({
     color: '#CCC',
     fontSize: 12,
     marginBottom: 2,
+  },
+  vintageTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 8,
+  },
+  vintageTypeRegionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  regionText: {
+    color: '#999',
+    fontSize: 12,
+    flex: 1,
+    minWidth: 0,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  ratingText: {
+    color: '#FFD700',
+    fontSize: 12,
+    fontWeight: '600',
   },
   region: {
     color: '#999',
